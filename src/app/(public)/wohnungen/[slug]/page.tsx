@@ -217,7 +217,7 @@ export default async function ApartmentDetailPage({ params }: Props) {
               <div className="mt-6 pt-6 border-t border-stone-100 space-y-2 text-xs text-stone-400">
                 <p>* Alle Preise inkl. 10% MwSt. Ortstaxe wird zusätzlich erhoben.</p>
                 <p>
-                  Kostenlose Stornierung bis 60 Tage vor Anreise.{" "}
+                  Kostenlose Stornierung bis 60 Tage vor Anreise. Unter 30 Tagen keine Erstattung.{" "}
                   <Link href="/agb" className="text-alpine-600 hover:text-alpine-700 underline">
                     Buchungsbedingungen
                   </Link>
