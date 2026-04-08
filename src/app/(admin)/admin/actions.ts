@@ -288,6 +288,195 @@ export async function resendConfirmation(bookingId: string) {
   }
 }
 
+// ============================================
+// CALENDAR & BLOCKED DATES
+// ============================================
+
+/**
+ * Get all bookings and blocked dates for calendar view
+ */
+export async function getCalendarData(year: number, month: number) {
+  const supabase = createServerClient();
+
+  // Calculate date range: show full month with buffer
+  const startDate = new Date(year, month - 1, 1);
+  const endDate = new Date(year, month, 0); // last day of month
+  const start = startDate.toISOString().split("T")[0];
+  const end = endDate.toISOString().split("T")[0];
+
+  const [bookingsResult, blockedResult] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, apartment_id, first_name, last_name, check_in, check_out, status, adults, children, dogs"
+      )
+      .neq("status", "cancelled")
+      .lte("check_in", end)
+      .gte("check_out", start)
+      .order("check_in", { ascending: true }),
+    supabase
+      .from("blocked_dates")
+      .select("id, apartment_id, start_date, end_date, reason")
+      .lte("start_date", end)
+      .gte("end_date", start)
+      .order("start_date", { ascending: true }),
+  ]);
+
+  return {
+    bookings: bookingsResult.data ?? [],
+    blockedDates: blockedResult.data ?? [],
+  };
+}
+
+/**
+ * Create a blocked date range
+ */
+export async function createBlockedDate(
+  apartmentId: string,
+  startDate: string,
+  endDate: string,
+  reason: string
+) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("blocked_dates").insert({
+    apartment_id: apartmentId,
+    start_date: startDate,
+    end_date: endDate,
+    reason: reason || "Manuell gesperrt",
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/kalender");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Delete a blocked date
+ */
+export async function deleteBlockedDate(id: string) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("blocked_dates")
+    .delete()
+    .eq("id", id);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/kalender");
+  return { success: true };
+}
+
+// ============================================
+// GUESTS
+// ============================================
+
+/**
+ * Get unique guests aggregated from bookings
+ */
+export async function getGuests(search?: string) {
+  const supabase = createServerClient();
+
+  let query = supabase
+    .from("bookings")
+    .select(
+      "email, first_name, last_name, phone, city, country, total_price, check_in, check_out, status, created_at"
+    )
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false });
+
+  if (search?.trim()) {
+    const s = search.trim();
+    query = query.or(
+      `first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`
+    );
+  }
+
+  const { data, error } = await query.limit(500);
+
+  if (error) {
+    console.error("Error fetching guests:", error);
+    return [];
+  }
+
+  // Aggregate by email
+  const guestMap = new Map<
+    string,
+    {
+      email: string;
+      firstName: string;
+      lastName: string;
+      phone: string;
+      city: string;
+      country: string;
+      totalStays: number;
+      totalRevenue: number;
+      lastVisit: string;
+      firstVisit: string;
+    }
+  >();
+
+  for (const booking of data ?? []) {
+    const existing = guestMap.get(booking.email);
+    if (existing) {
+      existing.totalStays += 1;
+      existing.totalRevenue += Number(booking.total_price || 0);
+      if (booking.check_in > existing.lastVisit) {
+        existing.lastVisit = booking.check_in;
+      }
+      if (booking.created_at < existing.firstVisit) {
+        existing.firstVisit = booking.created_at;
+      }
+    } else {
+      guestMap.set(booking.email, {
+        email: booking.email,
+        firstName: booking.first_name,
+        lastName: booking.last_name,
+        phone: booking.phone,
+        city: booking.city,
+        country: booking.country,
+        totalStays: 1,
+        totalRevenue: Number(booking.total_price || 0),
+        lastVisit: booking.check_in,
+        firstVisit: booking.created_at,
+      });
+    }
+  }
+
+  return Array.from(guestMap.values()).sort(
+    (a, b) => b.lastVisit.localeCompare(a.lastVisit)
+  );
+}
+
+/**
+ * Get all bookings for a specific guest (by email)
+ */
+export async function getGuestBookings(email: string) {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select(
+      "id, apartment_id, first_name, last_name, email, phone, street, zip, city, country, check_in, check_out, adults, children, dogs, total_price, status, payment_status, notes, created_at"
+    )
+    .eq("email", email)
+    .order("check_in", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching guest bookings:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
 /**
  * Get contact messages
  */

@@ -45,6 +45,7 @@ const mainNav = [
 ];
 
 const moreItems = [
+  { label: "Gäste", href: "/admin/gaeste" },
   { label: "Aufgaben", href: "/admin/aufgaben" },
   { label: "Preise", href: "/admin/preise" },
   { label: "Einstellungen", href: "/admin/einstellungen" },

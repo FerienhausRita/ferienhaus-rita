@@ -61,7 +61,18 @@
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://www.ferienhaus-rita-kals.at/datenschutz\")",
       "Bash(git config:*)",
       "Bash(curl -s \"https://www.ferienhaus-rita-kals.at/datenschutz\")",
-      "Bash(curl -s \"https://www.ferienhaus-rita-kals.at/\")"
+      "Bash(curl -s \"https://www.ferienhaus-rita-kals.at/\")",
+      "Bash(npm ls:*)",
+      "Bash(node scripts/optimize-images.mjs)",
+      "Bash(npm run:*)",
+      "Bash(export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH)",
+      "Bash(cat node_modules/next/dist/docs/*.md)",
+      "Bash(grep -r quality node_modules/next/dist/server/config-schema*.js)",
+      "Bash(for dir:*)",
+      "Bash(do mv:*)",
+      "Bash(done)",
+      "Bash(mv page.tsx \"\\(public\\)/page.tsx\")",
+      "Bash(mv not-found.tsx \"\\(public\\)/not-found.tsx\")"
     ]
   }
 }
