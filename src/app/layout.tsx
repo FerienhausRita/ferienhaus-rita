@@ -39,7 +39,11 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "de_AT",
+    url: "https://www.ferienhaus-rita-kals.at",
     siteName: "Ferienhaus Rita",
+  },
+  twitter: {
+    card: "summary_large_image",
   },
 };
 

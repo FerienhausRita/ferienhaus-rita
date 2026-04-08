@@ -10,6 +10,12 @@ import {
   sendBookingConfirmation,
   sendBookingNotification,
 } from "@/lib/email";
+import { rateLimit } from "@/lib/rate-limit";
+
+const bookingLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  maxRequests: 5,
+});
 
 const bookingSchema = z.object({
   apartmentId: z.string().min(1),
@@ -35,6 +41,25 @@ const bookingSchema = z.object({
 
 export async function POST(request: NextRequest) {
   try {
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    const { success, remaining } = bookingLimiter.check(ip);
+    if (!success) {
+      return NextResponse.json(
+        {
+          success: false,
+          message:
+            "Zu viele Buchungsanfragen. Bitte versuchen Sie es in 15 Minuten erneut.",
+        },
+        {
+          status: 429,
+          headers: { "Retry-After": "900", "X-RateLimit-Remaining": "0" },
+        }
+      );
+    }
+
     const body = await request.json();
 
     // Validate input

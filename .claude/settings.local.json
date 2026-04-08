@@ -59,7 +59,9 @@
       "Bash(dig +short www.ferienhaus-rita-kals.at CNAME)",
       "WebFetch(domain:www.ferienhaus-rita-kals.at)",
       "Bash(curl -s -o /dev/null -w \"%{http_code}\" \"https://www.ferienhaus-rita-kals.at/datenschutz\")",
-      "Bash(git config:*)"
+      "Bash(git config:*)",
+      "Bash(curl -s \"https://www.ferienhaus-rita-kals.at/datenschutz\")",
+      "Bash(curl -s \"https://www.ferienhaus-rita-kals.at/\")"
     ]
   }
 }
