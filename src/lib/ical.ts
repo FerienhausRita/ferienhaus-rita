@@ -49,8 +49,8 @@ END:VEVENT`
  */
 export function parseICal(
   icalString: string
-): { start: string; end: string; summary: string }[] {
-  const events: { start: string; end: string; summary: string }[] = [];
+): { start: string; end: string; summary: string; description: string }[] {
+  const events: { start: string; end: string; summary: string; description: string }[] = [];
   const blocks = icalString.split("BEGIN:VEVENT");
 
   for (let i = 1; i < blocks.length; i++) {
@@ -64,11 +64,37 @@ export function parseICal(
     );
     const summaryMatch = block.match(/SUMMARY:(.*?)(?:\r?\n|\r)/);
 
+    // DESCRIPTION can be multi-line (folded with leading space/tab in iCal)
+    let description = "";
+    const descIdx = block.indexOf("DESCRIPTION:");
+    if (descIdx !== -1) {
+      // Extract from DESCRIPTION: to the next property (line not starting with space/tab)
+      const afterDesc = block.slice(descIdx + "DESCRIPTION:".length);
+      const lines = afterDesc.split(/\r?\n/);
+      const descLines: string[] = [];
+      for (let j = 0; j < lines.length; j++) {
+        if (j === 0) {
+          descLines.push(lines[j]);
+        } else if (lines[j].match(/^[ \t]/)) {
+          // Continuation line
+          descLines.push(lines[j].slice(1));
+        } else {
+          break;
+        }
+      }
+      description = descLines
+        .join("")
+        .replace(/\\n/g, " ")
+        .replace(/\\,/g, ",")
+        .trim();
+    }
+
     if (startMatch && endMatch) {
       events.push({
         start: `${startMatch[1]}-${startMatch[2]}-${startMatch[3]}`,
         end: `${endMatch[1]}-${endMatch[2]}-${endMatch[3]}`,
         summary: summaryMatch ? summaryMatch[1].trim() : "Blocked (Smoobu)",
+        description,
       });
     }
   }

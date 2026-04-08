@@ -54,7 +54,7 @@ async function runSync() {
     }
 
     try {
-      const allEvents: { start: string; end: string; summary: string }[] = [];
+      const allEvents: { start: string; end: string; summary: string; description: string }[] = [];
 
       for (const url of feedUrls) {
         try {
@@ -94,12 +94,21 @@ async function runSync() {
         const { error: insertError } = await supabase
           .from("blocked_dates")
           .insert(
-            futureEvents.map((e) => ({
-              apartment_id: apartmentId,
-              start_date: e.start,
-              end_date: e.end,
-              reason: `iCal: ${e.summary}`,
-            }))
+            futureEvents.map((e) => {
+              // Build a descriptive reason: prefer description (has guest info) over summary
+              let reason = `iCal: ${e.summary}`;
+              if (e.description) {
+                reason = `iCal: ${e.summary} – ${e.description}`;
+              }
+              // Truncate to avoid DB issues (max ~500 chars)
+              if (reason.length > 500) reason = reason.slice(0, 497) + "...";
+              return {
+                apartment_id: apartmentId,
+                start_date: e.start,
+                end_date: e.end,
+                reason,
+              };
+            })
           );
 
         if (insertError) {
@@ -128,10 +137,47 @@ async function runSync() {
   return results;
 }
 
-// GET – called by Vercel Cron every 15 minutes
+// GET – called by Vercel Cron
 export async function GET(request: NextRequest) {
   if (!verifyAuth(request)) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  // Debug mode: ?debug=true shows raw feed data without syncing
+  const debug = request.nextUrl.searchParams.get("debug") === "true";
+
+  if (debug) {
+    const debugResults: Record<string, unknown> = {};
+    for (const [apartmentId, feedUrls] of Object.entries(icalFeeds)) {
+      for (const url of feedUrls) {
+        try {
+          const response = await fetch(url, {
+            headers: { "User-Agent": "FerienhausRita/1.0" },
+          });
+          const text = await response.text();
+          const events = parseICal(text);
+          debugResults[apartmentId] = {
+            feedUrl: url.replace(/\?.*/, "?s=***"),
+            status: response.status,
+            eventCount: events.length,
+            events: events.map((e) => ({
+              start: e.start,
+              end: e.end,
+              summary: e.summary,
+              description: e.description || "(leer)",
+            })),
+            rawLength: text.length,
+          };
+        } catch (err) {
+          debugResults[apartmentId] = { error: String(err) };
+        }
+      }
+    }
+    return NextResponse.json({
+      debug: true,
+      timestamp: new Date().toISOString(),
+      results: debugResults,
+    });
   }
 
   const results = await runSync();
