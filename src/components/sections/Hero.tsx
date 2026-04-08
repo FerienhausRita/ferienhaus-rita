@@ -22,17 +22,17 @@ export default function Hero() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-24 pb-20">
-        {/* Subtitle */}
-        <div className="hero-reveal-1 mb-8">
-          <span className="inline-block text-[var(--color-gold)] text-xs sm:text-sm font-medium tracking-[0.4em] uppercase">
-            Kals am Großglockner · Osttirol
-          </span>
-        </div>
-
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-32 pb-20">
         {/* Decorative line */}
         <div className="flex justify-center mb-8">
           <div className="hero-line h-px bg-[var(--color-gold)]/60" />
+        </div>
+
+        {/* Subtitle */}
+        <div className="hero-reveal-1 mb-4">
+          <span className="inline-block text-[var(--color-gold)] text-xs sm:text-sm font-medium tracking-[0.4em] uppercase">
+            Kals am Großglockner · Osttirol
+          </span>
         </div>
 
         {/* Main heading */}

@@ -88,7 +88,7 @@ const WHITE = "#ffffff";
 const BORDER = "#e7e5e4";
 const CARD_BG = "#f5f5f4";
 
-const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://ferienhaus-rita.at";
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://ferienhaus-rita-kals.at";
 
 // ---------------------------------------------------------------------------
 // Base layout

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { apartments as staticApartments, Apartment } from "@/data/apartments";
 import { calculatePrice, formatCurrency, PriceBreakdown, PricingOverrides, getMinNightsWithOverrides } from "@/lib/pricing";
@@ -8,9 +8,11 @@ import { isAvailable } from "@/lib/availability";
 import { getMinNights } from "@/data/seasons";
 import { validateDiscountCode, DiscountCode } from "@/data/discounts";
 import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
+import Image from "next/image";
 import Container from "@/components/ui/Container";
 import PriceSummary from "@/components/booking/PriceSummary";
 import AvailabilityCalendar from "@/components/booking/AvailabilityCalendar";
+import DateRangePicker from "@/components/booking/DateRangePicker";
 
 type Step = "search" | "details" | "confirmation";
 
@@ -103,6 +105,16 @@ export default function BookingFlow({
     null
   );
   const [discountError, setDiscountError] = useState<string | null>(null);
+
+  const priceSectionRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (selectedApartment && priceSectionRef.current) {
+      setTimeout(() => {
+        priceSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }, 100);
+    }
+  }, [selectedApartment]);
 
   const today = new Date().toISOString().split("T")[0];
   const totalGuests = search.adults + search.children;
@@ -337,18 +349,14 @@ export default function BookingFlow({
             </p>
 
             <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 sm:p-8 mb-10">
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-2">Anreise</label>
-                  <input type="date" value={search.checkIn} min={today}
-                    onChange={(e) => setSearch({ ...search, checkIn: e.target.value })}
-                    className={inputClasses} />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-2">Abreise</label>
-                  <input type="date" value={search.checkOut} min={search.checkIn || today}
-                    onChange={(e) => setSearch({ ...search, checkOut: e.target.value })}
-                    className={inputClasses} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="sm:col-span-2 lg:col-span-1">
+                  <label className="block text-sm font-medium text-stone-700 mb-2">Reisezeitraum</label>
+                  <DateRangePicker
+                    checkIn={search.checkIn}
+                    checkOut={search.checkOut}
+                    onChange={(ci, co) => setSearch({ ...search, checkIn: ci, checkOut: co })}
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-2">Erwachsene</label>
@@ -401,8 +409,11 @@ export default function BookingFlow({
                           isSelected ? "border-alpine-500 shadow-lg ring-1 ring-alpine-500" : "border-stone-200 hover:border-alpine-300 hover:shadow-md"
                         }`}
                         onClick={() => setSelectedApartment(apt)}>
-                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                          <div className="flex-1">
+                        <div className="flex items-center gap-4 sm:gap-6">
+                          <div className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-xl overflow-hidden flex-shrink-0">
+                            <Image src={apt.images[0]} alt={apt.name} fill className="object-cover" sizes="120px" />
+                          </div>
+                          <div className="flex-1 min-w-0">
                             <div className="flex items-center gap-3 mb-2">
                               <h3 className="text-lg font-semibold text-stone-900">{apt.name}</h3>
                               <span className="text-xs font-medium bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{apt.size} m²</span>
@@ -432,7 +443,7 @@ export default function BookingFlow({
                 </div>
 
                 {selectedApartment && priceBreakdown && (
-                  <div className="mt-8 bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8">
+                  <div ref={priceSectionRef} className="mt-8 bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">
                       Preisübersicht – {selectedApartment.name}
                     </h3>
@@ -470,10 +481,11 @@ export default function BookingFlow({
             )}
 
             {selectedApartment && (
-              <div className="mt-8 bg-white rounded-2xl border border-stone-200 p-6 sm:p-8">
-                <h3 className="text-lg font-semibold text-stone-900 mb-4">
+              <div className="mt-8 bg-white rounded-2xl border border-stone-200 p-4 sm:p-6">
+                <h3 className="text-lg font-semibold text-stone-900 mb-1">
                   Verfügbarkeit – {selectedApartment.name}
                 </h3>
+                <p className="text-sm text-stone-500 mb-4">Klicken Sie auf Daten, um Ihren Zeitraum zu ändern</p>
                 <AvailabilityCalendar
                   apartmentId={selectedApartment.id} checkIn={search.checkIn} checkOut={search.checkOut}
                   onSelectRange={(ci, co) => setSearch({ ...search, checkIn: ci, checkOut: co })} />
