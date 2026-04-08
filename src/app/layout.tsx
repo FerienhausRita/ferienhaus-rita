@@ -1,10 +1,5 @@
 import type { Metadata } from "next";
 import { Inter, Playfair_Display } from "next/font/google";
-import Header from "@/components/layout/Header";
-import Footer from "@/components/layout/Footer";
-import JsonLd from "@/components/seo/JsonLd";
-import CookieConsent from "@/components/ui/CookieConsent";
-import WhatsAppButton from "@/components/ui/WhatsAppButton";
 import "./globals.css";
 
 const inter = Inter({
@@ -55,17 +50,7 @@ export default function RootLayout({
   return (
     <html lang="de" className={`${inter.variable} ${playfair.variable}`}>
       <body className="min-h-screen flex flex-col antialiased">
-        <a href="#main-content" className="skip-nav">
-          Zum Inhalt springen
-        </a>
-        <Header />
-        <main id="main-content" className="flex-1">
-          {children}
-        </main>
-        <Footer />
-        <WhatsAppButton />
-        <CookieConsent />
-        <JsonLd type="organization" />
+        {children}
       </body>
     </html>
   );
