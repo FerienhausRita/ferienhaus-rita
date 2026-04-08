@@ -1961,3 +1961,111 @@ export async function updateInvoiceNumber(
   revalidatePath("/admin/buchungen");
   return { success: true };
 }
+
+/**
+ * Debug: Fetch and show raw iCal feed data from Smoobu without syncing
+ */
+export async function debugICalFeeds() {
+  const { icalFeeds } = await import("@/data/ical-feeds");
+  const { parseICal } = await import("@/lib/ical");
+
+  const results: Record<string, unknown> = {};
+
+  for (const [apartmentId, feedUrls] of Object.entries(icalFeeds)) {
+    for (const url of feedUrls) {
+      try {
+        const response = await fetch(url, {
+          headers: { "User-Agent": "FerienhausRita/1.0" },
+          cache: "no-store",
+        });
+        const text = await response.text();
+        const events = parseICal(text);
+        results[apartmentId] = {
+          status: response.status,
+          eventCount: events.length,
+          events: events.map((e) => ({
+            start: e.start,
+            end: e.end,
+            summary: e.summary,
+            description: e.description || "(leer)",
+          })),
+        };
+      } catch (err) {
+        results[apartmentId] = { error: String(err) };
+      }
+    }
+  }
+
+  return results;
+}
+
+/**
+ * Trigger a manual iCal sync
+ */
+export async function triggerICalSync() {
+  const { icalFeeds } = await import("@/data/ical-feeds");
+  const { parseICal } = await import("@/lib/ical");
+  const supabase = createServerClient();
+
+  const results: Record<string, { imported: number; deleted: number; error?: string }> = {};
+
+  for (const [apartmentId, feedUrls] of Object.entries(icalFeeds)) {
+    try {
+      const allEvents: { start: string; end: string; summary: string; description: string }[] = [];
+
+      for (const url of feedUrls) {
+        try {
+          const response = await fetch(url, {
+            headers: { "User-Agent": "FerienhausRita/1.0" },
+            cache: "no-store",
+          });
+          if (!response.ok) continue;
+          const text = await response.text();
+          allEvents.push(...parseICal(text));
+        } catch {
+          // Skip failed feeds
+        }
+      }
+
+      const { data: deleted } = await supabase
+        .from("blocked_dates")
+        .delete()
+        .eq("apartment_id", apartmentId)
+        .like("reason", "iCal:%")
+        .select("id");
+
+      const today = new Date().toISOString().split("T")[0];
+      const futureEvents = allEvents.filter((e) => e.end > today);
+
+      if (futureEvents.length > 0) {
+        const { error: insertError } = await supabase
+          .from("blocked_dates")
+          .insert(
+            futureEvents.map((e) => {
+              let reason = `iCal: ${e.summary}`;
+              if (e.description) reason = `iCal: ${e.summary} – ${e.description}`;
+              if (reason.length > 500) reason = reason.slice(0, 497) + "...";
+              return {
+                apartment_id: apartmentId,
+                start_date: e.start,
+                end_date: e.end,
+                reason,
+              };
+            })
+          );
+
+        if (insertError) {
+          results[apartmentId] = { imported: 0, deleted: deleted?.length ?? 0, error: insertError.message };
+          continue;
+        }
+      }
+
+      results[apartmentId] = { imported: futureEvents.length, deleted: deleted?.length ?? 0 };
+    } catch (err) {
+      results[apartmentId] = { imported: 0, deleted: 0, error: String(err) };
+    }
+  }
+
+  revalidatePath("/admin/kalender");
+  return results;
+}
