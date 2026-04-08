@@ -46,6 +46,14 @@ export async function GET(
     );
   }
 
+  // --- Only confirmed/completed bookings can have invoices ---
+  if (booking.status === "pending" || booking.status === "cancelled") {
+    return NextResponse.json(
+      { error: "Rechnung erst nach Bestätigung der Buchung verfügbar" },
+      { status: 403 }
+    );
+  }
+
   // --- Assign invoice number if missing ---
   if (!booking.invoice_number) {
     const currentYear = new Date().getFullYear();

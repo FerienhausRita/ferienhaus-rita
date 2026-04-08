@@ -4,6 +4,7 @@ import { getDashboardStats, getAnalyticsData } from "./actions";
 import { apartments } from "@/data/apartments";
 import RevenueChart from "@/components/admin/RevenueChart";
 import OccupancyStats from "@/components/admin/OccupancyStats";
+import ExportButton from "@/components/admin/ExportButton";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -53,11 +54,14 @@ export default async function AdminDashboard() {
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-stone-900">Dashboard</h1>
-        <p className="text-stone-500 text-sm mt-1">
-          Willkommen im Admin-Bereich von Ferienhaus Rita
-        </p>
+      <div className="flex items-start justify-between mb-8">
+        <div>
+          <h1 className="text-2xl font-bold text-stone-900">Dashboard</h1>
+          <p className="text-stone-500 text-sm mt-1">
+            Willkommen im Admin-Bereich von Ferienhaus Rita
+          </p>
+        </div>
+        <ExportButton />
       </div>
 
       {/* KPI Cards */}

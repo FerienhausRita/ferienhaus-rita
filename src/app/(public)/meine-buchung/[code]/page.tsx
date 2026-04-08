@@ -339,32 +339,58 @@ export default async function BookingOverviewPage({
             </div>
           </Link>
 
-          <Link
-            href={`/meine-buchung/${code}/rechnung`}
-            className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200 p-5 shadow-sm hover:border-alpine-300 hover:shadow-md transition-all group"
-          >
-            <div className="w-12 h-12 rounded-xl bg-alpine-100 flex items-center justify-center flex-shrink-0 group-hover:bg-alpine-200 transition-colors">
-              <svg
-                className="w-6 h-6 text-alpine-600"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={1.5}
-                  d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                />
-              </svg>
+          {(booking.status === "confirmed" || booking.status === "completed") ? (
+            <Link
+              href={`/meine-buchung/${code}/rechnung`}
+              className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200 p-5 shadow-sm hover:border-alpine-300 hover:shadow-md transition-all group"
+            >
+              <div className="w-12 h-12 rounded-xl bg-alpine-100 flex items-center justify-center flex-shrink-0 group-hover:bg-alpine-200 transition-colors">
+                <svg
+                  className="w-6 h-6 text-alpine-600"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-stone-900">
+                  Rechnung herunterladen
+                </p>
+                <p className="text-sm text-stone-500">PDF-Rechnung speichern</p>
+              </div>
+            </Link>
+          ) : (
+            <div className="flex items-center gap-4 bg-stone-50 rounded-2xl border border-stone-200 p-5">
+              <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+                <svg
+                  className="w-6 h-6 text-stone-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
+                  />
+                </svg>
+              </div>
+              <div>
+                <p className="font-semibold text-stone-500">Rechnung</p>
+                <p className="text-sm text-stone-400">
+                  Wird nach Bestätigung Ihrer Anfrage verfügbar.
+                </p>
+              </div>
             </div>
-            <div>
-              <p className="font-semibold text-stone-900">
-                Rechnung herunterladen
-              </p>
-              <p className="text-sm text-stone-500">PDF-Rechnung speichern</p>
-            </div>
-          </Link>
+          )}
         </div>
       </Container>
     </div>

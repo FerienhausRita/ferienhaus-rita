@@ -1938,3 +1938,26 @@ export async function assignInvoiceNumber(bookingId: string): Promise<string> {
   revalidatePath("/admin/buchungen");
   return invoiceNumber;
 }
+
+/**
+ * Update invoice number for a booking (admin manual edit)
+ */
+export async function updateInvoiceNumber(
+  bookingId: string,
+  invoiceNumber: string
+) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({ invoice_number: invoiceNumber })
+    .eq("id", bookingId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  return { success: true };
+}

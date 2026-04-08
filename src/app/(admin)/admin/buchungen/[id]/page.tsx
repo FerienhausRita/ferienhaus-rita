@@ -7,6 +7,7 @@ import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
 import EmailCompose from "@/components/admin/EmailCompose";
 import EmailTimeline from "@/components/admin/EmailTimeline";
+import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
 
 export const metadata: Metadata = {
   title: "Buchungsdetail",
@@ -322,8 +323,15 @@ export default async function BookingDetailPage({
                 </div>
               </div>
 
-              {/* Invoice download */}
-              <div className="pt-4 mt-4 border-t border-stone-100">
+              {/* Invoice number + download */}
+              <div className="pt-4 mt-4 border-t border-stone-100 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">Rechnungsnr.</span>
+                  <InvoiceNumberEdit
+                    bookingId={booking.id}
+                    initialNumber={booking.invoice_number}
+                  />
+                </div>
                 <a
                   href={`/api/invoice/${booking.id}`}
                   download
@@ -343,11 +351,6 @@ export default async function BookingDetailPage({
                     />
                   </svg>
                   Rechnung herunterladen
-                  {booking.invoice_number && (
-                    <span className="text-white/70 text-xs">
-                      ({booking.invoice_number})
-                    </span>
-                  )}
                 </a>
               </div>
             </div>

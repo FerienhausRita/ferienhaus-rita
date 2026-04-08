@@ -46,10 +46,10 @@ export default function MeineBuchungPage() {
         <div className="max-w-md mx-auto">
           <div className="text-center mb-10">
             <h1 className="font-serif text-4xl sm:text-5xl font-bold text-stone-900 mb-4">
-              Meine Buchung
+              Meine Buchung / Anfrage
             </h1>
             <p className="text-lg text-stone-500">
-              Geben Sie Ihren Buchungscode und Nachnamen ein, um Ihre
+              Geben Sie Ihren Code und Nachnamen ein, um Ihre
               Buchungsdetails einzusehen.
             </p>
           </div>
@@ -114,7 +114,7 @@ export default function MeineBuchungPage() {
             </form>
 
             <p className="mt-5 text-center text-sm text-stone-400">
-              Den Buchungscode finden Sie in Ihrer Bestätigungsmail.
+              Den Code finden Sie in Ihrer Bestätigungs- oder Anfrage-E-Mail.
             </p>
           </div>
         </div>

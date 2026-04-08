@@ -1,69 +1,37 @@
-import Link from "next/link";
 import Image from "next/image";
-
-const activities = [
-  {
-    season: "Winter",
-    items: [
-      "GG Resort Kals-Matrei",
-      "Langlaufloipen",
-      "Winterwandern",
-      "Rodelbahn",
-      "Skitouren",
-    ],
-  },
-  {
-    season: "Sommer",
-    items: [
-      "Wandern im Nationalpark",
-      "Großglockner Hochalpenstraße",
-      "Klettersteige",
-      "Mountainbiken",
-      "Baden im Bergsee",
-    ],
-  },
-];
+import Link from "next/link";
 
 export default function RegionPreview() {
   return (
-    <section className="relative min-h-screen flex items-center overflow-hidden">
-      {/* Background Image */}
-      <div className="absolute inset-0">
-        <Image
-          src="/images/region/grossglockner-glacier.jpg"
-          alt="Großglockner mit Pasterze-Gletscher"
-          fill
-          className="object-cover"
-          sizes="100vw"
-        />
-        <div className="absolute inset-0 bg-black/50" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/60 via-black/30 to-transparent" />
-      </div>
-
-      <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 sm:py-32">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
-          <div>
+    <section>
+      <div className="grid grid-cols-1 md:grid-cols-2 h-[100vh] md:h-[70vh]">
+        {/* Winter */}
+        <Link
+          href="/region/winter"
+          className="relative h-[50vh] md:h-full flex items-center justify-center overflow-hidden group"
+        >
+          <Image
+            src="/images/region/winter-split.jpg"
+            alt="Winter in Kals – Skifahren und Schneelandschaft"
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/20 group-hover:from-black/60 group-hover:via-black/30 transition-all duration-500" />
+          <div className="relative z-10 text-center px-8">
             <span className="text-[var(--color-gold)] text-xs font-medium tracking-[0.3em] uppercase">
-              Die Region
+              Dezember – April
             </span>
-            <h2 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold text-white mt-4 mb-8 tracking-tight leading-[1.05]">
-              Kals am
-              <br />
-              Großglockner
+            <h2 className="font-serif text-4xl sm:text-5xl font-bold text-white mt-3 tracking-tight">
+              Winter
             </h2>
-            <div className="w-12 h-px bg-[var(--color-gold)]/60 mb-8" />
-            <p className="text-white/70 text-lg leading-relaxed mb-10 font-light max-w-lg">
-              Am Fuße des höchsten Berges Österreichs erwartet Sie ein
-              Naturparadies für jede Jahreszeit. Das idyllische Bergdorf liegt
-              im Herzen des Nationalparks Hohe Tauern.
+            <p className="text-white/70 mt-3 text-lg font-light max-w-sm mx-auto">
+              Skifahren, Rodeln, Langlaufen und die Stille verschneiter Berge.
             </p>
-            <Link
-              href="/region"
-              className="inline-flex items-center gap-3 text-[var(--color-gold)] text-xs font-semibold tracking-wider uppercase group"
-            >
-              Region entdecken
+            <div className="mt-6 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white px-6 py-3 rounded-xl text-sm font-medium tracking-wider uppercase group-hover:bg-white/20 transition-all">
+              Winter entdecken
               <svg
-                className="w-4 h-4 group-hover:translate-x-2 transition-transform duration-300"
+                className="w-4 h-4 transition-transform group-hover:translate-x-1"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -72,36 +40,54 @@ export default function RegionPreview() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                   strokeWidth={2}
-                  d="M17 8l4 4m0 0l-4 4m4-4H3"
+                  d="M9 5l7 7-7 7"
                 />
               </svg>
-            </Link>
+            </div>
           </div>
+        </Link>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {activities.map((group) => (
-              <div
-                key={group.season}
-                className="bg-white/10 backdrop-blur-lg border border-white/20 rounded-sm p-8"
+        {/* Sommer */}
+        <Link
+          href="/region/sommer"
+          className="relative h-[50vh] md:h-full flex items-center justify-center overflow-hidden group"
+        >
+          <Image
+            src="/images/region/summer-split.jpg"
+            alt="Sommer in Kals – Wandern und grüne Almlandschaften"
+            fill
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+            sizes="(max-width: 768px) 100vw, 50vw"
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/40 to-black/20 group-hover:from-black/60 group-hover:via-black/30 transition-all duration-500" />
+          <div className="relative z-10 text-center px-8">
+            <span className="text-[var(--color-gold)] text-xs font-medium tracking-[0.3em] uppercase">
+              Mai – Oktober
+            </span>
+            <h2 className="font-serif text-4xl sm:text-5xl font-bold text-white mt-3 tracking-tight">
+              Sommer
+            </h2>
+            <p className="text-white/70 mt-3 text-lg font-light max-w-sm mx-auto">
+              Wandern, Klettern, Biken und die majestätische Bergwelt erleben.
+            </p>
+            <div className="mt-6 inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm border border-white/20 text-white px-6 py-3 rounded-xl text-sm font-medium tracking-wider uppercase group-hover:bg-white/20 transition-all">
+              Sommer entdecken
+              <svg
+                className="w-4 h-4 transition-transform group-hover:translate-x-1"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
               >
-                <h3 className="text-[var(--color-gold)] text-xs font-semibold tracking-[0.2em] uppercase mb-6">
-                  {group.season}
-                </h3>
-                <ul className="space-y-4">
-                  {group.items.map((item) => (
-                    <li
-                      key={item}
-                      className="flex items-center gap-3 text-white/80 text-sm"
-                    >
-                      <div className="w-1 h-1 rounded-full bg-[var(--color-gold)]/60" />
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ))}
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M9 5l7 7-7 7"
+                />
+              </svg>
+            </div>
           </div>
-        </div>
+        </Link>
       </div>
     </section>
   );
