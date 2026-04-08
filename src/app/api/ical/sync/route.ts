@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { parseICal } from "@/lib/ical";
 import { icalFeeds } from "@/data/ical-feeds";
 
@@ -13,7 +14,7 @@ import { icalFeeds } from "@/data/ical-feeds";
  * Can also be called manually via POST with service role key.
  */
 
-function verifyAuth(request: NextRequest): boolean {
+async function verifyAuth(request: NextRequest): Promise<boolean> {
   // Vercel Cron sends this header automatically
   const cronSecret = request.headers.get("authorization");
   const vercelCron = request.headers.get("x-vercel-cron");
@@ -32,6 +33,22 @@ function verifyAuth(request: NextRequest): boolean {
     cronSecret === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
   ) {
     return true;
+  }
+
+  // Allow admin users (browser session)
+  try {
+    const authSupabase = createAuthServerClient();
+    const { data: { user } } = await authSupabase.auth.getUser();
+    if (user) {
+      const { data: profile } = await authSupabase
+        .from("admin_profiles")
+        .select("id")
+        .eq("id", user.id)
+        .single();
+      if (profile) return true;
+    }
+  } catch {
+    // Session check failed, continue to other auth methods
   }
 
   // Allow in development
@@ -139,7 +156,7 @@ async function runSync() {
 
 // GET – called by Vercel Cron
 export async function GET(request: NextRequest) {
-  if (!verifyAuth(request)) {
+  if (!(await verifyAuth(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -190,7 +207,7 @@ export async function GET(request: NextRequest) {
 
 // POST – for manual sync calls
 export async function POST(request: NextRequest) {
-  if (!verifyAuth(request)) {
+  if (!(await verifyAuth(request))) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
