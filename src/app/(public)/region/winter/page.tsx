@@ -31,7 +31,7 @@ const huetten = [
     altitude: "1.920 m",
     description:
       "Traditionelle Jausenstation am Fuße des Großglockners. Idealer Ausgangspunkt für Wanderungen und Skitouren ins Ködnitztal.",
-    image: "/images/region/huette-lucknerhaus.jpg",
+    image: "/images/region/huette-lucknerhaus.jpeg",
   },
   {
     name: "Glocknerblick",
