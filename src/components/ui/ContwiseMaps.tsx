@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect, useRef } from "react";
 import { useInView } from "@/hooks/useInView";
 
 interface ContwiseMapsProps {
@@ -18,20 +17,12 @@ export default function ContwiseMaps({
     rootMargin: "200px 0px",
     once: true,
   });
-  const mapRef = useRef<HTMLElement>(null);
 
-  useEffect(() => {
-    if (!inView || !mapRef.current) return;
-
-    const el = mapRef.current;
-    el.setAttribute("apikey", "osttirol");
-    el.setAttribute("language", "de");
-    el.setAttribute("resourceids", resourceId);
-    el.setAttribute("rendermode", "detailOnly");
-    el.setAttribute("themecolor", "#c8a96e");
-    el.setAttribute("showsheet", "true");
-    el.setAttribute("reduceddetailsheet", "true");
-  }, [inView, resourceId]);
+  // Use dangerouslySetInnerHTML to render the custom element with all
+  // attributes present from the start. React does not reliably pass
+  // attributes to custom elements, and the Contwise script initializes
+  // synchronously on DOM insertion – so useEffect/ref is too late.
+  const html = `<contwise-maps style="height:${height};display:block;width:100%" apikey="osttirol" language="de" resourceids="${resourceId}" rendermode="detailOnly" themecolor="#c8a96e" showsheet="true" reduceddetailsheet="true"></contwise-maps>`;
 
   return (
     <div
@@ -39,10 +30,7 @@ export default function ContwiseMaps({
       className={`rounded-xl overflow-hidden border border-stone-200 ${className}`}
     >
       {inView ? (
-        <contwise-maps
-          ref={mapRef}
-          style={{ height, display: "block", width: "100%" }}
-        />
+        <div dangerouslySetInnerHTML={{ __html: html }} />
       ) : (
         <div
           className="bg-stone-100 animate-pulse flex items-center justify-center"
