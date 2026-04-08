@@ -3,7 +3,7 @@
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { sendBookingConfirmation } from "@/lib/email";
+import { sendBookingConfirmation, sendCustomEmail } from "@/lib/email";
 import { getApartmentById } from "@/data/apartments";
 
 /**
@@ -514,5 +514,485 @@ export async function markMessageRead(messageId: string) {
 
   revalidatePath("/admin/nachrichten");
   revalidatePath("/admin");
+  return { success: true };
+}
+
+// ============================================
+// BOOKING NOTES
+// ============================================
+
+/**
+ * Get notes for a booking
+ */
+export async function getBookingNotes(bookingId: string) {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("booking_notes")
+    .select("id, author_name, content, created_at")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching notes:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Add a note to a booking
+ */
+export async function addBookingNote(bookingId: string, content: string) {
+  const supabase = createServerClient();
+  const authClient = createAuthServerClient();
+
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return { success: false, error: "Nicht angemeldet" };
+
+  // Get admin display name
+  const { data: profile } = await supabase
+    .from("admin_profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .single();
+
+  const { error } = await supabase.from("booking_notes").insert({
+    booking_id: bookingId,
+    author_id: user.id,
+    author_name: profile?.display_name || user.email || "Admin",
+    content: content.trim(),
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  return { success: true };
+}
+
+// ============================================
+// GUEST EMAILS
+// ============================================
+
+/**
+ * Send email to guest and log it
+ */
+export async function sendGuestEmail(
+  bookingId: string | null,
+  guestEmail: string,
+  subject: string,
+  body: string
+) {
+  const supabase = createServerClient();
+  const authClient = createAuthServerClient();
+
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return { success: false, error: "Nicht angemeldet" };
+
+  const { data: profile } = await supabase
+    .from("admin_profiles")
+    .select("display_name")
+    .eq("id", user.id)
+    .single();
+
+  try {
+    // Send actual email
+    await sendCustomEmail(guestEmail, subject, body);
+
+    // Log in database
+    await supabase.from("guest_emails").insert({
+      booking_id: bookingId,
+      guest_email: guestEmail,
+      subject,
+      body,
+      sent_by: user.id,
+      sent_by_name: profile?.display_name || user.email || "Admin",
+    });
+
+    if (bookingId) {
+      revalidatePath(`/admin/buchungen/${bookingId}`);
+    }
+    revalidatePath("/admin/nachrichten");
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: "E-Mail konnte nicht gesendet werden" };
+  }
+}
+
+/**
+ * Get sent emails
+ */
+export async function getSentEmails() {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("guest_emails")
+    .select("id, booking_id, guest_email, subject, body, sent_by_name, sent_at")
+    .order("sent_at", { ascending: false })
+    .limit(50);
+
+  if (error) {
+    console.error("Error fetching sent emails:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+// ============================================
+// TASKS
+// ============================================
+
+/**
+ * Get tasks with optional filters
+ */
+export async function getTasks(filter?: string) {
+  const supabase = createServerClient();
+
+  let query = supabase
+    .from("tasks")
+    .select("id, booking_id, apartment_id, title, description, due_date, category, status, assigned_to, created_at")
+    .order("due_date", { ascending: true, nullsFirst: false })
+    .order("created_at", { ascending: false });
+
+  if (filter === "offen") {
+    query = query.eq("status", "offen");
+  } else if (filter === "erledigt") {
+    query = query.eq("status", "erledigt");
+  }
+
+  const { data, error } = await query.limit(100);
+
+  if (error) {
+    console.error("Error fetching tasks:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Create a task
+ */
+export async function createTask(task: {
+  title: string;
+  description?: string;
+  due_date?: string;
+  category: string;
+  apartment_id?: string;
+  booking_id?: string;
+}) {
+  const supabase = createServerClient();
+  const authClient = createAuthServerClient();
+
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return { success: false, error: "Nicht angemeldet" };
+
+  const { error } = await supabase.from("tasks").insert({
+    ...task,
+    created_by: user.id,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/aufgaben");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Toggle task status
+ */
+export async function toggleTaskStatus(taskId: string, currentStatus: string) {
+  const supabase = createServerClient();
+  const newStatus = currentStatus === "offen" ? "erledigt" : "offen";
+
+  const { error } = await supabase
+    .from("tasks")
+    .update({ status: newStatus })
+    .eq("id", taskId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/aufgaben");
+  return { success: true };
+}
+
+/**
+ * Delete a task
+ */
+export async function deleteTask(taskId: string) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("tasks").delete().eq("id", taskId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/aufgaben");
+  return { success: true };
+}
+
+// ============================================
+// DISCOUNT CODES
+// ============================================
+
+/**
+ * Get all discount codes
+ */
+export async function getDiscountCodes() {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("discount_codes")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching discount codes:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Create a discount code
+ */
+export async function createDiscountCode(code: {
+  code: string;
+  type: "percent" | "fixed";
+  value: number;
+  label: string;
+  min_subtotal?: number;
+  max_uses?: number;
+  valid_from?: string;
+  valid_until?: string;
+}) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("discount_codes").insert({
+    code: code.code.trim().toUpperCase(),
+    type: code.type,
+    value: code.value,
+    label: code.label.trim(),
+    min_subtotal: code.min_subtotal || 0,
+    max_uses: code.max_uses || 0,
+    valid_from: code.valid_from || null,
+    valid_until: code.valid_until || null,
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  return { success: true };
+}
+
+/**
+ * Toggle discount code active/inactive
+ */
+export async function toggleDiscountCode(codeId: string, active: boolean) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("discount_codes")
+    .update({ active: !active })
+    .eq("id", codeId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  return { success: true };
+}
+
+/**
+ * Delete a discount code
+ */
+export async function deleteDiscountCode(codeId: string) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("discount_codes")
+    .delete()
+    .eq("id", codeId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  return { success: true };
+}
+
+// ============================================
+// ICAL SYNC
+// ============================================
+
+/**
+ * Trigger manual iCal sync
+ */
+export async function triggerIcalSync() {
+  try {
+    const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || process.env.VERCEL_URL
+      ? `https://${process.env.VERCEL_URL}`
+      : "http://localhost:3000";
+
+    const res = await fetch(`${baseUrl}/api/ical/sync`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    });
+
+    if (!res.ok) {
+      return { success: false, error: `Sync fehlgeschlagen (${res.status})` };
+    }
+
+    const data = await res.json();
+    revalidatePath("/admin/kalender");
+    revalidatePath("/admin/einstellungen");
+    return { success: true, results: data.results };
+  } catch (err) {
+    return { success: false, error: "Sync konnte nicht gestartet werden" };
+  }
+}
+
+// ============================================
+// ADMIN USER MANAGEMENT
+// ============================================
+
+/**
+ * Get all admin profiles
+ */
+export async function getAdminProfiles() {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("admin_profiles")
+    .select("id, display_name, email, role, created_at")
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching admin profiles:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Update admin display name
+ */
+export async function updateDisplayName(newName: string) {
+  const supabase = createServerClient();
+  const authClient = createAuthServerClient();
+
+  const { data: { user } } = await authClient.auth.getUser();
+  if (!user) return { success: false, error: "Nicht angemeldet" };
+
+  const { error } = await supabase
+    .from("admin_profiles")
+    .update({ display_name: newName.trim() })
+    .eq("id", user.id);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+/**
+ * Invite a new admin user via Supabase Auth
+ */
+export async function inviteAdmin(email: string, displayName: string, role: "admin" | "viewer") {
+  const supabase = createServerClient();
+
+  // Use Supabase Admin API to invite user
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+    data: { display_name: displayName },
+  });
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Create admin profile
+  if (data.user) {
+    const { error: profileError } = await supabase
+      .from("admin_profiles")
+      .insert({
+        id: data.user.id,
+        display_name: displayName.trim(),
+        email: email.trim().toLowerCase(),
+        role,
+      });
+
+    if (profileError) {
+      return { success: false, error: profileError.message };
+    }
+  }
+
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+/**
+ * Update admin role
+ */
+export async function updateAdminRole(userId: string, role: "admin" | "viewer") {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("admin_profiles")
+    .update({ role })
+    .eq("id", userId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+/**
+ * Remove an admin user
+ */
+export async function removeAdmin(userId: string) {
+  const supabase = createServerClient();
+  const authClient = createAuthServerClient();
+
+  // Don't allow removing yourself
+  const { data: { user } } = await authClient.auth.getUser();
+  if (user?.id === userId) {
+    return { success: false, error: "Du kannst dich nicht selbst entfernen" };
+  }
+
+  // Delete profile (cascade will handle auth.users FK)
+  const { error } = await supabase
+    .from("admin_profiles")
+    .delete()
+    .eq("id", userId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/einstellungen");
   return { success: true };
 }

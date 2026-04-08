@@ -1,9 +1,11 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById } from "../../actions";
+import { getBookingById, getBookingNotes } from "../../actions";
 import { getApartmentById } from "@/data/apartments";
 import BookingActions from "@/components/admin/BookingActions";
+import BookingNotes from "@/components/admin/BookingNotes";
+import EmailCompose from "@/components/admin/EmailCompose";
 
 export const metadata: Metadata = {
   title: "Buchungsdetail",
@@ -68,7 +70,10 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const booking = await getBookingById(params.id);
+  const [booking, notes] = await Promise.all([
+    getBookingById(params.id),
+    getBookingNotes(params.id),
+  ]);
 
   if (!booking) {
     notFound();
@@ -316,6 +321,19 @@ export default async function BookingDetailPage({
               </div>
             </div>
           </div>
+
+          {/* Email Compose */}
+          <EmailCompose
+            bookingId={booking.id}
+            guestEmail={booking.email}
+            guestName={`${booking.first_name} ${booking.last_name}`}
+          />
+
+          {/* Internal Notes */}
+          <BookingNotes
+            bookingId={booking.id}
+            initialNotes={notes}
+          />
         </div>
 
         {/* Sidebar */}

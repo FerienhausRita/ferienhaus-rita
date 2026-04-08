@@ -218,3 +218,32 @@ export async function sendContactNotification(message: {
     html,
   });
 }
+
+/**
+ * Send a custom email from admin to a guest.
+ */
+export async function sendCustomEmail(
+  to: string,
+  subject: string,
+  body: string
+): Promise<void> {
+  const transporter = createTransporter();
+
+  const html = emailWrapper(`
+    <div style="font-size:14px;color:#292524;line-height:1.6;">
+      ${body.replace(/\n/g, "<br>")}
+    </div>
+    <p style="color:#78716c;font-size:14px;line-height:1.6;margin:24px 0 0;">
+      Herzliche Grüße,<br>
+      Ihr Team vom Ferienhaus Rita
+    </p>
+  `);
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to,
+    replyTo: process.env.SMTP_USER,
+    subject,
+    html,
+  });
+}
