@@ -185,6 +185,7 @@ export async function POST(request: NextRequest) {
       extraGuestsTotal: priceBreakdown.extraGuestsTotal,
       dogsTotal: priceBreakdown.dogsTotal,
       cleaningFee: priceBreakdown.cleaningFee,
+      vatAmount: priceBreakdown.vatAmount,
     };
 
     try {

@@ -90,6 +90,13 @@ export default function PriceSummary({
         <span>Gesamtpreis</span>
         <span>{formatCurrency(breakdown.total)}</span>
       </div>
+
+      {breakdown.vatAmount > 0 && (
+        <div className="flex justify-between text-stone-400 text-xs">
+          <span>Inkl. 10% MwSt</span>
+          <span>{formatCurrency(breakdown.vatAmount)}</span>
+        </div>
+      )}
     </div>
   );
 }

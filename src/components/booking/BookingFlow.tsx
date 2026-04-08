@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
 import { apartments, Apartment } from "@/data/apartments";
 import { calculatePrice, formatCurrency, PriceBreakdown } from "@/lib/pricing";
@@ -79,15 +79,43 @@ export default function BookingFlow() {
   const today = new Date().toISOString().split("T")[0];
   const totalGuests = search.adults + search.children;
 
-  const availableApartments = useMemo(() => {
-    if (!search.checkIn || !search.checkOut) return apartments;
-    return apartments.filter(
-      (a) =>
-        a.maxGuests >= totalGuests &&
-        a.available &&
-        isAvailable(a.id, new Date(search.checkIn), new Date(search.checkOut))
-    );
+  const [availableApartments, setAvailableApartments] = useState<Apartment[]>(apartments);
+  const [checkingAvailability, setCheckingAvailability] = useState(false);
+
+  const checkAvailability = useCallback(async () => {
+    if (!search.checkIn || !search.checkOut) {
+      setAvailableApartments(apartments);
+      return;
+    }
+    setCheckingAvailability(true);
+    try {
+      const guestFiltered = apartments.filter(
+        (a) => a.maxGuests >= totalGuests && a.available
+      );
+      const checks = await Promise.all(
+        guestFiltered.map(async (a) => ({
+          apartment: a,
+          available: await isAvailable(
+            a.id,
+            new Date(search.checkIn),
+            new Date(search.checkOut)
+          ),
+        }))
+      );
+      setAvailableApartments(checks.filter((c) => c.available).map((c) => c.apartment));
+    } catch {
+      // On error, show guest-filtered apartments without availability filtering
+      setAvailableApartments(
+        apartments.filter((a) => a.maxGuests >= totalGuests && a.available)
+      );
+    } finally {
+      setCheckingAvailability(false);
+    }
   }, [search.checkIn, search.checkOut, totalGuests]);
+
+  useEffect(() => {
+    checkAvailability();
+  }, [checkAvailability]);
 
   const priceBreakdown: PriceBreakdown | null = useMemo(() => {
     if (!selectedApartment || !search.checkIn || !search.checkOut) return null;
@@ -315,7 +343,9 @@ export default function BookingFlow() {
             {search.checkIn && search.checkOut && (
               <div>
                 <h2 className="text-xl font-semibold text-stone-900 mb-6">
-                  {availableApartments.length > 0
+                  {checkingAvailability
+                    ? "Verfügbarkeit wird geprüft..."
+                    : availableApartments.length > 0
                     ? `${availableApartments.length} ${availableApartments.length === 1 ? "Wohnung verfügbar" : "Wohnungen verfügbar"}`
                     : "Keine Wohnungen für Ihre Auswahl verfügbar"}
                 </h2>

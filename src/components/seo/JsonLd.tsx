@@ -1,7 +1,7 @@
 import { Apartment } from "@/data/apartments";
 import { contact } from "@/data/contact";
 
-const BASE_URL = "https://www.ferienhaus-rita.at";
+const BASE_URL = "https://www.ferienhaus-rita-kals.at";
 
 interface JsonLdProps {
   type: "organization" | "vacationRental";

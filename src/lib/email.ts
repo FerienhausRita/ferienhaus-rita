@@ -2,6 +2,15 @@ import nodemailer from "nodemailer";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import { Apartment } from "@/data/apartments";
 
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
 interface BookingData {
   id: string;
   firstName: string;
@@ -24,6 +33,7 @@ interface BookingData {
   extraGuestsTotal: number;
   dogsTotal: number;
   cleaningFee: number;
+  vatAmount: number;
 }
 
 function createTransporter() {
@@ -43,7 +53,7 @@ function bookingDetailsHtml(booking: BookingData, apartment: Apartment): string 
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
       <tr>
         <td style="padding:8px 0;color:#78716c;">Wohnung</td>
-        <td style="padding:8px 0;font-weight:600;">${apartment.name} (${apartment.size} m²)</td>
+        <td style="padding:8px 0;font-weight:600;">${escapeHtml(apartment.name)} (${apartment.size} m²)</td>
       </tr>
       <tr>
         <td style="padding:8px 0;color:#78716c;">Anreise</td>
@@ -83,6 +93,11 @@ function bookingDetailsHtml(booking: BookingData, apartment: Apartment): string 
         <td style="padding:12px 0;font-weight:700;font-size:16px;">Gesamtpreis</td>
         <td style="padding:12px 0;font-weight:700;font-size:16px;text-align:right;">${formatCurrency(booking.totalPrice)}</td>
       </tr>
+      ${booking.vatAmount > 0 ? `
+      <tr>
+        <td style="padding:4px 0;color:#a8a29e;font-size:12px;">Inkl. 10% MwSt</td>
+        <td style="padding:4px 0;color:#a8a29e;font-size:12px;text-align:right;">${formatCurrency(booking.vatAmount)}</td>
+      </tr>` : ""}
     </table>
   `;
 }
@@ -117,7 +132,7 @@ export async function sendBookingConfirmation(
   const html = emailWrapper(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#292524;">Vielen Dank für Ihre Buchungsanfrage!</h2>
     <p style="color:#78716c;font-size:14px;line-height:1.6;margin:0 0 24px;">
-      Liebe/r ${booking.firstName} ${booking.lastName},<br><br>
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},<br><br>
       wir haben Ihre Buchungsanfrage erhalten und melden uns innerhalb von 24 Stunden mit einer Bestätigung bei Ihnen.
     </p>
     <h3 style="margin:0 0 16px;font-size:16px;color:#292524;">Ihre Buchungsdetails</h3>
@@ -137,7 +152,7 @@ export async function sendBookingConfirmation(
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: booking.email,
-    subject: `Buchungsanfrage ${apartment.name} – ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
+    subject: `Buchungsanfrage ${escapeHtml(apartment.name)} – ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
     html,
   });
 }
@@ -155,11 +170,11 @@ export async function sendBookingNotification(
     </p>
     <h3 style="margin:0 0 12px;font-size:16px;color:#292524;">Gastdaten</h3>
     <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px;">
-      <tr><td style="padding:4px 0;color:#78716c;">Name</td><td style="padding:4px 0;">${booking.firstName} ${booking.lastName}</td></tr>
-      <tr><td style="padding:4px 0;color:#78716c;">E-Mail</td><td style="padding:4px 0;"><a href="mailto:${booking.email}">${booking.email}</a></td></tr>
-      <tr><td style="padding:4px 0;color:#78716c;">Telefon</td><td style="padding:4px 0;"><a href="tel:${booking.phone}">${booking.phone}</a></td></tr>
-      <tr><td style="padding:4px 0;color:#78716c;">Adresse</td><td style="padding:4px 0;">${booking.street}, ${booking.zip} ${booking.city}, ${booking.country}</td></tr>
-      ${booking.notes ? `<tr><td style="padding:4px 0;color:#78716c;">Bemerkungen</td><td style="padding:4px 0;">${booking.notes}</td></tr>` : ""}
+      <tr><td style="padding:4px 0;color:#78716c;">Name</td><td style="padding:4px 0;">${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)}</td></tr>
+      <tr><td style="padding:4px 0;color:#78716c;">E-Mail</td><td style="padding:4px 0;"><a href="mailto:${escapeHtml(booking.email)}">${escapeHtml(booking.email)}</a></td></tr>
+      <tr><td style="padding:4px 0;color:#78716c;">Telefon</td><td style="padding:4px 0;"><a href="tel:${escapeHtml(booking.phone)}">${escapeHtml(booking.phone)}</a></td></tr>
+      <tr><td style="padding:4px 0;color:#78716c;">Adresse</td><td style="padding:4px 0;">${escapeHtml(booking.street)}, ${escapeHtml(booking.zip)} ${escapeHtml(booking.city)}, ${escapeHtml(booking.country)}</td></tr>
+      ${booking.notes ? `<tr><td style="padding:4px 0;color:#78716c;">Bemerkungen</td><td style="padding:4px 0;">${escapeHtml(booking.notes)}</td></tr>` : ""}
     </table>
     <h3 style="margin:0 0 12px;font-size:16px;color:#292524;">Buchungsdetails</h3>
     ${bookingDetailsHtml(booking, apartment)}
@@ -168,7 +183,7 @@ export async function sendBookingNotification(
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: process.env.NOTIFICATION_EMAIL,
-    subject: `Neue Buchung: ${apartment.name} – ${booking.firstName} ${booking.lastName} (${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)})`,
+    subject: `Neue Buchung: ${escapeHtml(apartment.name)} – ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)} (${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)})`,
     html,
   });
 }
@@ -185,13 +200,13 @@ export async function sendContactNotification(message: {
   const html = emailWrapper(`
     <h2 style="margin:0 0 8px;font-size:20px;color:#292524;">Neue Kontaktanfrage</h2>
     <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      <tr><td style="padding:8px 0;color:#78716c;width:100px;">Name</td><td style="padding:8px 0;">${message.name}</td></tr>
-      <tr><td style="padding:8px 0;color:#78716c;">E-Mail</td><td style="padding:8px 0;"><a href="mailto:${message.email}">${message.email}</a></td></tr>
-      ${message.phone ? `<tr><td style="padding:8px 0;color:#78716c;">Telefon</td><td style="padding:8px 0;">${message.phone}</td></tr>` : ""}
-      ${message.subject ? `<tr><td style="padding:8px 0;color:#78716c;">Betreff</td><td style="padding:8px 0;">${message.subject}</td></tr>` : ""}
+      <tr><td style="padding:8px 0;color:#78716c;width:100px;">Name</td><td style="padding:8px 0;">${escapeHtml(message.name)}</td></tr>
+      <tr><td style="padding:8px 0;color:#78716c;">E-Mail</td><td style="padding:8px 0;"><a href="mailto:${escapeHtml(message.email)}">${escapeHtml(message.email)}</a></td></tr>
+      ${message.phone ? `<tr><td style="padding:8px 0;color:#78716c;">Telefon</td><td style="padding:8px 0;">${escapeHtml(message.phone)}</td></tr>` : ""}
+      ${message.subject ? `<tr><td style="padding:8px 0;color:#78716c;">Betreff</td><td style="padding:8px 0;">${escapeHtml(message.subject)}</td></tr>` : ""}
     </table>
     <div style="margin-top:16px;padding:16px;background:#f5f5f4;border-radius:8px;">
-      <p style="margin:0;font-size:14px;color:#292524;white-space:pre-wrap;">${message.message}</p>
+      <p style="margin:0;font-size:14px;color:#292524;white-space:pre-wrap;">${escapeHtml(message.message)}</p>
     </div>
   `);
 
@@ -199,7 +214,7 @@ export async function sendContactNotification(message: {
     from: process.env.SMTP_FROM,
     to: process.env.NOTIFICATION_EMAIL,
     replyTo: message.email,
-    subject: `Kontaktanfrage: ${message.subject || "Allgemeine Anfrage"} – ${message.name}`,
+    subject: `Kontaktanfrage: ${escapeHtml(message.subject || "Allgemeine Anfrage")} – ${escapeHtml(message.name)}`,
     html,
   });
 }

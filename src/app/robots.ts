@@ -7,6 +7,6 @@ export default function robots(): MetadataRoute.Robots {
       allow: "/",
       disallow: ["/api/"],
     },
-    sitemap: "https://www.ferienhaus-rita.at/sitemap.xml",
+    sitemap: "https://www.ferienhaus-rita-kals.at/sitemap.xml",
   };
 }

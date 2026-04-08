@@ -1,7 +1,7 @@
 import { MetadataRoute } from "next";
 import { apartments } from "@/data/apartments";
 
-const BASE_URL = "https://www.ferienhaus-rita.at";
+const BASE_URL = "https://www.ferienhaus-rita-kals.at";
 
 export default function sitemap(): MetadataRoute.Sitemap {
   const staticPages: MetadataRoute.Sitemap = [

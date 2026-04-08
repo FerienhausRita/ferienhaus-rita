@@ -1,6 +1,6 @@
 import { Apartment } from "@/data/apartments";
 import { getSeasonForDate, SeasonType } from "@/data/seasons";
-import { localTax } from "@/data/taxes";
+import { localTax, vat } from "@/data/taxes";
 import {
   DiscountCode,
   calculateDiscountAmount,
@@ -45,6 +45,8 @@ export interface PriceBreakdown {
   discountLabel: string | null;
   discountAmount: number;
   total: number;
+  /** VAT (MwSt) amount extracted from gross total (excludes Ortstaxe) */
+  vatAmount: number;
 }
 
 export function calculateNights(checkIn: Date, checkOut: Date): number {
@@ -131,6 +133,12 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
 
   const total = Math.round((subtotal - discountAmount) * 100) / 100;
 
+  // VAT: extracted from gross amounts that are subject to VAT.
+  // Ortstaxe is a public levy and NOT subject to VAT.
+  // VAT-liable gross = total - localTaxTotal
+  const vatLiableGross = total - localTaxTotal;
+  const vatAmount = Math.round((vatLiableGross / (1 + vat.rate) * vat.rate) * 100) / 100;
+
   return {
     nights,
     basePrice,
@@ -147,6 +155,7 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
     discountLabel,
     discountAmount,
     total,
+    vatAmount,
   };
 }
 

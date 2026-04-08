@@ -47,7 +47,17 @@
       "Bash(gh auth:*)",
       "Bash(brew install:*)",
       "Bash(git --version)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "Bash(npx vercel:*)",
+      "WebFetch(domain:ferienhaus-rita-1-b5cwm3ohs-ferienhausritas-projects.vercel.app)",
+      "WebFetch(domain:ferienhaus-rita.vercel.app)",
+      "WebFetch(domain:ferienhaus-rita-1.vercel.app)",
+      "Bash(dig +short ferienhaus-rita-kals.at A)",
+      "Bash(dig +short www.ferienhaus-rita-kals.at CNAME)",
+      "WebFetch(domain:www.ferienhaus-rita-kals.at)"
     ]
   }
 }
