@@ -328,6 +328,36 @@ export async function getCalendarData(year: number, month: number) {
   };
 }
 
+export async function getCalendarDataForYear(year: number) {
+  const supabase = createServerClient();
+
+  const start = `${year}-01-01`;
+  const end = `${year}-12-31`;
+
+  const [bookingsResult, blockedResult] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, apartment_id, first_name, last_name, check_in, check_out, status, adults, children, dogs"
+      )
+      .neq("status", "cancelled")
+      .lte("check_in", end)
+      .gte("check_out", start)
+      .order("check_in", { ascending: true }),
+    supabase
+      .from("blocked_dates")
+      .select("id, apartment_id, start_date, end_date, reason")
+      .lte("start_date", end)
+      .gte("end_date", start)
+      .order("start_date", { ascending: true }),
+  ]);
+
+  return {
+    bookings: bookingsResult.data ?? [],
+    blockedDates: blockedResult.data ?? [],
+  };
+}
+
 /**
  * Create a blocked date range
  */
