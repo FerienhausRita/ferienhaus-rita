@@ -1,0 +1,95 @@
+import { PriceBreakdown, formatCurrency } from "@/lib/pricing";
+import { localTax } from "@/data/taxes";
+
+interface PriceSummaryProps {
+  breakdown: PriceBreakdown;
+  dogs: number;
+  compact?: boolean;
+}
+
+export default function PriceSummary({
+  breakdown,
+  dogs,
+  compact = false,
+}: PriceSummaryProps) {
+  const hasMultipleSeasons = breakdown.seasonBreakdown.length > 1;
+
+  return (
+    <div className="space-y-3 text-sm">
+      {!compact && hasMultipleSeasons ? (
+        breakdown.seasonBreakdown.map((entry) => (
+          <div key={entry.type} className="flex justify-between text-stone-600">
+            <span>
+              {entry.nights} {entry.nights === 1 ? "Nacht" : "Nächte"} ×{" "}
+              {formatCurrency(entry.pricePerNight)}{" "}
+              <span className="text-stone-400 text-xs">({entry.label})</span>
+            </span>
+            <span>{formatCurrency(entry.total)}</span>
+          </div>
+        ))
+      ) : (
+        <div className="flex justify-between text-stone-600">
+          <span>
+            {breakdown.nights}{" "}
+            {breakdown.nights === 1 ? "Nacht" : "Nächte"} ×{" "}
+            {formatCurrency(breakdown.basePrice)}
+            {hasMultipleSeasons && (
+              <span className="text-stone-400 text-xs"> (Ø)</span>
+            )}
+          </span>
+          <span>{formatCurrency(breakdown.basePriceTotal)}</span>
+        </div>
+      )}
+
+      {breakdown.extraGuests > 0 && (
+        <div className="flex justify-between text-stone-600">
+          <span>
+            {breakdown.extraGuests} zusätzliche{" "}
+            {breakdown.extraGuests === 1 ? "Person" : "Personen"} ×{" "}
+            {breakdown.nights} {breakdown.nights === 1 ? "Nacht" : "Nächte"}
+          </span>
+          <span>{formatCurrency(breakdown.extraGuestsTotal)}</span>
+        </div>
+      )}
+
+      {breakdown.dogsTotal > 0 && (
+        <div className="flex justify-between text-stone-600">
+          <span>
+            {dogs} {dogs === 1 ? "Hund" : "Hunde"} × {breakdown.nights}{" "}
+            {breakdown.nights === 1 ? "Nacht" : "Nächte"}
+          </span>
+          <span>{formatCurrency(breakdown.dogsTotal)}</span>
+        </div>
+      )}
+
+      <div className="flex justify-between text-stone-600">
+        <span>Endreinigung</span>
+        <span>{formatCurrency(breakdown.cleaningFee)}</span>
+      </div>
+
+      {breakdown.localTaxTotal > 0 && (
+        <div className="flex justify-between text-stone-600">
+          <span>
+            {localTax.label}{" "}
+            <span className="text-stone-400 text-xs">
+              ({formatCurrency(localTax.perPersonPerNight)}/Erw./Nacht)
+            </span>
+          </span>
+          <span>{formatCurrency(breakdown.localTaxTotal)}</span>
+        </div>
+      )}
+
+      {breakdown.discountAmount > 0 && breakdown.discountLabel && (
+        <div className="flex justify-between text-emerald-600">
+          <span>{breakdown.discountLabel}</span>
+          <span>-{formatCurrency(breakdown.discountAmount)}</span>
+        </div>
+      )}
+
+      <div className="pt-3 mt-3 border-t border-stone-200 flex justify-between font-semibold text-stone-900 text-base">
+        <span>Gesamtpreis</span>
+        <span>{formatCurrency(breakdown.total)}</span>
+      </div>
+    </div>
+  );
+}

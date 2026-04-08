@@ -4,7 +4,7 @@
     {
       "name": "Next.js Dev Server",
       "runtimeExecutable": "/usr/local/bin/node",
-      "runtimeArgs": ["/usr/local/lib/node_modules/npm/bin/npm-cli.js", "run", "dev"],
+      "runtimeArgs": ["/Users/manuel/Desktop/ferienhaus-rita/node_modules/next/dist/bin/next", "dev"],
       "port": 3000
     }
   ]

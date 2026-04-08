@@ -42,7 +42,7 @@ export const apartments: Apartment[] = [
     baseGuests: 4,
     bedrooms: 3,
     bathrooms: 1,
-    floor: "Erdgeschoss",
+    floor: "Dachgeschoss",
     basePrice: 170,
     extraPersonPrice: 20,
     cleaningFee: 100,
@@ -112,7 +112,8 @@ export const apartments: Apartment[] = [
     ],
     images: [
       "/images/apartments/grossglockner-suite/living.jpg",
-      "/images/apartments/grossglockner-suite/kitchen.jpg",
+      "/images/apartments/grossglockner-suite/living2.jpg",
+      "/images/apartments/grossglockner-suite/tv.jpg",
       "/images/apartments/grossglockner-suite/bedroom.jpg",
       "/images/apartments/grossglockner-suite/bath.jpg",
       "/images/apartments/grossglockner-suite/view.jpg",
@@ -203,7 +204,9 @@ export const apartments: Apartment[] = [
     ],
     images: [
       "/images/apartments/gletscherblick/living.jpg",
+      "/images/apartments/gletscherblick/dining.jpg",
       "/images/apartments/gletscherblick/kitchen.jpg",
+      "/images/apartments/gletscherblick/tv.jpg",
       "/images/apartments/gletscherblick/bedroom.jpg",
       "/images/apartments/gletscherblick/bath.jpg",
       "/images/apartments/gletscherblick/view.jpg",
@@ -283,7 +286,6 @@ export const apartments: Apartment[] = [
     ],
     images: [
       "/images/apartments/almrausch/living.jpg",
-      "/images/apartments/almrausch/kitchen.jpg",
       "/images/apartments/almrausch/bedroom.jpg",
       "/images/apartments/almrausch/bath.jpg",
       "/images/apartments/almrausch/view.jpg",
@@ -363,7 +365,6 @@ export const apartments: Apartment[] = [
     ],
     images: [
       "/images/apartments/edelweiss/living.jpg",
-      "/images/apartments/edelweiss/kitchen.jpg",
       "/images/apartments/edelweiss/bedroom.jpg",
       "/images/apartments/edelweiss/bath.jpg",
       "/images/apartments/edelweiss/view.jpg",
