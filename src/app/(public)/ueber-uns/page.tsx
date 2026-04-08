@@ -76,19 +76,24 @@ export default function UeberUnsPage() {
             </h2>
             <div className="space-y-5 text-stone-600 text-lg leading-relaxed font-light">
               <p>
-                Wir sind Rita und Familie – seit Generationen in Kals am Großglockner
-                verwurzelt. Unser Ferienhaus haben wir mit viel Liebe und Sorgfalt zu
-                einem Ort gemacht, an dem Sie sich wie zu Hause fühlen können.
+                Wir sind Nadja und Manuel Berger und mit Kals am Großglockner seit
+                vielen Jahren eng verbunden. Dieses Haus ist für uns ein ganz besonderer
+                Ort, den wir mit viel Liebe, Sorgfalt und einem Blick fürs Detail zu
+                einem Ferienhaus gemacht haben, in dem man sich vom ersten Moment an
+                wohlfühlen kann.
               </p>
               <p>
                 Jede unserer vier Wohnungen wurde individuell gestaltet und verbindet
                 alpinen Charme mit modernem Komfort. Uns ist wichtig, dass Sie bei uns
-                nicht einfach nur übernachten – sondern wirklich ankommen.
+                nicht einfach nur übernachten, sondern wirklich ankommen, entspannen und
+                die besondere Atmosphäre von Kals genießen können.
               </p>
               <p>
-                Wir kennen jeden Wanderweg, jede Skipiste und jeden Geheimtipp in der
-                Region. Sprechen Sie uns jederzeit an – wir helfen Ihnen gerne, Ihren
-                perfekten Urlaub zusammenzustellen.
+                Da wir die Region seit vielen Jahren kennen und selbst sehr schätzen,
+                geben wir unsere persönlichen Empfehlungen gerne an Sie weiter – ob
+                Wanderungen, Skitage, Ausflugsziele oder schöne Plätze abseits der
+                bekannten Wege. Sprechen Sie uns jederzeit an – wir helfen Ihnen gerne
+                dabei, Ihren Aufenthalt so schön wie möglich zu gestalten.
               </p>
             </div>
           </div>
