@@ -1,7 +1,9 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getDashboardStats } from "./actions";
+import { getDashboardStats, getAnalyticsData } from "./actions";
 import { apartments } from "@/data/apartments";
+import RevenueChart from "@/components/admin/RevenueChart";
+import OccupancyStats from "@/components/admin/OccupancyStats";
 
 export const metadata: Metadata = {
   title: "Dashboard",
@@ -43,7 +45,10 @@ const paymentLabels: Record<string, { label: string; className: string }> = {
 };
 
 export default async function AdminDashboard() {
-  const stats = await getDashboardStats();
+  const [stats, analytics] = await Promise.all([
+    getDashboardStats(),
+    getAnalyticsData(),
+  ]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -300,6 +305,82 @@ export default async function AdminDashboard() {
               </div>
             </Link>
           ))}
+        </div>
+      </div>
+
+      {/* Analytics Section */}
+      <div className="mt-8">
+        <h2 className="text-lg font-semibold text-stone-900 mb-4">Analytics</h2>
+
+        {/* Revenue Chart - full width */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-5 mb-6">
+          <h3 className="font-medium text-stone-700 text-sm mb-4">
+            Monatlicher Umsatz (letzte 12 Monate)
+          </h3>
+          <RevenueChart data={analytics.monthlyRevenue} />
+        </div>
+
+        {/* Bottom grid: Occupancy + Summary cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Occupancy Stats - takes 2 cols */}
+          <div className="lg:col-span-2 bg-white rounded-2xl border border-stone-200 p-5">
+            <h3 className="font-medium text-stone-700 text-sm mb-4">
+              Auslastung {new Date().getFullYear()}
+            </h3>
+            <OccupancyStats data={analytics.occupancyByApartment} />
+          </div>
+
+          {/* Summary cards */}
+          <div className="space-y-4">
+            <div className="bg-white rounded-2xl border border-stone-200 p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">
+                {formatCurrency(analytics.avgBookingValue)}
+              </p>
+              <p className="text-sm text-stone-500">Ø Buchungswert</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-stone-200 p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">
+                {analytics.totalGuests}
+              </p>
+              <p className="text-sm text-stone-500">Gäste gesamt</p>
+            </div>
+
+            <div className="bg-white rounded-2xl border border-stone-200 p-5">
+              <div className="flex items-center gap-3 mb-3">
+                <div className="w-10 h-10 rounded-xl bg-violet-100 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-violet-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 12c0-1.232-.046-2.453-.138-3.662a4.006 4.006 0 00-3.7-3.7 48.678 48.678 0 00-7.324 0 4.006 4.006 0 00-3.7 3.7c-.017.22-.032.441-.046.662M19.5 12l3-3m-3 3l-3-3m-12 3c0 1.232.046 2.453.138 3.662a4.006 4.006 0 003.7 3.7 48.656 48.656 0 007.324 0 4.006 4.006 0 003.7-3.7c.017-.22.032-.441.046-.662M4.5 12l3 3m-3-3l-3 3" />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-2xl font-bold text-stone-900">
+                {analytics.totalGuests > 0
+                  ? Math.round((analytics.returningGuests / analytics.totalGuests) * 100)
+                  : 0}%
+              </p>
+              <p className="text-sm text-stone-500">
+                Wiederkehrende Gäste
+                <span className="text-stone-400 ml-1">
+                  ({analytics.returningGuests})
+                </span>
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

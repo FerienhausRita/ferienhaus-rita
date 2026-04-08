@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
-import { getAdminProfiles } from "../actions";
+import { getAdminProfiles, getAllSiteSettings } from "../actions";
 import { apartments } from "@/data/apartments";
 import { icalFeeds } from "@/data/ical-feeds";
 import SettingsPanel from "@/components/admin/SettingsPanel";
@@ -23,7 +23,10 @@ export default async function EinstellungenPage() {
     .eq("id", user?.id ?? "")
     .single();
 
-  const admins = await getAdminProfiles();
+  const [admins, siteSettings] = await Promise.all([
+    getAdminProfiles(),
+    getAllSiteSettings(),
+  ]);
 
   const feedData = Object.entries(icalFeeds).map(([aptId, urls]) => ({
     apartmentId: aptId,
@@ -45,6 +48,7 @@ export default async function EinstellungenPage() {
         admins={admins}
         icalFeeds={feedData}
         exportBaseUrl={exportBaseUrl}
+        siteSettings={siteSettings}
       />
     </div>
   );

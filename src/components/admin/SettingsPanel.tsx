@@ -7,6 +7,7 @@ import {
   updateAdminRole,
   removeAdmin,
   triggerIcalSync,
+  updateSiteSetting,
 } from "@/app/(admin)/admin/actions";
 
 interface AdminProfile {
@@ -30,6 +31,7 @@ interface SettingsPanelProps {
   admins: AdminProfile[];
   icalFeeds: ICalFeed[];
   exportBaseUrl: string;
+  siteSettings: Record<string, any>;
 }
 
 export default function SettingsPanel({
@@ -39,6 +41,7 @@ export default function SettingsPanel({
   admins,
   icalFeeds,
   exportBaseUrl,
+  siteSettings,
 }: SettingsPanelProps) {
   // Display name
   const [displayName, setDisplayName] = useState(currentName);
@@ -63,6 +66,40 @@ export default function SettingsPanel({
   // Admin list
   const [adminList, setAdminList] = useState(admins);
   const [loading, setLoading] = useState<string | null>(null);
+
+  // Bankdaten
+  const bankInit = siteSettings.bank_details ?? {};
+  const [bankIban, setBankIban] = useState(bankInit.iban ?? "");
+  const [bankBic, setBankBic] = useState(bankInit.bic ?? "");
+  const [bankHolder, setBankHolder] = useState(bankInit.holder ?? "");
+  const [bankName, setBankName] = useState(bankInit.bank_name ?? "");
+  const [bankLoading, setBankLoading] = useState(false);
+  const [bankMessage, setBankMessage] = useState<string | null>(null);
+
+  // Check-in Informationen
+  const checkinInit = siteSettings.checkin_info ?? {};
+  const [checkinKey, setCheckinKey] = useState(checkinInit.key_handover ?? "");
+  const [checkinAddress, setCheckinAddress] = useState(checkinInit.address ?? "");
+  const [checkinParking, setCheckinParking] = useState(checkinInit.parking ?? "");
+  const [checkinRules, setCheckinRules] = useState(checkinInit.house_rules ?? "");
+  const [checkinDirections, setCheckinDirections] = useState(checkinInit.directions ?? "");
+  const [checkinLoading, setCheckinLoading] = useState(false);
+  const [checkinMessage, setCheckinMessage] = useState<string | null>(null);
+
+  // E-Mail-Zeitplan
+  const timingInit = siteSettings.email_timing ?? {};
+  const [paymentDays, setPaymentDays] = useState<number>(timingInit.payment_reminder_days ?? 7);
+  const [checkinDays, setCheckinDays] = useState<number>(timingInit.checkin_info_days ?? 3);
+  const [thankyouDays, setThankyouDays] = useState<number>(timingInit.thankyou_days ?? 1);
+  const [timingLoading, setTimingLoading] = useState(false);
+  const [timingMessage, setTimingMessage] = useState<string | null>(null);
+
+  // Bewertungslink
+  const reviewInit = siteSettings.review_link ?? {};
+  const [reviewUrl, setReviewUrl] = useState(reviewInit.google_url ?? "");
+  const [reviewEnabled, setReviewEnabled] = useState(reviewInit.enabled ?? false);
+  const [reviewLoading, setReviewLoading] = useState(false);
+  const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
   const handleNameSave = async () => {
     if (!displayName.trim() || displayName.trim() === currentName) return;
@@ -128,6 +165,68 @@ export default function SettingsPanel({
     navigator.clipboard.writeText(url);
   };
 
+  const handleBankSave = async () => {
+    setBankLoading(true);
+    setBankMessage(null);
+    const result = await updateSiteSetting("bank_details", {
+      iban: bankIban.trim(),
+      bic: bankBic.trim(),
+      holder: bankHolder.trim(),
+      bank_name: bankName.trim(),
+    });
+    setBankLoading(false);
+    setBankMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setBankMessage(null), 3000);
+  };
+
+  const handleCheckinSave = async () => {
+    setCheckinLoading(true);
+    setCheckinMessage(null);
+    const result = await updateSiteSetting("checkin_info", {
+      key_handover: checkinKey.trim(),
+      address: checkinAddress.trim(),
+      parking: checkinParking.trim(),
+      house_rules: checkinRules.trim(),
+      directions: checkinDirections.trim(),
+    });
+    setCheckinLoading(false);
+    setCheckinMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setCheckinMessage(null), 3000);
+  };
+
+  const handleTimingSave = async () => {
+    setTimingLoading(true);
+    setTimingMessage(null);
+    const result = await updateSiteSetting("email_timing", {
+      payment_reminder_days: paymentDays,
+      checkin_info_days: checkinDays,
+      thankyou_days: thankyouDays,
+    });
+    setTimingLoading(false);
+    setTimingMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setTimingMessage(null), 3000);
+  };
+
+  const handleReviewSave = async () => {
+    setReviewLoading(true);
+    setReviewMessage(null);
+    const result = await updateSiteSetting("review_link", {
+      google_url: reviewUrl.trim(),
+      enabled: reviewEnabled,
+    });
+    setReviewLoading(false);
+    setReviewMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setReviewMessage(null), 3000);
+  };
+
+  const inputClass =
+    "w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50";
+  const textareaClass =
+    "w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 min-h-[80px] resize-y";
+  const btnClass =
+    "px-4 py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50";
+  const successClass = "text-xs text-emerald-600 mt-1";
+
   return (
     <div className="space-y-6">
       {/* Account */}
@@ -150,13 +249,13 @@ export default function SettingsPanel({
               <button
                 onClick={handleNameSave}
                 disabled={nameLoading || !displayName.trim() || displayName.trim() === currentName}
-                className="px-4 py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                className={btnClass}
               >
                 {nameLoading ? "..." : "Speichern"}
               </button>
             </div>
             {nameMessage && (
-              <p className="text-xs text-emerald-600 mt-1">{nameMessage}</p>
+              <p className={successClass}>{nameMessage}</p>
             )}
           </div>
           <div>
@@ -315,6 +414,181 @@ export default function SettingsPanel({
         </div>
       </div>
 
+      {/* Bankdaten */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Bankdaten</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Werden in Buchungsbestätigungen und Zahlungserinnerungen angezeigt
+          </p>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">IBAN</label>
+              <input type="text" value={bankIban} onChange={(e) => setBankIban(e.target.value)} className={inputClass} placeholder="AT00 0000 0000 0000 0000" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">BIC</label>
+              <input type="text" value={bankBic} onChange={(e) => setBankBic(e.target.value)} className={inputClass} placeholder="ABCDEFGH" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">Kontoinhaber</label>
+              <input type="text" value={bankHolder} onChange={(e) => setBankHolder(e.target.value)} className={inputClass} placeholder="Max Mustermann" />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">Bankname</label>
+              <input type="text" value={bankName} onChange={(e) => setBankName(e.target.value)} className={inputClass} placeholder="Raiffeisenbank" />
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleBankSave} disabled={bankLoading} className={btnClass}>
+              {bankLoading ? "..." : "Speichern"}
+            </button>
+            {bankMessage && <p className={successClass}>{bankMessage}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Check-in Informationen */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Check-in Informationen</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Werden automatisch vor dem Check-in an Gäste gesendet
+          </p>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">Schlüsselübergabe</label>
+            <textarea value={checkinKey} onChange={(e) => setCheckinKey(e.target.value)} className={textareaClass} placeholder="z.B. Schlüsselbox am Eingang, Code: 1234" rows={2} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">Adresse</label>
+            <input type="text" value={checkinAddress} onChange={(e) => setCheckinAddress(e.target.value)} className={inputClass} placeholder="Musterstraße 1, 9981 Kals am Großglockner" />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">Parkplatz</label>
+            <textarea value={checkinParking} onChange={(e) => setCheckinParking(e.target.value)} className={textareaClass} placeholder="Hinweise zum Parkplatz" rows={2} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">Hausregeln</label>
+            <textarea value={checkinRules} onChange={(e) => setCheckinRules(e.target.value)} className={textareaClass} placeholder="Wichtige Hausregeln für Gäste" rows={3} />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">Anfahrt</label>
+            <textarea value={checkinDirections} onChange={(e) => setCheckinDirections(e.target.value)} className={textareaClass} placeholder="Anfahrtsbeschreibung" rows={3} />
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleCheckinSave} disabled={checkinLoading} className={btnClass}>
+              {checkinLoading ? "..." : "Speichern"}
+            </button>
+            {checkinMessage && <p className={successClass}>{checkinMessage}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* E-Mail-Zeitplan */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">E-Mail-Zeitplan</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Automatischer Versand von E-Mails an Gäste
+          </p>
+        </div>
+        <div className="p-5 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Zahlungserinnerung nach
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={30}
+                  value={paymentDays}
+                  onChange={(e) => setPaymentDays(Number(e.target.value))}
+                  className={inputClass}
+                />
+                <span className="text-sm text-stone-500 whitespace-nowrap">Tagen</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Check-in-Info
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={14}
+                  value={checkinDays}
+                  onChange={(e) => setCheckinDays(Number(e.target.value))}
+                  className={inputClass}
+                />
+                <span className="text-sm text-stone-500 whitespace-nowrap">Tage vorher</span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Danke-Mail
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={14}
+                  value={thankyouDays}
+                  onChange={(e) => setThankyouDays(Number(e.target.value))}
+                  className={inputClass}
+                />
+                <span className="text-sm text-stone-500 whitespace-nowrap">Tage nach Abreise</span>
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleTimingSave} disabled={timingLoading} className={btnClass}>
+              {timingLoading ? "..." : "Speichern"}
+            </button>
+            {timingMessage && <p className={successClass}>{timingMessage}</p>}
+          </div>
+        </div>
+      </div>
+
+      {/* Bewertungslink */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Bewertungslink</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Google-Bewertungslink in Danke-Mails einbinden
+          </p>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">Google Bewertungs-URL</label>
+            <input type="url" value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} className={inputClass} placeholder="https://g.page/r/..." />
+          </div>
+          <div className="flex items-center gap-3">
+            <label className="flex items-center gap-2 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={reviewEnabled}
+                onChange={(e) => setReviewEnabled(e.target.checked)}
+                className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]/50"
+              />
+              <span className="text-sm text-stone-700">In Danke-Mails anzeigen</span>
+            </label>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleReviewSave} disabled={reviewLoading} className={btnClass}>
+              {reviewLoading ? "..." : "Speichern"}
+            </button>
+            {reviewMessage && <p className={successClass}>{reviewMessage}</p>}
+          </div>
+        </div>
+      </div>
+
       {/* iCal Sync */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-100">
@@ -327,7 +601,7 @@ export default function SettingsPanel({
           <button
             onClick={handleSync}
             disabled={syncLoading}
-            className="px-5 py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+            className={btnClass}
           >
             {syncLoading ? "Sync läuft..." : "Jetzt synchronisieren"}
           </button>

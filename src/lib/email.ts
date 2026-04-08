@@ -2,14 +2,22 @@ import nodemailer from "nodemailer";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import { Apartment } from "@/data/apartments";
 
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function escapeHtml(str: string): string {
   return str
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#039;');
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
 }
+
+// ---------------------------------------------------------------------------
+// Interfaces
+// ---------------------------------------------------------------------------
 
 interface BookingData {
   id: string;
@@ -36,6 +44,25 @@ interface BookingData {
   vatAmount: number;
 }
 
+export interface BankDetails {
+  iban: string;
+  bic: string;
+  account_holder: string;
+  bank_name: string;
+}
+
+export interface CheckinInfo {
+  key_handoff: string;
+  address: string;
+  parking: string;
+  house_rules: string;
+  directions: string;
+}
+
+// ---------------------------------------------------------------------------
+// Transporter
+// ---------------------------------------------------------------------------
+
 function createTransporter() {
   return nodemailer.createTransport({
     host: process.env.SMTP_HOST,
@@ -48,114 +75,327 @@ function createTransporter() {
   });
 }
 
-function bookingDetailsHtml(booking: BookingData, apartment: Apartment): string {
+// ---------------------------------------------------------------------------
+// Colors & constants
+// ---------------------------------------------------------------------------
+
+const GOLD = "#c8a96e";
+const DARK = "#292524";
+const GRAY = "#78716c";
+const LIGHT_GRAY = "#a8a29e";
+const BG = "#fafaf9";
+const WHITE = "#ffffff";
+const BORDER = "#e7e5e4";
+const CARD_BG = "#f5f5f4";
+
+const BASE_URL = process.env.NEXT_PUBLIC_BASE_URL || "https://ferienhaus-rita.at";
+
+// ---------------------------------------------------------------------------
+// Base layout
+// ---------------------------------------------------------------------------
+
+function emailBaseLayout(content: string, preheader?: string): string {
+  const preheaderHtml = preheader
+    ? `<div style="display:none;font-size:1px;color:${BG};line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">${escapeHtml(preheader)}</div>`
+    : "";
+
+  return `<!DOCTYPE html>
+<html lang="de" xmlns="http://www.w3.org/1999/xhtml">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Ferienhaus Rita</title>
+  <!--[if mso]>
+  <noscript>
+    <xml>
+      <o:OfficeDocumentSettings>
+        <o:PixelsPerInch>96</o:PixelsPerInch>
+      </o:OfficeDocumentSettings>
+    </xml>
+  </noscript>
+  <![endif]-->
+</head>
+<body style="margin:0;padding:0;word-spacing:normal;background-color:${BG};font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;">
+  ${preheaderHtml}
+  <table role="presentation" style="width:100%;border:none;border-spacing:0;background-color:${BG};">
+    <tr>
+      <td align="center" style="padding:32px 16px;">
+        <!--[if mso]><table role="presentation" align="center" style="width:600px;"><tr><td><![endif]-->
+        <div style="max-width:600px;margin:0 auto;">
+
+          <!-- Header -->
+          <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+            <tr>
+              <td style="padding:0 0 4px;text-align:center;">
+                <div style="display:inline-block;width:60px;height:3px;background-color:${GOLD};border-radius:2px;"></div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:16px 0 4px;text-align:center;">
+                <h1 style="margin:0;font-size:26px;font-weight:700;color:${DARK};letter-spacing:0.5px;">Ferienhaus Rita</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:0 0 28px;text-align:center;">
+                <p style="margin:0;font-size:12px;color:${GRAY};letter-spacing:2.5px;text-transform:uppercase;">Kals am Gro\u00dfglockner</p>
+              </td>
+            </tr>
+          </table>
+
+          <!-- Content card -->
+          <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+            <tr>
+              <td style="background:${WHITE};border-radius:12px;border:1px solid ${BORDER};padding:36px 32px;box-shadow:0 1px 3px rgba(0,0,0,0.04);">
+                ${content}
+              </td>
+            </tr>
+          </table>
+
+          <!-- Footer -->
+          <table role="presentation" style="width:100%;border:none;border-spacing:0;">
+            <tr>
+              <td style="padding:28px 0 0;text-align:center;">
+                <div style="display:inline-block;width:40px;height:2px;background-color:${GOLD};border-radius:1px;margin-bottom:16px;"></div>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;padding:0 0 8px;">
+                <p style="margin:0;font-size:13px;color:${GRAY};line-height:1.6;">
+                  Ferienhaus Rita &middot; Ködnitz 7 &middot; 9981 Kals am Gro\u00dfglockner &middot; \u00d6sterreich
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;padding:0 0 8px;">
+                <p style="margin:0;font-size:13px;color:${GRAY};line-height:1.6;">
+                  <a href="mailto:info@ferienhaus-rita.at" style="color:${GOLD};text-decoration:none;">info@ferienhaus-rita.at</a>
+                  &nbsp;&middot;&nbsp;
+                  <a href="tel:+436769306474" style="color:${GOLD};text-decoration:none;">+43 676 930 6474</a>
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;padding:0 0 8px;">
+                <p style="margin:0;font-size:12px;color:${LIGHT_GRAY};line-height:1.6;">
+                  <a href="${BASE_URL}/impressum" style="color:${LIGHT_GRAY};text-decoration:underline;">Impressum</a>
+                  &nbsp;&middot;&nbsp;
+                  <a href="${BASE_URL}/datenschutz" style="color:${LIGHT_GRAY};text-decoration:underline;">Datenschutz</a>
+                  &nbsp;&middot;&nbsp;
+                  <a href="${BASE_URL}/agb" style="color:${LIGHT_GRAY};text-decoration:underline;">AGB</a>
+                </p>
+              </td>
+            </tr>
+            <tr>
+              <td style="text-align:center;padding:4px 0 0;">
+                <p style="margin:0;font-size:11px;color:${LIGHT_GRAY};">Alle Preise inkl. 10% MwSt.</p>
+              </td>
+            </tr>
+          </table>
+
+        </div>
+        <!--[if mso]></td></tr></table><![endif]-->
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+}
+
+// ---------------------------------------------------------------------------
+// Reusable components
+// ---------------------------------------------------------------------------
+
+function paymentReference(bookingId: string): string {
+  return `FR-${bookingId.slice(0, 8).toUpperCase()}`;
+}
+
+function ctaButton(label: string, href: string): string {
   return `
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
+    <table role="presentation" style="width:100%;border:none;border-spacing:0;">
       <tr>
-        <td style="padding:8px 0;color:#78716c;">Wohnung</td>
-        <td style="padding:8px 0;font-weight:600;">${escapeHtml(apartment.name)} (${apartment.size} m²)</td>
+        <td align="center" style="padding:24px 0 8px;">
+          <!--[if mso]>
+          <v:roundrect xmlns:v="urn:schemas-microsoft-com:vml" xmlns:w="urn:schemas-microsoft-com:office:word" href="${href}" style="height:48px;v-text-anchor:middle;width:260px;" arcsize="12%" strokecolor="${GOLD}" fillcolor="${GOLD}">
+            <w:anchorlock/>
+            <center style="color:#ffffff;font-family:sans-serif;font-size:15px;font-weight:600;">${escapeHtml(label)}</center>
+          </v:roundrect>
+          <![endif]-->
+          <!--[if !mso]><!-->
+          <a href="${href}" target="_blank" style="display:inline-block;background-color:${GOLD};color:#ffffff;font-size:15px;font-weight:600;text-decoration:none;padding:14px 36px;border-radius:8px;line-height:1;">
+            ${escapeHtml(label)}
+          </a>
+          <!--<![endif]-->
+        </td>
       </tr>
+    </table>`;
+}
+
+function sectionHeading(text: string): string {
+  return `<h3 style="margin:28px 0 14px;font-size:15px;font-weight:700;color:${DARK};text-transform:uppercase;letter-spacing:1px;">${escapeHtml(text)}</h3>`;
+}
+
+function detailRow(label: string, value: string, options?: { bold?: boolean; alignRight?: boolean }): string {
+  const fontWeight = options?.bold ? "700" : "400";
+  const textAlign = options?.alignRight ? "text-align:right;" : "";
+  return `
+    <tr>
+      <td style="padding:7px 0;color:${GRAY};font-size:14px;">${label}</td>
+      <td style="padding:7px 0;font-size:14px;font-weight:${fontWeight};color:${DARK};${textAlign}">${value}</td>
+    </tr>`;
+}
+
+function divider(): string {
+  return `<tr><td colspan="2" style="padding:0;"><div style="border-top:1px solid ${BORDER};margin:4px 0;"></div></td></tr>`;
+}
+
+function strongDivider(): string {
+  return `<tr><td colspan="2" style="padding:0;"><div style="border-top:2px solid ${DARK};margin:4px 0;"></div></td></tr>`;
+}
+
+function bookingDetailsCard(booking: BookingData, apartment: Apartment): string {
+  return `
+    <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:16px 0;">
+      <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
+        ${detailRow("Wohnung", `${escapeHtml(apartment.name)} (${apartment.size} m\u00b2)`, { bold: true })}
+        ${detailRow("Anreise", formatDate(booking.checkIn), { bold: true })}
+        ${detailRow("Abreise", formatDate(booking.checkOut), { bold: true })}
+        ${detailRow("N\u00e4chte", String(booking.nights), { bold: true })}
+        ${detailRow(
+          "G\u00e4ste",
+          `${booking.adults} Erwachsene${booking.children > 0 ? `, ${booking.children} Kinder` : ""}${booking.dogs > 0 ? `, ${booking.dogs} Hund${booking.dogs > 1 ? "e" : ""}` : ""}`,
+          { bold: true }
+        )}
+      </table>
+    </div>`;
+}
+
+function priceTable(booking: BookingData): string {
+  return `
+    <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
+      ${detailRow(
+        `${booking.nights} &times; \u00dcbernachtung`,
+        formatCurrency(booking.pricePerNight * booking.nights),
+        { alignRight: true }
+      )}
+      ${booking.extraGuestsTotal > 0 ? detailRow("Zusatzg\u00e4ste", formatCurrency(booking.extraGuestsTotal), { alignRight: true }) : ""}
+      ${booking.dogsTotal > 0 ? detailRow(`Hund${booking.dogs > 1 ? "e" : ""}`, formatCurrency(booking.dogsTotal), { alignRight: true }) : ""}
+      ${detailRow("Endreinigung", formatCurrency(booking.cleaningFee), { alignRight: true })}
+      ${strongDivider()}
       <tr>
-        <td style="padding:8px 0;color:#78716c;">Anreise</td>
-        <td style="padding:8px 0;font-weight:600;">${formatDate(booking.checkIn)}</td>
-      </tr>
-      <tr>
-        <td style="padding:8px 0;color:#78716c;">Abreise</td>
-        <td style="padding:8px 0;font-weight:600;">${formatDate(booking.checkOut)}</td>
-      </tr>
-      <tr>
-        <td style="padding:8px 0;color:#78716c;">Nächte</td>
-        <td style="padding:8px 0;font-weight:600;">${booking.nights}</td>
-      </tr>
-      <tr>
-        <td style="padding:8px 0;color:#78716c;">Gäste</td>
-        <td style="padding:8px 0;font-weight:600;">${booking.adults} Erwachsene${booking.children > 0 ? `, ${booking.children} Kinder` : ""}${booking.dogs > 0 ? `, ${booking.dogs} Hund${booking.dogs > 1 ? "e" : ""}` : ""}</td>
-      </tr>
-      <tr style="border-top:1px solid #e7e5e4;">
-        <td style="padding:8px 0;color:#78716c;">${booking.nights} × Übernachtung</td>
-        <td style="padding:8px 0;text-align:right;">${formatCurrency(booking.pricePerNight * booking.nights)}</td>
-      </tr>
-      ${booking.extraGuestsTotal > 0 ? `
-      <tr>
-        <td style="padding:8px 0;color:#78716c;">Zusatzgäste</td>
-        <td style="padding:8px 0;text-align:right;">${formatCurrency(booking.extraGuestsTotal)}</td>
-      </tr>` : ""}
-      ${booking.dogsTotal > 0 ? `
-      <tr>
-        <td style="padding:8px 0;color:#78716c;">Hund${booking.dogs > 1 ? "e" : ""}</td>
-        <td style="padding:8px 0;text-align:right;">${formatCurrency(booking.dogsTotal)}</td>
-      </tr>` : ""}
-      <tr>
-        <td style="padding:8px 0;color:#78716c;">Endreinigung</td>
-        <td style="padding:8px 0;text-align:right;">${formatCurrency(booking.cleaningFee)}</td>
-      </tr>
-      <tr style="border-top:2px solid #292524;">
-        <td style="padding:12px 0;font-weight:700;font-size:16px;">Gesamtpreis</td>
-        <td style="padding:12px 0;font-weight:700;font-size:16px;text-align:right;">${formatCurrency(booking.totalPrice)}</td>
+        <td style="padding:12px 0;font-weight:700;font-size:17px;color:${DARK};">Gesamtpreis</td>
+        <td style="padding:12px 0;font-weight:700;font-size:17px;color:${DARK};text-align:right;">${formatCurrency(booking.totalPrice)}</td>
       </tr>
       ${booking.vatAmount > 0 ? `
       <tr>
-        <td style="padding:4px 0;color:#a8a29e;font-size:12px;">Inkl. 10% MwSt</td>
-        <td style="padding:4px 0;color:#a8a29e;font-size:12px;text-align:right;">${formatCurrency(booking.vatAmount)}</td>
+        <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;">Inkl. 10% MwSt.</td>
+        <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;text-align:right;">${formatCurrency(booking.vatAmount)}</td>
       </tr>` : ""}
-    </table>
-  `;
+    </table>`;
 }
 
-const emailWrapper = (content: string) => `
-<!DOCTYPE html>
-<html lang="de">
-<head><meta charset="utf-8"></head>
-<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background-color:#fafaf9;">
-  <div style="max-width:600px;margin:0 auto;padding:40px 20px;">
-    <div style="text-align:center;margin-bottom:32px;">
-      <h1 style="margin:0;font-size:24px;color:#292524;">Ferienhaus Rita</h1>
-      <p style="margin:4px 0 0;font-size:12px;color:#78716c;letter-spacing:2px;text-transform:uppercase;">Kals am Großglockner</p>
-    </div>
-    <div style="background:#ffffff;border-radius:16px;padding:32px;border:1px solid #e7e5e4;">
-      ${content}
-    </div>
-    <div style="text-align:center;margin-top:32px;font-size:12px;color:#a8a29e;">
-      <p>Ferienhaus Rita · Kals am Großglockner · Österreich</p>
-    </div>
-  </div>
-</body>
-</html>
-`;
+function bankDetailsBlock(bankDetails: BankDetails, reference: string, amount?: number): string {
+  return `
+    <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:16px 0;border-left:4px solid ${GOLD};">
+      <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:${DARK};">Bankverbindung</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
+        ${detailRow("Empf\u00e4nger", escapeHtml(bankDetails.account_holder), { bold: true })}
+        ${detailRow("IBAN", escapeHtml(bankDetails.iban), { bold: true })}
+        ${detailRow("BIC", escapeHtml(bankDetails.bic), { bold: true })}
+        ${detailRow("Bank", escapeHtml(bankDetails.bank_name), { bold: true })}
+        ${detailRow("Verwendungszweck", `<span style="color:${GOLD};font-weight:700;">${escapeHtml(reference)}</span>`, { bold: true })}
+        ${amount !== undefined ? detailRow("Betrag", `<span style="font-weight:700;">${formatCurrency(amount)}</span>`, { bold: true }) : ""}
+      </table>
+    </div>`;
+}
+
+function signoff(): string {
+  return `
+    <p style="color:${GRAY};font-size:14px;line-height:1.7;margin:28px 0 0;">
+      Herzliche Gr\u00fc\u00dfe,<br>
+      Ihr Team vom Ferienhaus Rita
+    </p>`;
+}
+
+// ---------------------------------------------------------------------------
+// sendBookingConfirmation
+// ---------------------------------------------------------------------------
 
 export async function sendBookingConfirmation(
   booking: BookingData,
-  apartment: Apartment
+  apartment: Apartment,
+  options?: {
+    bankDetails?: BankDetails;
+    portalUrl?: string;
+  }
 ): Promise<void> {
   const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+  const portalUrl = options?.portalUrl
+    ? `${BASE_URL}${options.portalUrl}`
+    : `${BASE_URL}/meine-buchung`;
 
-  const html = emailWrapper(`
-    <h2 style="margin:0 0 8px;font-size:20px;color:#292524;">Vielen Dank für Ihre Buchungsanfrage!</h2>
-    <p style="color:#78716c;font-size:14px;line-height:1.6;margin:0 0 24px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},<br><br>
-      wir haben Ihre Buchungsanfrage erhalten und melden uns innerhalb von 24 Stunden mit einer Bestätigung bei Ihnen.
-    </p>
-    <h3 style="margin:0 0 16px;font-size:16px;color:#292524;">Ihre Buchungsdetails</h3>
-    ${bookingDetailsHtml(booking, apartment)}
-    <div style="margin-top:24px;padding:16px;background:#f6f7f4;border-radius:8px;">
-      <p style="margin:0;font-size:13px;color:#5e6a4d;">
-        <strong>Buchungsnummer:</strong> ${booking.id.slice(0, 8).toUpperCase()}<br>
-        Bitte geben Sie diese Nummer bei Rückfragen an.
+  let paymentSection = "";
+  if (options?.bankDetails) {
+    paymentSection = `
+      ${sectionHeading("Zahlung")}
+      <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
+        Bitte \u00fcberweisen Sie den Gesamtbetrag unter Angabe des Verwendungszwecks auf folgendes Konto:
       </p>
-    </div>
-    <p style="color:#78716c;font-size:14px;line-height:1.6;margin:24px 0 0;">
-      Herzliche Grüße,<br>
-      Ihr Team vom Ferienhaus Rita
+      ${bankDetailsBlock(options.bankDetails, ref, booking.totalPrice)}
+    `;
+  }
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
     </p>
-  `);
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      vielen Dank f\u00fcr Ihre Buchungsanfrage! Wir haben diese erhalten und melden uns
+      innerhalb von 24 Stunden mit einer Best\u00e4tigung bei Ihnen.
+    </p>
+
+    <!-- Booking reference -->
+    <div style="text-align:center;margin:24px 0;">
+      <span style="display:inline-block;background:${GOLD};color:#ffffff;font-size:13px;font-weight:700;padding:8px 20px;border-radius:6px;letter-spacing:1.5px;">
+        BUCHUNGSNR. ${escapeHtml(ref)}
+      </span>
+    </div>
+
+    ${sectionHeading("Buchungsdetails")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${sectionHeading("Preis\u00fcbersicht")}
+    ${priceTable(booking)}
+
+    ${paymentSection}
+
+    ${ctaButton("Meine Buchung ansehen", portalUrl)}
+
+    <p style="font-size:12px;color:${LIGHT_GRAY};line-height:1.6;margin:20px 0 0;text-align:center;">
+      Mit Ihrer Buchung akzeptieren Sie unsere
+      <a href="${BASE_URL}/agb" style="color:${GOLD};text-decoration:underline;">AGB &amp; Buchungsbedingungen</a>.
+    </p>
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Ihre Buchungsanfrage ${escapeHtml(apartment.name)} \u2013 Buchungsnr. ${ref}`
+  );
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: booking.email,
-    subject: `Buchungsanfrage ${escapeHtml(apartment.name)} – ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
+    subject: `Buchungsanfrage ${escapeHtml(apartment.name)} \u2013 ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
     html,
   });
 }
+
+// ---------------------------------------------------------------------------
+// sendBookingNotification (admin)
+// ---------------------------------------------------------------------------
 
 export async function sendBookingNotification(
   booking: BookingData,
@@ -163,30 +403,50 @@ export async function sendBookingNotification(
 ): Promise<void> {
   const transporter = createTransporter();
 
-  const html = emailWrapper(`
-    <h2 style="margin:0 0 8px;font-size:20px;color:#292524;">Neue Buchungsanfrage</h2>
-    <p style="color:#78716c;font-size:14px;margin:0 0 24px;">
+  const content = `
+    <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">Neue Buchungsanfrage</h2>
+    <p style="color:${GRAY};font-size:14px;margin:0 0 24px;">
       Eine neue Buchungsanfrage ist eingegangen.
     </p>
-    <h3 style="margin:0 0 12px;font-size:16px;color:#292524;">Gastdaten</h3>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px;">
-      <tr><td style="padding:4px 0;color:#78716c;">Name</td><td style="padding:4px 0;">${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)}</td></tr>
-      <tr><td style="padding:4px 0;color:#78716c;">E-Mail</td><td style="padding:4px 0;"><a href="mailto:${escapeHtml(booking.email)}">${escapeHtml(booking.email)}</a></td></tr>
-      <tr><td style="padding:4px 0;color:#78716c;">Telefon</td><td style="padding:4px 0;"><a href="tel:${escapeHtml(booking.phone)}">${escapeHtml(booking.phone)}</a></td></tr>
-      <tr><td style="padding:4px 0;color:#78716c;">Adresse</td><td style="padding:4px 0;">${escapeHtml(booking.street)}, ${escapeHtml(booking.zip)} ${escapeHtml(booking.city)}, ${escapeHtml(booking.country)}</td></tr>
-      ${booking.notes ? `<tr><td style="padding:4px 0;color:#78716c;">Bemerkungen</td><td style="padding:4px 0;">${escapeHtml(booking.notes)}</td></tr>` : ""}
+
+    ${sectionHeading("Gastdaten")}
+    <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;margin-bottom:24px;">
+      ${detailRow("Name", `${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)}`, { bold: true })}
+      <tr>
+        <td style="padding:7px 0;color:${GRAY};font-size:14px;">E-Mail</td>
+        <td style="padding:7px 0;font-size:14px;font-weight:400;color:${DARK};"><a href="mailto:${escapeHtml(booking.email)}" style="color:${GOLD};text-decoration:none;">${escapeHtml(booking.email)}</a></td>
+      </tr>
+      <tr>
+        <td style="padding:7px 0;color:${GRAY};font-size:14px;">Telefon</td>
+        <td style="padding:7px 0;font-size:14px;font-weight:400;color:${DARK};"><a href="tel:${escapeHtml(booking.phone)}" style="color:${GOLD};text-decoration:none;">${escapeHtml(booking.phone)}</a></td>
+      </tr>
+      ${detailRow("Adresse", `${escapeHtml(booking.street)}, ${escapeHtml(booking.zip)} ${escapeHtml(booking.city)}, ${escapeHtml(booking.country)}`)}
+      ${booking.notes ? detailRow("Bemerkungen", escapeHtml(booking.notes)) : ""}
     </table>
-    <h3 style="margin:0 0 12px;font-size:16px;color:#292524;">Buchungsdetails</h3>
-    ${bookingDetailsHtml(booking, apartment)}
-  `);
+
+    ${sectionHeading("Buchungsdetails")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${sectionHeading("Preis\u00fcbersicht")}
+    ${priceTable(booking)}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Neue Buchung: ${apartment.name} \u2013 ${booking.firstName} ${booking.lastName}`
+  );
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: process.env.NOTIFICATION_EMAIL,
-    subject: `Neue Buchung: ${escapeHtml(apartment.name)} – ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)} (${formatDate(booking.checkIn)} – ${formatDate(booking.checkOut)})`,
+    subject: `Neue Buchung: ${escapeHtml(apartment.name)} \u2013 ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)} (${formatDate(booking.checkIn)} \u2013 ${formatDate(booking.checkOut)})`,
     html,
   });
 }
+
+// ---------------------------------------------------------------------------
+// sendContactNotification (admin)
+// ---------------------------------------------------------------------------
 
 export async function sendContactNotification(message: {
   name: string;
@@ -197,31 +457,44 @@ export async function sendContactNotification(message: {
 }): Promise<void> {
   const transporter = createTransporter();
 
-  const html = emailWrapper(`
-    <h2 style="margin:0 0 8px;font-size:20px;color:#292524;">Neue Kontaktanfrage</h2>
-    <table style="width:100%;border-collapse:collapse;font-size:14px;">
-      <tr><td style="padding:8px 0;color:#78716c;width:100px;">Name</td><td style="padding:8px 0;">${escapeHtml(message.name)}</td></tr>
-      <tr><td style="padding:8px 0;color:#78716c;">E-Mail</td><td style="padding:8px 0;"><a href="mailto:${escapeHtml(message.email)}">${escapeHtml(message.email)}</a></td></tr>
-      ${message.phone ? `<tr><td style="padding:8px 0;color:#78716c;">Telefon</td><td style="padding:8px 0;">${escapeHtml(message.phone)}</td></tr>` : ""}
-      ${message.subject ? `<tr><td style="padding:8px 0;color:#78716c;">Betreff</td><td style="padding:8px 0;">${escapeHtml(message.subject)}</td></tr>` : ""}
+  const content = `
+    <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">Neue Kontaktanfrage</h2>
+    <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
+      ${detailRow("Name", escapeHtml(message.name), { bold: true })}
+      <tr>
+        <td style="padding:7px 0;color:${GRAY};font-size:14px;">E-Mail</td>
+        <td style="padding:7px 0;font-size:14px;color:${DARK};"><a href="mailto:${escapeHtml(message.email)}" style="color:${GOLD};text-decoration:none;">${escapeHtml(message.email)}</a></td>
+      </tr>
+      ${message.phone ? `
+      <tr>
+        <td style="padding:7px 0;color:${GRAY};font-size:14px;">Telefon</td>
+        <td style="padding:7px 0;font-size:14px;color:${DARK};">${escapeHtml(message.phone)}</td>
+      </tr>` : ""}
+      ${message.subject ? detailRow("Betreff", escapeHtml(message.subject)) : ""}
     </table>
-    <div style="margin-top:16px;padding:16px;background:#f5f5f4;border-radius:8px;">
-      <p style="margin:0;font-size:14px;color:#292524;white-space:pre-wrap;">${escapeHtml(message.message)}</p>
+    <div style="margin-top:16px;padding:16px;background:${CARD_BG};border-radius:8px;">
+      <p style="margin:0;font-size:14px;color:${DARK};white-space:pre-wrap;line-height:1.6;">${escapeHtml(message.message)}</p>
     </div>
-  `);
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Kontaktanfrage von ${message.name}`
+  );
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: process.env.NOTIFICATION_EMAIL,
     replyTo: message.email,
-    subject: `Kontaktanfrage: ${escapeHtml(message.subject || "Allgemeine Anfrage")} – ${escapeHtml(message.name)}`,
+    subject: `Kontaktanfrage: ${escapeHtml(message.subject || "Allgemeine Anfrage")} \u2013 ${escapeHtml(message.name)}`,
     html,
   });
 }
 
-/**
- * Send a custom email from admin to a guest.
- */
+// ---------------------------------------------------------------------------
+// sendCustomEmail
+// ---------------------------------------------------------------------------
+
 export async function sendCustomEmail(
   to: string,
   subject: string,
@@ -229,21 +502,224 @@ export async function sendCustomEmail(
 ): Promise<void> {
   const transporter = createTransporter();
 
-  const html = emailWrapper(`
-    <div style="font-size:14px;color:#292524;line-height:1.6;">
+  const content = `
+    <div style="font-size:14px;color:${DARK};line-height:1.7;">
       ${body.replace(/\n/g, "<br>")}
     </div>
-    <p style="color:#78716c;font-size:14px;line-height:1.6;margin:24px 0 0;">
-      Herzliche Grüße,<br>
-      Ihr Team vom Ferienhaus Rita
-    </p>
-  `);
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(content);
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to,
     replyTo: process.env.SMTP_USER,
     subject,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// sendPaymentReminder
+// ---------------------------------------------------------------------------
+
+export async function sendPaymentReminder(
+  booking: BookingData,
+  apartment: Apartment,
+  bankDetails: BankDetails,
+  outstandingAmount: number
+): Promise<void> {
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+    </p>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      wir freuen uns auf Ihren Besuch im Ferienhaus Rita! Gerne m\u00f6chten wir Sie
+      daran erinnern, dass f\u00fcr Ihre Buchung noch ein offener Betrag besteht.
+    </p>
+
+    <!-- Outstanding amount -->
+    <div style="text-align:center;margin:28px 0;">
+      <div style="display:inline-block;background:${CARD_BG};border:2px solid ${GOLD};border-radius:10px;padding:20px 36px;">
+        <p style="margin:0 0 4px;font-size:12px;color:${GRAY};text-transform:uppercase;letter-spacing:1.5px;">Offener Betrag</p>
+        <p style="margin:0;font-size:28px;font-weight:700;color:${DARK};">${formatCurrency(outstandingAmount)}</p>
+      </div>
+    </div>
+
+    ${sectionHeading("Buchungs\u00fcbersicht")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${sectionHeading("Zahlungsinformationen")}
+    <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
+      Bitte \u00fcberweisen Sie den offenen Betrag unter Angabe des Verwendungszwecks auf folgendes Konto:
+    </p>
+    ${bankDetailsBlock(bankDetails, ref, outstandingAmount)}
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.6;margin:16px 0 0;">
+      Sollte sich Ihre Zahlung mit dieser Erinnerung \u00fcberschnitten haben, bitten wir Sie,
+      diese Nachricht als gegenstandslos zu betrachten.
+    </p>
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Zahlungserinnerung \u2013 Buchung ${ref}`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Zahlungserinnerung \u2013 Buchung ${ref} \u2013 Ferienhaus Rita`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// sendCheckinInfo
+// ---------------------------------------------------------------------------
+
+export async function sendCheckinInfo(
+  booking: BookingData,
+  apartment: Apartment,
+  checkinInfo: CheckinInfo
+): Promise<void> {
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+    </p>
+
+    <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">In wenigen Tagen geht&rsquo;s los!</h2>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      Ihr Aufenthalt im Ferienhaus Rita r\u00fcckt n\u00e4her und wir m\u00f6chten Ihnen
+      alle wichtigen Informationen f\u00fcr Ihre Anreise mitteilen.
+    </p>
+
+    <!-- Check-in highlight -->
+    <div style="text-align:center;margin:24px 0;">
+      <div style="display:inline-block;background:${GOLD};border-radius:10px;padding:20px 36px;">
+        <p style="margin:0 0 4px;font-size:12px;color:rgba(255,255,255,0.8);text-transform:uppercase;letter-spacing:1.5px;">Check-in</p>
+        <p style="margin:0;font-size:20px;font-weight:700;color:#ffffff;">${formatDate(booking.checkIn)} ab 16:00 Uhr</p>
+      </div>
+    </div>
+
+    ${sectionHeading("Adresse & Anfahrt")}
+    <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:0 0 16px;">
+      <p style="margin:0 0 8px;font-size:15px;font-weight:700;color:${DARK};">${escapeHtml(checkinInfo.address)}</p>
+      <p style="margin:0;font-size:14px;color:${GRAY};line-height:1.6;">${escapeHtml(checkinInfo.directions)}</p>
+    </div>
+
+    ${sectionHeading("Schl\u00fcssel\u00fcbergabe")}
+    <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:0 0 16px;">
+      <p style="margin:0;font-size:14px;color:${DARK};line-height:1.6;">${escapeHtml(checkinInfo.key_handoff)}</p>
+    </div>
+
+    ${sectionHeading("Parken")}
+    <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:0 0 16px;">
+      <p style="margin:0;font-size:14px;color:${DARK};line-height:1.6;">${escapeHtml(checkinInfo.parking)}</p>
+    </div>
+
+    ${sectionHeading("Hausordnung")}
+    <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:0 0 16px;">
+      <p style="margin:0;font-size:14px;color:${DARK};line-height:1.6;white-space:pre-wrap;">${escapeHtml(checkinInfo.house_rules)}</p>
+    </div>
+
+    ${sectionHeading("Ihre Buchung")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:20px 0 0;">
+      Bei Fragen stehen wir Ihnen jederzeit zur Verf\u00fcgung &ndash; antworten Sie einfach
+      auf diese E-Mail oder rufen Sie uns an unter
+      <a href="tel:+436769306474" style="color:${GOLD};text-decoration:none;font-weight:600;">+43 676 930 6474</a>.
+    </p>
+
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:20px 0 0;">
+      Wir freuen uns auf Sie!
+    </p>
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Anreise-Informationen f\u00fcr Ihren Aufenthalt \u2013 ${formatDate(booking.checkIn)}`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Anreise-Informationen \u2013 ${escapeHtml(apartment.name)} \u2013 ${formatDate(booking.checkIn)}`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// sendThankYou
+// ---------------------------------------------------------------------------
+
+export async function sendThankYou(
+  booking: BookingData,
+  apartment: Apartment,
+  reviewLink?: string
+): Promise<void> {
+  const transporter = createTransporter();
+
+  const reviewSection = reviewLink
+    ? `
+      <p style="font-size:14px;color:${DARK};line-height:1.7;margin:20px 0 8px;">
+        Wir w\u00fcrden uns sehr freuen, wenn Sie Ihre Erfahrung mit anderen Urlaubern teilen:
+      </p>
+      ${ctaButton("Bewerten Sie uns auf Google", reviewLink)}
+    `
+    : "";
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+    </p>
+
+    <h2 style="margin:0 0 12px;font-size:20px;color:${DARK};">Vielen Dank f\u00fcr Ihren Besuch!</h2>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      Wir hoffen, Sie hatten eine wundersch\u00f6ne Zeit im Ferienhaus Rita in Kals am
+      Gro\u00dfglockner und konnten Ihren Aufenthalt in vollen Z\u00fcgen genie\u00dfen.
+    </p>
+
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${reviewSection}
+
+    <div style="text-align:center;margin:28px 0 8px;">
+      <div style="display:inline-block;width:40px;height:2px;background-color:${GOLD};border-radius:1px;"></div>
+    </div>
+
+    <p style="font-size:15px;color:${DARK};line-height:1.7;margin:12px 0 0;text-align:center;font-weight:600;">
+      Bis zum n\u00e4chsten Mal!
+    </p>
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:8px 0 0;text-align:center;">
+      Planen Sie schon Ihren n\u00e4chsten Urlaub?
+    </p>
+    ${ctaButton("Ferienhaus Rita besuchen", BASE_URL)}
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    "Vielen Dank f\u00fcr Ihren Besuch im Ferienhaus Rita!"
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Vielen Dank f\u00fcr Ihren Besuch \u2013 Ferienhaus Rita`,
     html,
   });
 }

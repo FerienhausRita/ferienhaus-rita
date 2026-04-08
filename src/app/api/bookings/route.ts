@@ -309,6 +309,83 @@ export async function POST(request: NextRequest) {
       // Don't fail the booking — emails can be resent manually
     }
 
+    // Schedule automated emails (payment reminder, check-in info, thank you)
+    // Best-effort: don't fail the booking if scheduling fails
+    try {
+      const { data: timingRow } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "email_timing")
+        .single();
+
+      const timing = timingRow?.value as {
+        payment_reminder_days?: number;
+        checkin_info_days?: number;
+        thankyou_days?: number;
+      } | null;
+
+      const paymentDays = timing?.payment_reminder_days ?? 7;
+      const checkinDays = timing?.checkin_info_days ?? 3;
+      const thankyouDays = timing?.thankyou_days ?? 1;
+
+      const now = new Date();
+      const ciDate = new Date(data.checkIn + "T08:00:00Z");
+      const coDate = new Date(data.checkOut + "T08:00:00Z");
+
+      const scheduledEmails: {
+        booking_id: string;
+        email_type: string;
+        scheduled_for: string;
+        status: string;
+      }[] = [];
+
+      // Payment reminder: X days from now
+      const paymentDate = new Date(now.getTime() + paymentDays * 24 * 60 * 60 * 1000);
+      paymentDate.setUTCHours(8, 0, 0, 0);
+      if (paymentDate < ciDate) {
+        scheduledEmails.push({
+          booking_id: booking.id,
+          email_type: "payment_reminder",
+          scheduled_for: paymentDate.toISOString(),
+          status: "pending",
+        });
+      }
+
+      // Check-in info: X days before check-in
+      const checkinInfoDate = new Date(ciDate.getTime() - checkinDays * 24 * 60 * 60 * 1000);
+      checkinInfoDate.setUTCHours(8, 0, 0, 0);
+      if (checkinInfoDate > now) {
+        scheduledEmails.push({
+          booking_id: booking.id,
+          email_type: "checkin_info",
+          scheduled_for: checkinInfoDate.toISOString(),
+          status: "pending",
+        });
+      }
+
+      // Thank you: X days after check-out
+      const thankyouDate = new Date(coDate.getTime() + thankyouDays * 24 * 60 * 60 * 1000);
+      thankyouDate.setUTCHours(8, 0, 0, 0);
+      scheduledEmails.push({
+        booking_id: booking.id,
+        email_type: "thankyou",
+        scheduled_for: thankyouDate.toISOString(),
+        status: "pending",
+      });
+
+      if (scheduledEmails.length > 0) {
+        const { error: scheduleError } = await supabase
+          .from("email_schedule")
+          .insert(scheduledEmails);
+        if (scheduleError) {
+          console.error("Error scheduling automated emails:", scheduleError);
+        }
+      }
+    } catch (scheduleError) {
+      console.error("Email scheduling failed:", scheduleError);
+      // Don't fail the booking
+    }
+
     return NextResponse.json({
       success: true,
       bookingId: booking.id,

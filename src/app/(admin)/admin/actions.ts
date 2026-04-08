@@ -100,6 +100,143 @@ export async function getDashboardStats() {
 }
 
 /**
+ * Get analytics data for the dashboard
+ */
+export async function getAnalyticsData() {
+  const supabase = createServerClient();
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const yearStart = `${currentYear}-01-01`;
+  const yearEnd = `${currentYear}-12-31`;
+
+  // Build last 12 months range
+  const months: string[] = [];
+  for (let i = 11; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push(
+      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    );
+  }
+  const twelveMonthsAgo = months[0] + "-01";
+
+  // Fetch non-cancelled bookings for the last 12 months (for revenue + avg + guests)
+  const [revenueResult, yearResult] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select("check_in, total_price, email")
+      .neq("status", "cancelled")
+      .gte("check_in", twelveMonthsAgo)
+      .order("check_in", { ascending: true }),
+    // Non-cancelled bookings for current year (for occupancy)
+    supabase
+      .from("bookings")
+      .select("apartment_id, check_in, check_out")
+      .neq("status", "cancelled")
+      .gte("check_in", yearStart)
+      .lte("check_in", yearEnd),
+  ]);
+
+  const revenueBookings = revenueResult.data ?? [];
+  const yearBookings = yearResult.data ?? [];
+
+  // Monthly revenue
+  const revenueMap = new Map<string, number>();
+  for (const m of months) {
+    revenueMap.set(m, 0);
+  }
+  for (const b of revenueBookings) {
+    const month = b.check_in.substring(0, 7);
+    if (revenueMap.has(month)) {
+      revenueMap.set(month, (revenueMap.get(month) ?? 0) + Number(b.total_price || 0));
+    }
+  }
+  const monthlyRevenue = months.map((m) => ({
+    month: m,
+    revenue: revenueMap.get(m) ?? 0,
+  }));
+
+  // Average booking value
+  const nonZeroBookings = revenueBookings.filter(
+    (b) => Number(b.total_price) > 0
+  );
+  const avgBookingValue =
+    nonZeroBookings.length > 0
+      ? nonZeroBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0) /
+        nonZeroBookings.length
+      : 0;
+
+  // Total unique guests & returning guests
+  const emailCounts = new Map<string, number>();
+  for (const b of revenueBookings) {
+    if (b.email) {
+      const email = b.email.toLowerCase();
+      emailCounts.set(email, (emailCounts.get(email) ?? 0) + 1);
+    }
+  }
+  const totalGuests = emailCounts.size;
+  let returningGuests = 0;
+  for (const count of emailCounts.values()) {
+    if (count > 1) returningGuests++;
+  }
+
+  // Occupancy by apartment
+  const apartmentIds = [
+    "grossglockner-suite",
+    "gletscherblick",
+    "almrausch",
+    "edelweiss",
+  ];
+  const daysInYear =
+    (new Date(currentYear + 1, 0, 1).getTime() -
+      new Date(currentYear, 0, 1).getTime()) /
+    (1000 * 60 * 60 * 24);
+  // Up to today if current year
+  const totalNights = Math.min(
+    Math.floor(
+      (now.getTime() - new Date(currentYear, 0, 1).getTime()) /
+        (1000 * 60 * 60 * 24)
+    ),
+    daysInYear
+  );
+  // Use full year for the denominator so rates stay comparable
+  const denominatorNights = Math.round(daysInYear);
+
+  const occupancyByApartment = apartmentIds.map((id) => {
+    const bookings = yearBookings.filter((b) => b.apartment_id === id);
+    let occupiedNights = 0;
+    for (const b of bookings) {
+      const checkIn = new Date(b.check_in + "T00:00:00");
+      const checkOut = new Date(b.check_out + "T00:00:00");
+      const nights = Math.max(
+        0,
+        Math.round(
+          (checkOut.getTime() - checkIn.getTime()) / (1000 * 60 * 60 * 24)
+        )
+      );
+      occupiedNights += nights;
+    }
+    const apt = getApartmentById(id);
+    return {
+      apartmentId: id,
+      apartmentName: apt?.name ?? id,
+      occupiedNights,
+      totalNights: denominatorNights,
+      rate: denominatorNights > 0
+        ? Math.round((occupiedNights / denominatorNights) * 100)
+        : 0,
+    };
+  });
+
+  return {
+    monthlyRevenue,
+    occupancyByApartment,
+    avgBookingValue: Math.round(avgBookingValue),
+    totalGuests,
+    returningGuests,
+  };
+}
+
+/**
  * Get all bookings with optional filtering
  */
 export async function getBookings(filter?: string, search?: string) {
@@ -1290,6 +1427,16 @@ export async function createManualBooking(data: {
       .eq("id", guestData.id);
   }
 
+  // Schedule automated emails (payment reminder, check-in info, thank you)
+  if (booking) {
+    try {
+      await scheduleBookingEmails(booking.id, data.check_in, data.check_out);
+    } catch (scheduleError) {
+      console.error("Email scheduling failed for manual booking:", scheduleError);
+      // Don't fail the booking
+    }
+  }
+
   // Optionally send confirmation
   if (data.send_confirmation && booking) {
     try {
@@ -1384,4 +1531,235 @@ export async function getGuestsFromDB(search?: string) {
   }
 
   return data ?? [];
+}
+
+// ============================================
+// SITE SETTINGS
+// ============================================
+
+export async function getSiteSetting(key: string) {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", key)
+    .single();
+
+  if (error) {
+    console.error("Error fetching setting:", key, error);
+    return null;
+  }
+  return data?.value;
+}
+
+export async function getAllSiteSettings() {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("site_settings")
+    .select("key, value");
+
+  if (error) {
+    console.error("Error fetching settings:", error);
+    return {};
+  }
+
+  const settings: Record<string, any> = {};
+  for (const row of data ?? []) {
+    settings[row.key] = row.value;
+  }
+  return settings;
+}
+
+export async function updateSiteSetting(key: string, value: any) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ key, value, updated_at: new Date().toISOString() });
+
+  if (error) {
+    console.error("Error updating setting:", key, error);
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+// ============================================
+// EMAIL SCHEDULE
+// ============================================
+
+export async function getEmailSchedule(bookingId: string) {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("email_schedule")
+    .select("*")
+    .eq("booking_id", bookingId)
+    .order("scheduled_for", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching email schedule:", error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function scheduleBookingEmails(bookingId: string, checkIn: string, checkOut: string) {
+  const supabase = createServerClient();
+
+  // Get email timing from settings
+  const timing = await getSiteSetting("email_timing") as {
+    payment_reminder_days: number;
+    checkin_info_days: number;
+    thankyou_days: number
+  } | null;
+
+  const paymentDays = timing?.payment_reminder_days ?? 7;
+  const checkinDays = timing?.checkin_info_days ?? 3;
+  const thankyouDays = timing?.thankyou_days ?? 1;
+
+  const now = new Date();
+  const checkInDate = new Date(checkIn + "T08:00:00Z");
+  const checkOutDate = new Date(checkOut + "T08:00:00Z");
+
+  const emails = [];
+
+  // Payment reminder: X days from now
+  const paymentDate = new Date(now.getTime() + paymentDays * 24 * 60 * 60 * 1000);
+  paymentDate.setUTCHours(8, 0, 0, 0);
+  if (paymentDate < checkInDate) {
+    emails.push({
+      booking_id: bookingId,
+      email_type: "payment_reminder",
+      scheduled_for: paymentDate.toISOString(),
+      status: "pending",
+    });
+  }
+
+  // Check-in info: X days before check-in
+  const checkinInfoDate = new Date(checkInDate.getTime() - checkinDays * 24 * 60 * 60 * 1000);
+  checkinInfoDate.setUTCHours(8, 0, 0, 0);
+  if (checkinInfoDate > now) {
+    emails.push({
+      booking_id: bookingId,
+      email_type: "checkin_info",
+      scheduled_for: checkinInfoDate.toISOString(),
+      status: "pending",
+    });
+  }
+
+  // Thank you: X days after check-out
+  const thankyouDate = new Date(checkOutDate.getTime() + thankyouDays * 24 * 60 * 60 * 1000);
+  thankyouDate.setUTCHours(8, 0, 0, 0);
+  emails.push({
+    booking_id: bookingId,
+    email_type: "thankyou",
+    scheduled_for: thankyouDate.toISOString(),
+    status: "pending",
+  });
+
+  if (emails.length > 0) {
+    const { error } = await supabase.from("email_schedule").insert(emails);
+    if (error) {
+      console.error("Error scheduling emails:", error);
+    }
+  }
+}
+
+export async function skipScheduledEmail(scheduleId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("email_schedule")
+    .update({ status: "skipped" })
+    .eq("id", scheduleId);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/buchungen");
+  return { success: true };
+}
+
+export async function resendScheduledEmail(scheduleId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("email_schedule")
+    .update({ status: "pending", scheduled_for: new Date().toISOString(), sent_at: null, error_message: null })
+    .eq("id", scheduleId);
+
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/buchungen");
+  return { success: true };
+}
+
+// ============================================
+// INVOICE NUMBER ASSIGNMENT
+// ============================================
+
+/**
+ * Assigns an invoice number to a booking if it doesn't already have one.
+ * Format: FR-{year}-{0001} (4-digit padded sequential number per year).
+ * Returns the invoice number (existing or newly assigned).
+ */
+export async function assignInvoiceNumber(bookingId: string): Promise<string> {
+  const supabase = createServerClient();
+
+  // Load booking
+  const { data: booking, error: bookingError } = await supabase
+    .from("bookings")
+    .select("id, invoice_number")
+    .eq("id", bookingId)
+    .single();
+
+  if (bookingError || !booking) {
+    throw new Error("Buchung nicht gefunden");
+  }
+
+  // Return existing invoice number if already assigned
+  if (booking.invoice_number) {
+    return booking.invoice_number;
+  }
+
+  const currentYear = new Date().getFullYear();
+
+  // Read current counter from site_settings
+  const { data: counterRow } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "invoice_counter")
+    .single();
+
+  let counter = counterRow?.value ?? { year: currentYear, next_number: 1 };
+
+  // Reset counter if year changed
+  if (counter.year !== currentYear) {
+    counter = { year: currentYear, next_number: 1 };
+  }
+
+  const nextNumber = counter.next_number;
+  const invoiceNumber = `FR-${currentYear}-${String(nextNumber).padStart(4, "0")}`;
+
+  // Save invoice number to booking
+  const { error: updateBookingError } = await supabase
+    .from("bookings")
+    .update({ invoice_number: invoiceNumber })
+    .eq("id", bookingId);
+
+  if (updateBookingError) {
+    throw new Error("Rechnungsnummer konnte nicht gespeichert werden");
+  }
+
+  // Increment counter
+  const { error: updateCounterError } = await supabase
+    .from("site_settings")
+    .upsert({
+      key: "invoice_counter",
+      value: { year: currentYear, next_number: nextNumber + 1 },
+      updated_at: new Date().toISOString(),
+    });
+
+  if (updateCounterError) {
+    console.error("Error updating invoice counter:", updateCounterError);
+  }
+
+  revalidatePath("/admin/buchungen");
+  return invoiceNumber;
 }

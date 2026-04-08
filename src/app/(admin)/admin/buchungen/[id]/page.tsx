@@ -1,11 +1,12 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById, getBookingNotes } from "../../actions";
+import { getBookingById, getBookingNotes, getEmailSchedule } from "../../actions";
 import { getApartmentById } from "@/data/apartments";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
 import EmailCompose from "@/components/admin/EmailCompose";
+import EmailTimeline from "@/components/admin/EmailTimeline";
 
 export const metadata: Metadata = {
   title: "Buchungsdetail",
@@ -70,9 +71,10 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes] = await Promise.all([
+  const [booking, notes, emailSchedule] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
+    getEmailSchedule(params.id),
   ]);
 
   if (!booking) {
@@ -319,8 +321,43 @@ export default async function BookingDetailPage({
                   </span>
                 </div>
               </div>
+
+              {/* Invoice download */}
+              <div className="pt-4 mt-4 border-t border-stone-100">
+                <a
+                  href={`/api/invoice/${booking.id}`}
+                  download
+                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors"
+                >
+                  <svg
+                    className="w-4 h-4"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={1.5}
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
+                    />
+                  </svg>
+                  Rechnung herunterladen
+                  {booking.invoice_number && (
+                    <span className="text-white/70 text-xs">
+                      ({booking.invoice_number})
+                    </span>
+                  )}
+                </a>
+              </div>
             </div>
           </div>
+
+          {/* Email Timeline */}
+          <EmailTimeline
+            emails={emailSchedule}
+            bookingId={booking.id}
+          />
 
           {/* Email Compose */}
           <EmailCompose
