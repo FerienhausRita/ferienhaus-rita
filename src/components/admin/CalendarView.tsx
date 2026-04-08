@@ -168,13 +168,13 @@ export default function CalendarView({
   };
 
   return (
-    <div
-      className="bg-white rounded-2xl border border-stone-200 overflow-hidden"
-      onTouchStart={handleTouchStart}
-      onTouchEnd={handleTouchEnd}
-    >
-      {/* Monatsnavigation */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+      {/* Monatsnavigation – Swipe hier für Monatswechsel */}
+      <div
+        className="flex items-center justify-between px-5 py-4 border-b border-stone-100"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+      >
         <button
           onClick={goToPrev}
           className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
