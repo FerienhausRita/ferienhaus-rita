@@ -27,12 +27,13 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
-    // Query bookings where id starts with the code and last_name matches (case-insensitive)
+    // Query bookings by last_name (case-insensitive), then filter by code prefix client-side.
+    // This avoids LIKE on UUID columns which PostgREST doesn't support well.
     const { data: bookings, error } = await supabase
       .from("bookings")
       .select("id, last_name")
-      .like("id", `${sanitizedCode}%`)
-      .limit(10);
+      .ilike("last_name", sanitizedLastName)
+      .limit(50);
 
     if (error) {
       console.error("Guest auth DB error:", error);
@@ -42,9 +43,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Find a booking with matching last name (case-insensitive)
-    const booking = bookings?.find(
-      (b) => b.last_name.toLowerCase() === sanitizedLastName.toLowerCase()
+    // Find a booking where the ID starts with the provided code
+    const booking = bookings?.find((b) =>
+      b.id.toLowerCase().startsWith(sanitizedCode)
     );
 
     if (!booking) {
