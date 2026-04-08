@@ -1,3 +1,4 @@
+import Script from "next/script";
 import Header from "@/components/layout/Header";
 import Footer from "@/components/layout/Footer";
 import JsonLd from "@/components/seo/JsonLd";
@@ -22,6 +23,10 @@ export default function PublicLayout({
       <WhatsAppButton />
       <CookieConsent />
       <JsonLd type="organization" />
+      <Script
+        src="https://phoenix.contwise.io/webcomponent.bundle.js"
+        strategy="lazyOnload"
+      />
     </>
   );
 }

@@ -3,6 +3,8 @@ import Image from "next/image";
 import Link from "next/link";
 import Container from "@/components/ui/Container";
 import AnimateIn from "@/components/ui/AnimateIn";
+import ContwiseMaps from "@/components/ui/ContwiseMaps";
+import { skipassData } from "@/data/skipass-prices";
 
 export const metadata: Metadata = {
   title: "Winter in Kals am Großglockner",
@@ -10,13 +12,6 @@ export const metadata: Metadata = {
     "Skifahren im GG Resort, Rodeln, Langlaufen, Skitouren und gemütliche Hütten – Winter in Kals am Großglockner.",
 };
 
-const skiPassPrices = [
-  { label: "Erwachsene Tageskarte", price: "€ 62,50" },
-  { label: "Jugend (16–18 J.) Tageskarte", price: "€ 56,00" },
-  { label: "Kinder (6–15 J.) Tageskarte", price: "€ 31,50" },
-  { label: "Erwachsene 6-Tages-Pass", price: "€ 313,00" },
-  { label: "Kinder 6-Tages-Pass", price: "€ 157,00" },
-];
 
 const huetten = [
   {
@@ -185,23 +180,25 @@ export default function WinterPage() {
             <div className="max-w-2xl mx-auto">
               <div className="text-center mb-10">
                 <span className="text-[var(--color-gold)] text-xs font-medium tracking-[0.3em] uppercase">
-                  Saison 2025/26
+                  Saison {skipassData.season}
                 </span>
                 <h2 className="font-serif text-3xl font-bold text-stone-900 mt-3 tracking-tight">
                   Skipass-Preise
                 </h2>
               </div>
               <div className="bg-white rounded-2xl border border-stone-100 overflow-hidden">
-                {skiPassPrices.map((item, index) => (
+                {skipassData.prices.map((item, index) => (
                   <div
-                    key={item.label}
+                    key={`${item.label}-${item.duration}`}
                     className={`flex items-center justify-between px-6 py-4 ${
-                      index !== skiPassPrices.length - 1
+                      index !== skipassData.prices.length - 1
                         ? "border-b border-stone-100"
                         : ""
                     }`}
                   >
-                    <span className="text-stone-700 text-sm">{item.label}</span>
+                    <span className="text-stone-700 text-sm">
+                      {item.label} {item.duration}
+                    </span>
                     <span className="font-semibold text-stone-900">{item.price}</span>
                   </div>
                 ))}
@@ -298,6 +295,27 @@ export default function WinterPage() {
         </section>
       </AnimateIn>
 
+      {/* Langlauf-Route Detail */}
+      <section className="py-20">
+        <Container>
+          <AnimateIn>
+            <div className="max-w-3xl mx-auto">
+              <div className="bg-white rounded-2xl border border-stone-100 p-6">
+                <h3 className="font-semibold text-stone-900 mb-2">
+                  Promenadenloipe Kals
+                </h3>
+                <p className="text-stone-500 text-sm leading-relaxed mb-4">
+                  Die schönste Loipe im Tal: 6,4 km entlang des Kalser Bachs durch die
+                  verschneite Winterlandschaft. Flach und bestens gespurt – ideal für
+                  Einsteiger und genussvolle Langläufer.
+                </p>
+                <ContwiseMaps resourceId="1788371" height="350px" />
+              </div>
+            </div>
+          </AnimateIn>
+        </Container>
+      </section>
+
       {/* Skitouren */}
       <section className="py-24">
         <Container>
@@ -332,6 +350,19 @@ export default function WinterPage() {
                   Aussicht, moderate Steigung und oben wartet eine gute Jause. Bitte
                   informieren Sie sich vorab über die Lawinenlage!&rdquo;
                 </p>
+              </div>
+
+              {/* Stüdlhütte Route */}
+              <div className="bg-white rounded-2xl border border-stone-100 p-6 mt-8">
+                <h3 className="font-semibold text-stone-900 mb-2">
+                  Skitour zur Stüdlhütte (2.802 m)
+                </h3>
+                <p className="text-stone-500 text-sm leading-relaxed mb-4">
+                  Die klassische Tour durchs Ködnitztal zur Stüdlhütte – 9,3 km, 862 Höhenmeter
+                  und ständiger Blick auf den Großglockner. Ausgangspunkt für ambitionierte
+                  Gipfeltouren.
+                </p>
+                <ContwiseMaps resourceId="94349190" height="350px" />
               </div>
             </div>
           </AnimateIn>
@@ -380,6 +411,18 @@ export default function WinterPage() {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="text-center mt-10">
+              <Link
+                href="/region/restaurants"
+                className="inline-flex items-center gap-2 text-alpine-600 hover:text-alpine-700 text-sm font-semibold transition-colors"
+              >
+                Alle Restaurants & Hütten ansehen
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
             </div>
           </AnimateIn>
         </Container>

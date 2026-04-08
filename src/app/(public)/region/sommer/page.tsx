@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import Container from "@/components/ui/Container";
 import AnimateIn from "@/components/ui/AnimateIn";
+import ContwiseMaps from "@/components/ui/ContwiseMaps";
 
 export const metadata: Metadata = {
   title: "Sommer in Kals am Großglockner",
@@ -20,6 +21,7 @@ const wanderRouten: {
   duration: string;
   elevation: string;
   description: string;
+  resourceId?: string;
 }[] = [
   {
     name: "Ködnitztal zur Lucknerhütte",
@@ -30,6 +32,7 @@ const wanderRouten: {
     elevation: "↑ 321 Hm",
     description:
       "Gemütliche Wanderung durch das beeindruckende Ködnitztal mit Blick auf den Großglockner. Ideal für Familien und als Einstiegstour.",
+    resourceId: "87418815",
   },
   {
     name: "Dorfertal zum Dorfer See",
@@ -40,6 +43,7 @@ const wanderRouten: {
     elevation: "↑ 600 Hm",
     description:
       "Abwechslungsreiche Tour durch eines der schönsten Täler Osttirols. Der türkisblaue Bergsee am Ende belohnt jeden Schritt.",
+    resourceId: "94229740",
   },
   {
     name: "Sudetendeutsche Hütte",
@@ -60,6 +64,24 @@ const wanderRouten: {
     elevation: "↑ 722 Hm",
     description:
       "Beliebte Hüttenwanderung mit dem berühmten Blick auf Großglockner und Pasterze. Der Weg über das Berger Törl belohnt mit einem atemberaubenden Panorama.",
+    resourceId: "94721506",
+  },
+];
+
+const mtbRouten = [
+  {
+    name: "Talrunde Kalserbach Nr. 118",
+    description:
+      "Gemütliche Familientour entlang des Kalser Bachs. Flach und gut befahrbar – ideal als Einstiegstour oder nachmittägliche Ausfahrt.",
+    difficulty: "leicht" as Difficulty,
+    resourceId: "81519707",
+  },
+  {
+    name: "Lesachalmweg Nr. 112",
+    description:
+      "Anspruchsvolle MTB-Tour von der Lana-Brücke durch den Wald zur Lesachalm und zum Alpengasthof Glödis Refugium mit Blick auf die Glödis (3.207 m).",
+    difficulty: "mittel" as Difficulty,
+    resourceId: "81531421",
   },
 ];
 
@@ -207,6 +229,13 @@ export default function SommerPage() {
                             {route.from} → {route.to}
                           </span>
                         </div>
+                        {route.resourceId && (
+                          <ContwiseMaps
+                            resourceId={route.resourceId}
+                            height="300px"
+                            className="mt-4"
+                          />
+                        )}
                       </div>
                     );
                   })}
@@ -301,6 +330,37 @@ export default function SommerPage() {
                     Schobergruppe und die Glocknergruppe.
                   </p>
                 </div>
+
+                {/* MTB Routen mit Karten */}
+                <div className="space-y-4 mt-8">
+                  {mtbRouten.map((route) => {
+                    const colors = difficultyColors[route.difficulty];
+                    return (
+                      <div
+                        key={route.name}
+                        className="bg-white rounded-2xl border border-stone-100 p-6"
+                      >
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <h3 className="font-semibold text-stone-900 text-sm">
+                            {route.name}
+                          </h3>
+                          <span
+                            className={`shrink-0 text-xs font-medium px-2.5 py-1 rounded-full ${colors.bg} ${colors.text}`}
+                          >
+                            {route.difficulty}
+                          </span>
+                        </div>
+                        <p className="text-stone-500 text-sm leading-relaxed mb-4">
+                          {route.description}
+                        </p>
+                        <ContwiseMaps
+                          resourceId={route.resourceId}
+                          height="300px"
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </AnimateIn>
@@ -392,6 +452,35 @@ export default function SommerPage() {
                   </p>
                 </div>
               </div>
+            </div>
+          </AnimateIn>
+        </Container>
+      </section>
+
+      {/* Einkehr & Restaurants */}
+      <section className="py-20">
+        <Container narrow>
+          <AnimateIn>
+            <div className="text-center">
+              <span className="text-[var(--color-gold)] text-xs font-medium tracking-[0.3em] uppercase">
+                Genuss & Einkehr
+              </span>
+              <h2 className="font-serif text-3xl font-bold text-stone-900 mt-3 mb-4 tracking-tight">
+                Restaurants & Hütten
+              </h2>
+              <p className="text-stone-500 leading-relaxed mb-8 max-w-lg mx-auto">
+                Nach einem langen Tag in den Bergen wartet die Kalser Küche mit
+                regionalen Spezialitäten und Tiroler Gastfreundschaft.
+              </p>
+              <Link
+                href="/region/restaurants"
+                className="inline-flex items-center gap-2 bg-alpine-600 hover:bg-alpine-700 text-white px-6 py-3 rounded-xl text-sm font-semibold tracking-wider uppercase transition-all hover:shadow-lg"
+              >
+                Alle Restaurants ansehen
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                </svg>
+              </Link>
             </div>
           </AnimateIn>
         </Container>
