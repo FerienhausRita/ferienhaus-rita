@@ -52,7 +52,7 @@ export const restaurants: Restaurant[] = [
       "Beliebtes Ausflugslokal in Kals mit regionaler Küche und gemütlicher Atmosphäre. Bekannt für Wild- und Almspezialitäten.",
     cuisine: "Regionale Küche",
     location: "Kals am Großglockner",
-    image: "/images/region/placeholder-restaurant.jpg",
+    image: "/images/region/gamsalm.png",
     features: ["Wildspezialitäten", "Familienfreundlich"],
   },
   {
@@ -62,7 +62,7 @@ export const restaurants: Restaurant[] = [
       "Uriger Gasthof mit langer Tradition in Kals. Serviert bodenständige Tiroler Gerichte mit Produkten aus der Region.",
     cuisine: "Tiroler Küche",
     location: "Kals am Großglockner",
-    image: "/images/region/placeholder-restaurant.jpg",
+    image: "/images/region/temblerhof.jpg",
     features: ["Traditionsgasthof", "Regionale Produkte"],
   },
   {
@@ -72,7 +72,7 @@ export const restaurants: Restaurant[] = [
       "Gastfreundlicher Hof am Eingang zum Ködnitztal. Rustikale Küche mit Schwerpunkt auf lokale und saisonale Zutaten.",
     cuisine: "Rustikale Küche",
     location: "Ködnitz, Kals",
-    image: "/images/region/placeholder-restaurant.jpg",
+    image: "/images/region/koednitzhof.jpg",
     features: ["Saisonale Küche", "Ruhige Lage"],
   },
   {
@@ -82,7 +82,7 @@ export const restaurants: Restaurant[] = [
       "Stilvolles Restaurant im Gradonna Resort mit Blick auf die Bergwelt. Kreative alpenländische Küche auf gehobenem Niveau mit Spa- und Wellnessbereich.",
     cuisine: "Gehobene Alpenküche",
     location: "Kals am Großglockner",
-    image: "/images/region/placeholder-restaurant.jpg",
+    image: "/images/region/gradonna.jpg",
     website: "https://www.gradonna.at/",
     features: ["Wellnessbereich", "Gehobene Küche", "Panoramablick"],
   },
