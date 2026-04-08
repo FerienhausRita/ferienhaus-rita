@@ -135,25 +135,27 @@ export default function DateRangePicker({
     const monthLabel = `${MONTH_NAMES[month]} ${year}`;
 
     return (
-      <div className="flex-1 min-w-0">
-        <h3 className="text-sm font-semibold text-stone-800 text-center mb-3 capitalize">
+      <div>
+        <h3 className="text-sm font-semibold text-stone-800 text-center mb-2">
           {monthLabel}
         </h3>
 
-        <div className="grid grid-cols-7 mb-1">
+        {/* Day headers */}
+        <div className="grid grid-cols-7 gap-0 mb-1">
           {DAY_NAMES.map((d) => (
             <div
               key={d}
-              className="text-center text-xs font-medium text-stone-400 py-1"
+              className="h-8 flex items-center justify-center text-xs font-medium text-stone-400"
             >
               {d}
             </div>
           ))}
         </div>
 
-        <div className="grid grid-cols-7">
+        {/* Day cells */}
+        <div className="grid grid-cols-7 gap-0">
           {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-            <div key={`empty-${i}`} className="w-8 h-8 sm:w-9 sm:h-9" />
+            <div key={`empty-${i}`} className="h-9" />
           ))}
 
           {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -168,7 +170,7 @@ export default function DateRangePicker({
             const isInRange =
               checkIn && checkOut && dateStr > checkIn && dateStr < checkOut;
 
-            // Hover preview: when checkIn selected, no checkOut yet, and hovering
+            // Hover preview
             const isHoverPreview =
               !isDisabled &&
               !isCheckIn &&
@@ -183,23 +185,23 @@ export default function DateRangePicker({
               dateStr <= hoveredDate;
 
             let cellClasses =
-              "w-8 h-8 sm:w-9 sm:h-9 flex items-center justify-center text-sm rounded-lg transition-all";
+              "h-9 flex items-center justify-center text-sm transition-colors";
 
             if (isDisabled) {
               cellClasses += " text-stone-300 cursor-not-allowed";
             } else if (isCheckIn) {
               cellClasses +=
-                " bg-alpine-600 text-white font-semibold rounded-r-none";
+                " bg-alpine-600 text-white font-semibold rounded-l-lg";
             } else if (isCheckOut) {
               cellClasses +=
-                " bg-alpine-600 text-white font-semibold rounded-l-none";
+                " bg-alpine-600 text-white font-semibold rounded-r-lg";
             } else if (isInRange) {
-              cellClasses += " bg-alpine-100 text-alpine-800 rounded-none";
+              cellClasses += " bg-alpine-100 text-alpine-800";
             } else if (isHoverPreview) {
-              cellClasses += " bg-alpine-50 rounded-none";
+              cellClasses += " bg-alpine-50";
             } else {
               cellClasses +=
-                " cursor-pointer hover:bg-stone-100 text-stone-700";
+                " cursor-pointer hover:bg-stone-100 text-stone-700 rounded-lg";
             }
 
             return (
@@ -271,7 +273,7 @@ export default function DateRangePicker({
 
       {/* Dropdown panel */}
       {isOpen && (
-        <div className="absolute z-50 left-0 right-0 bg-white rounded-2xl shadow-2xl border border-stone-200 p-4 sm:p-6 mt-2">
+        <div className="absolute z-50 left-0 bg-white rounded-2xl shadow-2xl border border-stone-200 p-5 sm:p-6 mt-2 w-[320px] sm:w-[600px]">
           {/* Navigation */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -296,10 +298,10 @@ export default function DateRangePicker({
               </svg>
             </button>
 
-            <div className="text-sm text-stone-500">
+            <div className="text-sm font-medium text-alpine-700 bg-alpine-50 px-3 py-1 rounded-full">
               {selecting === "checkIn"
-                ? "Anreisedatum wählen"
-                : "Abreisedatum wählen"}
+                ? "→ Anreisedatum wählen"
+                : "→ Abreisedatum wählen"}
             </div>
 
             <button
@@ -324,12 +326,10 @@ export default function DateRangePicker({
             </button>
           </div>
 
-          {/* Calendars: 2 months on sm+, 1 on mobile */}
-          <div className="flex gap-6">
-            <div className="w-full sm:w-1/2">
-              {renderMonth(viewYear, viewMonth)}
-            </div>
-            <div className="hidden sm:block sm:w-1/2">
+          {/* Calendars */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+            {renderMonth(viewYear, viewMonth)}
+            <div className="hidden sm:block">
               {renderMonth(secondYear, secondMonth)}
             </div>
           </div>
