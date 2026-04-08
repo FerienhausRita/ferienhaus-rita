@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { getSeasonForDate, seasonConfigs, SeasonType } from "@/data/seasons";
 import {
   toISODate,
   getDaysInMonth,
@@ -16,12 +15,6 @@ interface AvailabilityCalendarProps {
   checkOut: string;
   onSelectRange: (checkIn: string, checkOut: string) => void;
 }
-
-const SEASON_COLORS: Record<SeasonType, string> = {
-  high: "bg-amber-50",
-  mid: "bg-white",
-  low: "bg-emerald-50",
-};
 
 export default function AvailabilityCalendar({
   apartmentId,
@@ -42,7 +35,7 @@ export default function AvailabilityCalendar({
     checkIn ? "checkOut" : "checkIn"
   );
 
-  // Compute the second month (viewMonth + 1)
+  // Compute the second month
   const secondMonth = viewMonth === 11 ? 0 : viewMonth + 1;
   const secondYear = viewMonth === 11 ? viewYear + 1 : viewYear;
 
@@ -129,7 +122,7 @@ export default function AvailabilityCalendar({
 
     return (
       <div>
-        <h4 className="text-xs sm:text-sm font-semibold text-stone-800 text-center mb-2 capitalize">
+        <h4 className="text-xs sm:text-sm font-semibold text-stone-800 text-center mb-2">
           {monthLabel}
         </h4>
 
@@ -143,7 +136,7 @@ export default function AvailabilityCalendar({
 
         <div className="grid grid-cols-7 gap-px">
           {Array.from({ length: firstDayOfWeek }).map((_, i) => (
-            <div key={`empty-${i}`} className="w-7 h-7 sm:w-8 sm:h-8" />
+            <div key={`empty-${i}`} className="h-7 sm:h-8" />
           ))}
 
           {Array.from({ length: daysInMonth }).map((_, i) => {
@@ -159,31 +152,30 @@ export default function AvailabilityCalendar({
             const isInRange =
               checkIn && checkOut && dateStr > checkIn && dateStr < checkOut;
 
-            const season = getSeasonForDate(date);
-            const seasonBg =
-              !isDisabled && !isCheckIn && !isCheckOut && !isInRange
-                ? SEASON_COLORS[season.type]
-                : "";
+            let cellClasses =
+              "h-7 sm:h-8 flex items-center justify-center text-[11px] sm:text-xs rounded transition-all";
+
+            if (isPast) {
+              cellClasses += " text-stone-300 cursor-not-allowed";
+            } else if (isCheckIn) {
+              cellClasses += " bg-alpine-600 text-white font-bold rounded-r-none";
+            } else if (isCheckOut) {
+              cellClasses += " bg-alpine-600 text-white font-bold rounded-l-none";
+            } else if (isInRange) {
+              cellClasses += " bg-alpine-100 text-alpine-800 rounded-none";
+            } else if (isUnavailable) {
+              cellClasses += " bg-red-50 text-red-300 cursor-not-allowed line-through";
+            } else {
+              cellClasses += " bg-emerald-50 text-stone-700 cursor-pointer hover:ring-2 hover:ring-alpine-400";
+            }
 
             return (
               <button
                 key={day}
                 onClick={() => !isDisabled && handleDayClick(dateStr)}
                 disabled={isDisabled}
-                className={`
-                  w-7 h-7 sm:w-8 sm:h-8 flex items-center justify-center text-[11px] sm:text-xs rounded-lg transition-all
-                  ${isDisabled ? "text-stone-300 cursor-not-allowed line-through" : "cursor-pointer hover:ring-2 hover:ring-alpine-400"}
-                  ${isCheckIn ? "bg-alpine-600 text-white font-bold rounded-r-none" : ""}
-                  ${isCheckOut ? "bg-alpine-600 text-white font-bold rounded-l-none" : ""}
-                  ${isInRange ? "bg-alpine-100 text-alpine-800 rounded-none" : ""}
-                  ${!isCheckIn && !isCheckOut && !isInRange && !isDisabled ? seasonBg : ""}
-                  ${isUnavailable && !isPast ? "bg-stone-100" : ""}
-                `}
-                title={
-                  isUnavailable
-                    ? "Nicht verfügbar"
-                    : `${season.label} – ${seasonConfigs[season.type].multiplier}×`
-                }
+                className={cellClasses}
+                title={isUnavailable ? "Belegt" : "Verfügbar"}
               >
                 {day}
               </button>
@@ -199,8 +191,8 @@ export default function AvailabilityCalendar({
       {/* Instruction */}
       <div className="bg-alpine-50 rounded-lg px-3 py-2 mb-4 text-xs text-alpine-700">
         {selecting === "checkIn"
-          ? "\u2192 Klicken Sie auf Ihr gew\u00fcnschtes Anreisedatum"
-          : "\u2192 Klicken Sie jetzt auf Ihr Abreisedatum"}
+          ? "→ Klicken Sie auf Ihr gewünschtes Anreisedatum"
+          : "→ Klicken Sie jetzt auf Ihr Abreisedatum"}
       </div>
 
       {/* Navigation */}
@@ -221,7 +213,7 @@ export default function AvailabilityCalendar({
         <button
           onClick={goNextMonth}
           className="w-8 h-8 flex items-center justify-center rounded-lg hover:bg-stone-100 transition-colors"
-          aria-label="N\u00e4chster Monat"
+          aria-label="Nächster Monat"
         >
           <svg className="w-4 h-4 text-stone-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -236,24 +228,18 @@ export default function AvailabilityCalendar({
       </div>
 
       {/* Compact legend */}
-      <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] sm:text-xs text-stone-500">
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-amber-50 border border-stone-200" />
-          Hochsaison
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-[10px] sm:text-xs text-stone-500">
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-emerald-50 border border-emerald-200" />
+          Verfügbar
         </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-white border border-stone-200" />
-          Zwischen
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-emerald-50 border border-stone-200" />
-          Nebensaison
-        </div>
-        <div className="flex items-center gap-1">
-          <span className="w-2.5 h-2.5 rounded bg-stone-100 border border-stone-200 line-through text-[7px] leading-none flex items-center justify-center">
-            x
-          </span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-red-50 border border-red-200 line-through text-[7px] leading-none flex items-center justify-center text-red-300">x</span>
           Belegt
+        </div>
+        <div className="flex items-center gap-1.5">
+          <span className="w-3 h-3 rounded bg-alpine-600" />
+          Ihre Auswahl
         </div>
       </div>
     </div>
