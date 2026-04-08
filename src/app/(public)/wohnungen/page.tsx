@@ -27,6 +27,12 @@ export default async function WohnungenPage() {
             <ApartmentCard key={apartment.id} apartment={apartment} />
           ))}
         </div>
+        <p className="text-xs text-stone-400 mt-6 text-center">
+          * Alle Preise inkl. 10% MwSt. Ortstaxe wird zusätzlich erhoben.{" "}
+          <a href="/agb" className="text-alpine-600 hover:text-alpine-700 underline">
+            Buchungsbedingungen
+          </a>
+        </p>
       </Container>
     </div>
   );

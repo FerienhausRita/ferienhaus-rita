@@ -117,6 +117,14 @@ export default function Footer() {
                   Datenschutzerklärung
                 </Link>
               </li>
+              <li>
+                <Link
+                  href="/agb"
+                  className="text-sm hover:text-white transition-colors"
+                >
+                  Buchungsbedingungen
+                </Link>
+              </li>
             </ul>
           </div>
         </div>
@@ -127,7 +135,7 @@ export default function Footer() {
             vorbehalten.
           </p>
           <p className="text-stone-600 text-xs">
-            Mit Liebe gemacht in {contact.city}
+            * Alle Preise inkl. 10% MwSt. · Mit Liebe gemacht in {contact.city}
           </p>
         </div>
       </div>

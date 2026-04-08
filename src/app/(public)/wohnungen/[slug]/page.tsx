@@ -148,7 +148,7 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   <span className="text-3xl font-bold text-stone-900">
                     {formatCurrency(apartment.basePrice)}
                   </span>
-                  <span className="text-stone-500">/ Nacht</span>
+                  <span className="text-stone-500">/ Nacht *</span>
                 </div>
                 <p className="text-sm text-stone-400 mt-1">
                   Grundpreis bis {apartment.baseGuests} Personen
@@ -212,6 +212,16 @@ export default async function ApartmentDetailPage({ params }: Props) {
                     {feature}
                   </div>
                 ))}
+              </div>
+
+              <div className="mt-6 pt-6 border-t border-stone-100 space-y-2 text-xs text-stone-400">
+                <p>* Alle Preise inkl. 10% MwSt. Ortstaxe wird zusätzlich erhoben.</p>
+                <p>
+                  Kostenlose Stornierung bis 60 Tage vor Anreise.{" "}
+                  <Link href="/agb" className="text-alpine-600 hover:text-alpine-700 underline">
+                    Buchungsbedingungen
+                  </Link>
+                </p>
               </div>
             </div>
           </div>

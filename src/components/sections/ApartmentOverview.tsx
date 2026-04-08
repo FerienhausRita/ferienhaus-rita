@@ -25,6 +25,9 @@ export default function ApartmentOverview() {
             <ApartmentCard key={apartment.id} apartment={apartment} />
           ))}
         </div>
+        <p className="text-xs text-stone-400 mt-6 text-center">
+          * Alle Preise inkl. 10% MwSt.
+        </p>
       </div>
     </section>
   );

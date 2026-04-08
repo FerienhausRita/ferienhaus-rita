@@ -423,7 +423,7 @@ export default function BookingFlow({
                           <div className="text-right flex-shrink-0">
                             <div className="text-2xl font-bold text-stone-900">{formatCurrency(price.total)}</div>
                             <div className="text-sm text-stone-500">{price.nights} {price.nights === 1 ? "Nacht" : "Nächte"}</div>
-                            <div className="text-xs text-stone-400 mt-1">{formatCurrency(apt.basePrice)} / Nacht</div>
+                            <div className="text-xs text-stone-400 mt-1">{formatCurrency(apt.basePrice)} / Nacht *</div>
                           </div>
                         </div>
                       </div>
@@ -555,7 +555,9 @@ export default function BookingFlow({
                     <span className="text-sm text-stone-600">
                       Ich habe die{" "}
                       <a href="/datenschutz" target="_blank" className="text-alpine-600 underline hover:text-alpine-700">Datenschutzerklärung</a>{" "}
-                      gelesen und bin mit der Verarbeitung meiner Daten zum Zwecke der Buchungsanfrage einverstanden. *
+                      und die{" "}
+                      <a href="/agb" target="_blank" className="text-alpine-600 underline hover:text-alpine-700">Buchungsbedingungen</a>{" "}
+                      gelesen und akzeptiere diese. *
                     </span>
                   </label>
                   {errors.privacy && <p className="text-red-500 text-sm mt-2">{errors.privacy}</p>}

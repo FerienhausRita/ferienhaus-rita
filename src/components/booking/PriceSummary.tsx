@@ -97,6 +97,10 @@ export default function PriceSummary({
           <span>{formatCurrency(breakdown.vatAmount)}</span>
         </div>
       )}
+
+      <p className="text-[10px] text-stone-400 mt-2">
+        * Alle Preise inkl. 10% MwSt.
+      </p>
     </div>
   );
 }
