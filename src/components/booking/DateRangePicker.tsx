@@ -229,35 +229,26 @@ export default function DateRangePicker({
 
   return (
     <div ref={containerRef} className="relative">
-      {/* Trigger bar */}
+      {/* Trigger bar – same height as select inputs */}
       <button
         type="button"
         onClick={handleOpen}
         className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 flex items-center text-left transition-all hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-alpine-400/40 focus:border-alpine-400"
       >
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-stone-500">Anreise</div>
-          <div
-            className={`text-sm mt-0.5 ${checkIn ? "text-stone-800 font-medium" : "text-stone-400"}`}
-          >
-            {checkIn ? formatDateGerman(checkIn) : "Datum wählen"}
-          </div>
-        </div>
+        <span className={`text-sm ${checkIn ? "text-stone-800" : "text-stone-400"}`}>
+          {checkIn ? formatDateGerman(checkIn) : "Anreise"}
+        </span>
 
-        <div className="w-px h-8 bg-stone-200 mx-3" />
+        <svg className="w-4 h-4 text-stone-300 mx-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+        </svg>
 
-        <div className="flex-1 min-w-0">
-          <div className="text-xs text-stone-500">Abreise</div>
-          <div
-            className={`text-sm mt-0.5 ${checkOut ? "text-stone-800 font-medium" : "text-stone-400"}`}
-          >
-            {checkOut ? formatDateGerman(checkOut) : "Datum wählen"}
-          </div>
-        </div>
+        <span className={`text-sm ${checkOut ? "text-stone-800" : "text-stone-400"}`}>
+          {checkOut ? formatDateGerman(checkOut) : "Abreise"}
+        </span>
 
-        {/* Calendar icon */}
         <svg
-          className="w-5 h-5 text-stone-400 ml-2 flex-shrink-0"
+          className="w-4 h-4 text-stone-400 ml-auto flex-shrink-0"
           fill="none"
           stroke="currentColor"
           viewBox="0 0 24 24"
