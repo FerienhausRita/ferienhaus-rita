@@ -34,11 +34,11 @@ const huetten = [
     image: "/images/region/huette-lucknerhaus.jpg",
   },
   {
-    name: "Lesacher Alm",
+    name: "Glocknerblick",
     altitude: "1.650 m",
     description:
       "Gemütliche Almhütte mit hausgemachten Tiroler Spezialitäten. Direkt an der Rodelbahn gelegen – perfekt für eine Einkehr nach der Abfahrt.",
-    image: "/images/region/huette-lesacheralm.jpg",
+    image: "/images/region/huette-glocknerblick.jpg",
   },
 ];
 
