@@ -10,6 +10,37 @@ import { formatCurrency, formatDate } from "@/lib/pricing";
 
 export const dynamic = "force-dynamic";
 
+function BookingStatusBadge({ status }: { status: string }) {
+  const config: Record<string, { label: string; classes: string }> = {
+    pending: {
+      label: "Anfrage – wird geprüft",
+      classes: "bg-amber-100 text-amber-800 border-amber-200",
+    },
+    confirmed: {
+      label: "Bestätigt",
+      classes: "bg-green-100 text-green-800 border-green-200",
+    },
+    cancelled: {
+      label: "Storniert",
+      classes: "bg-red-100 text-red-800 border-red-200",
+    },
+    completed: {
+      label: "Abgeschlossen",
+      classes: "bg-stone-100 text-stone-700 border-stone-200",
+    },
+  };
+
+  const c = config[status] || config.pending;
+
+  return (
+    <span
+      className={`inline-flex items-center rounded-full border px-3 py-1 text-xs font-medium ${c.classes}`}
+    >
+      {c.label}
+    </span>
+  );
+}
+
 function PaymentBadge({ status }: { status: string }) {
   const config: Record<string, { label: string; classes: string }> = {
     paid: {
@@ -121,9 +152,12 @@ export default async function BookingOverviewPage({
             </svg>
             Zurück
           </Link>
-          <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900">
-            Ihre Buchung
-          </h1>
+          <div className="flex items-center gap-3 flex-wrap">
+            <h1 className="font-serif text-3xl sm:text-4xl font-bold text-stone-900">
+              {booking.status === "pending" ? "Ihre Anfrage" : "Ihre Buchung"}
+            </h1>
+            <BookingStatusBadge status={booking.status} />
+          </div>
         </div>
 
         {/* Apartment Card */}
@@ -190,8 +224,8 @@ export default async function BookingOverviewPage({
             </div>
           </div>
 
-          {/* Bank details if not fully paid */}
-          {!isPaid && bankDetails?.iban && (
+          {/* Bank details only when confirmed and not fully paid */}
+          {booking.status === "confirmed" && !isPaid && bankDetails?.iban && (
             <div className="mt-5 rounded-xl bg-amber-50 border border-amber-200 p-4">
               <h4 className="text-sm font-semibold text-amber-900 mb-2">
                 Bankverbindung

@@ -63,16 +63,21 @@ export default function MeineBuchungPage() {
                 >
                   Buchungscode
                 </label>
-                <input
-                  id="code"
-                  type="text"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value)}
-                  placeholder="z.B. a1b2c3d4"
-                  maxLength={8}
-                  required
-                  className="w-full rounded-xl border border-stone-300 px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-alpine-500 focus:ring-2 focus:ring-alpine-500/20 outline-none transition-colors"
-                />
+                <div className="flex">
+                  <span className="inline-flex items-center px-3.5 bg-stone-100 border border-r-0 border-stone-300 rounded-l-xl text-stone-500 text-sm font-medium select-none">
+                    FR-
+                  </span>
+                  <input
+                    id="code"
+                    type="text"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value)}
+                    placeholder="z.B. A1B2C3D4"
+                    maxLength={8}
+                    required
+                    className="w-full rounded-r-xl rounded-l-none border border-stone-300 px-4 py-3 text-stone-900 placeholder:text-stone-400 focus:border-alpine-500 focus:ring-2 focus:ring-alpine-500/20 outline-none transition-colors uppercase"
+                  />
+                </div>
               </div>
 
               <div>

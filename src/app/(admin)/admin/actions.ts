@@ -3,7 +3,7 @@
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
-import { sendBookingConfirmation, sendCustomEmail } from "@/lib/email";
+import { sendBookingConfirmed, sendCustomEmail, type BankDetails } from "@/lib/email";
 import { getApartmentById } from "@/data/apartments";
 
 /**
@@ -319,6 +319,17 @@ export async function updateBookingStatus(
 ) {
   const supabase = createServerClient();
 
+  // Get booking data before update (for email sending and guest recalc)
+  const { data: booking, error: fetchError } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .single();
+
+  if (fetchError || !booking) {
+    return { success: false, error: fetchError?.message || "Buchung nicht gefunden" };
+  }
+
   const { error } = await supabase
     .from("bookings")
     .update({ status })
@@ -328,9 +339,156 @@ export async function updateBookingStatus(
     return { success: false, error: error.message };
   }
 
+  // When confirming: send confirmation email + schedule automated emails
+  if (status === "confirmed") {
+    try {
+      const apartment = getApartmentById(booking.apartment_id);
+      if (apartment) {
+        // Load bank details
+        const { data: bankRow } = await supabase
+          .from("site_settings")
+          .select("value")
+          .eq("key", "bank_details")
+          .single();
+        const bankDetails = bankRow?.value as BankDetails | null;
+
+        const bookingEmailData = {
+          id: booking.id,
+          firstName: booking.first_name,
+          lastName: booking.last_name,
+          email: booking.email,
+          phone: booking.phone || "",
+          street: booking.street || "",
+          zip: booking.zip || "",
+          city: booking.city || "",
+          country: booking.country || "",
+          notes: booking.notes || "",
+          checkIn: new Date(booking.check_in),
+          checkOut: new Date(booking.check_out),
+          adults: booking.adults,
+          children: booking.children || 0,
+          dogs: booking.dogs || 0,
+          nights: Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24)),
+          totalPrice: Number(booking.total_price),
+          pricePerNight: Number(booking.price_per_night || 0),
+          extraGuestsTotal: Number(booking.extra_guests_total || 0),
+          dogsTotal: Number(booking.dogs_total || 0),
+          cleaningFee: Number(booking.cleaning_fee || 0),
+          vatAmount: Number(booking.vat_amount || 0),
+        };
+
+        await sendBookingConfirmed(bookingEmailData, apartment, {
+          bankDetails: bankDetails || undefined,
+        });
+      }
+    } catch (emailError) {
+      console.error("Error sending confirmation email:", emailError);
+    }
+
+    // Schedule automated emails
+    try {
+      const { data: timingRow } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "email_timing")
+        .single();
+
+      const timing = timingRow?.value as {
+        payment_reminder_days?: number;
+        checkin_info_days?: number;
+        thankyou_days?: number;
+      } | null;
+
+      const paymentDays = timing?.payment_reminder_days ?? 7;
+      const checkinDays = timing?.checkin_info_days ?? 3;
+      const thankyouDays = timing?.thankyou_days ?? 1;
+
+      const now = new Date();
+      const ciDate = new Date(booking.check_in + "T08:00:00Z");
+      const coDate = new Date(booking.check_out + "T08:00:00Z");
+
+      const scheduledEmails: {
+        booking_id: string;
+        email_type: string;
+        scheduled_for: string;
+        status: string;
+      }[] = [];
+
+      const paymentDate = new Date(now.getTime() + paymentDays * 24 * 60 * 60 * 1000);
+      paymentDate.setUTCHours(8, 0, 0, 0);
+      if (paymentDate < ciDate) {
+        scheduledEmails.push({
+          booking_id: bookingId,
+          email_type: "payment_reminder",
+          scheduled_for: paymentDate.toISOString(),
+          status: "pending",
+        });
+      }
+
+      const checkinInfoDate = new Date(ciDate.getTime() - checkinDays * 24 * 60 * 60 * 1000);
+      checkinInfoDate.setUTCHours(8, 0, 0, 0);
+      if (checkinInfoDate > now) {
+        scheduledEmails.push({
+          booking_id: bookingId,
+          email_type: "checkin_info",
+          scheduled_for: checkinInfoDate.toISOString(),
+          status: "pending",
+        });
+      }
+
+      const thankyouDate = new Date(coDate.getTime() + thankyouDays * 24 * 60 * 60 * 1000);
+      thankyouDate.setUTCHours(8, 0, 0, 0);
+      scheduledEmails.push({
+        booking_id: bookingId,
+        email_type: "thankyou",
+        scheduled_for: thankyouDate.toISOString(),
+        status: "pending",
+      });
+
+      if (scheduledEmails.length > 0) {
+        await supabase.from("email_schedule").insert(scheduledEmails);
+      }
+    } catch (scheduleError) {
+      console.error("Error scheduling emails:", scheduleError);
+    }
+  }
+
+  // When cancelling: skip any pending scheduled emails
+  if (status === "cancelled") {
+    try {
+      await supabase
+        .from("email_schedule")
+        .update({ status: "skipped" })
+        .eq("booking_id", bookingId)
+        .eq("status", "pending");
+    } catch (e) {
+      console.error("Error skipping scheduled emails:", e);
+    }
+  }
+
+  // Recalculate guest stats (total_revenue, total_stays) after any status change
+  try {
+    const { data: guestBookings } = await supabase
+      .from("bookings")
+      .select("total_price")
+      .eq("email", booking.email)
+      .neq("status", "cancelled");
+
+    const totalRevenue = guestBookings?.reduce((sum, b) => sum + Number(b.total_price || 0), 0) ?? 0;
+    const totalStays = guestBookings?.length ?? 0;
+
+    await supabase
+      .from("guests")
+      .update({ total_revenue: totalRevenue, total_stays: totalStays })
+      .eq("email", booking.email);
+  } catch (e) {
+    console.error("Error recalculating guest stats:", e);
+  }
+
   revalidatePath("/admin/buchungen");
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin");
+  revalidatePath("/admin/gaeste");
   return { success: true };
 }
 
@@ -384,7 +542,15 @@ export async function resendConfirmation(bookingId: string) {
     const total = Number(booking.total_price);
     const vatAmount = (total - localTax) / 1.1 * 0.1;
 
-    await sendBookingConfirmation(
+    // Load bank details for confirmation email
+    const { data: bankRow } = await supabase
+      .from("site_settings")
+      .select("value")
+      .eq("key", "bank_details")
+      .single();
+    const bankDetails = bankRow?.value as BankDetails | null;
+
+    await sendBookingConfirmed(
       {
         id: booking.id,
         firstName: booking.first_name,
@@ -409,7 +575,8 @@ export async function resendConfirmation(bookingId: string) {
         cleaningFee: Number(booking.cleaning_fee),
         vatAmount,
       },
-      apartment
+      apartment,
+      { bankDetails: bankDetails || undefined }
     );
 
     // Update confirmation_sent_at
@@ -1440,8 +1607,15 @@ export async function createManualBooking(data: {
   // Optionally send confirmation
   if (data.send_confirmation && booking) {
     try {
-      const { sendBookingConfirmation } = await import("@/lib/email");
-      await sendBookingConfirmation(
+      const { sendBookingConfirmed } = await import("@/lib/email");
+      const { data: bankRow } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "bank_details")
+        .single();
+      const manualBankDetails = bankRow?.value as BankDetails | null;
+
+      await sendBookingConfirmed(
         {
           id: booking.id,
           firstName: data.first_name,
@@ -1466,7 +1640,8 @@ export async function createManualBooking(data: {
           cleaningFee: breakdown.cleaningFee,
           vatAmount: breakdown.vatAmount,
         },
-        apartment
+        apartment,
+        { bankDetails: manualBankDetails || undefined }
       );
 
       await supabase

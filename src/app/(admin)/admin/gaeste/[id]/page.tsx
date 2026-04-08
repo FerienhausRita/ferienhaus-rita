@@ -61,8 +61,10 @@ export default async function GuestDetailPage({
   }
 
   const bookings = await getGuestBookings(guest.email);
-  const totalRevenue = Number(guest.total_revenue || 0);
-  const totalStays = guest.total_stays || 0;
+  // Calculate revenue dynamically from non-cancelled bookings
+  const activeBookings = bookings.filter((b) => b.status !== "cancelled");
+  const totalRevenue = activeBookings.reduce((sum, b) => sum + Number(b.total_price || 0), 0);
+  const totalStays = activeBookings.length;
   const email = guest.email;
 
   return (
@@ -101,7 +103,7 @@ export default async function GuestDetailPage({
                 <Link
                   key={booking.id}
                   href={`/admin/buchungen/${booking.id}`}
-                  className="flex items-center justify-between p-4 hover:bg-stone-50 transition-colors"
+                  className={`flex items-center justify-between p-4 hover:bg-stone-50 transition-colors ${booking.status === "cancelled" ? "opacity-50" : ""}`}
                 >
                   <div>
                     <p className="font-medium text-stone-900 text-sm">

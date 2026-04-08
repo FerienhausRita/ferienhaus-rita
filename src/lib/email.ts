@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import { Apartment } from "@/data/apartments";
+import { contact } from "@/data/contact";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -162,16 +163,16 @@ function emailBaseLayout(content: string, preheader?: string): string {
             <tr>
               <td style="text-align:center;padding:0 0 8px;">
                 <p style="margin:0;font-size:13px;color:${GRAY};line-height:1.6;">
-                  Ferienhaus Rita &middot; Ködnitz 7 &middot; 9981 Kals am Gro\u00dfglockner &middot; \u00d6sterreich
+                  Ferienhaus Rita &middot; ${contact.street} &middot; ${contact.zip} ${contact.city} &middot; ${contact.country}
                 </p>
               </td>
             </tr>
             <tr>
               <td style="text-align:center;padding:0 0 8px;">
                 <p style="margin:0;font-size:13px;color:${GRAY};line-height:1.6;">
-                  <a href="mailto:info@ferienhaus-rita.at" style="color:${GOLD};text-decoration:none;">info@ferienhaus-rita.at</a>
+                  <a href="mailto:${contact.email}" style="color:${GOLD};text-decoration:none;">${contact.email}</a>
                   &nbsp;&middot;&nbsp;
-                  <a href="tel:+436769306474" style="color:${GOLD};text-decoration:none;">+43 676 930 6474</a>
+                  <a href="${contact.phoneHref}" style="color:${GOLD};text-decoration:none;">${contact.phone}</a>
                 </p>
               </td>
             </tr>
@@ -318,10 +319,67 @@ function signoff(): string {
 }
 
 // ---------------------------------------------------------------------------
-// sendBookingConfirmation
+// sendInquiryConfirmation (sent immediately when guest submits a booking)
 // ---------------------------------------------------------------------------
 
-export async function sendBookingConfirmation(
+export async function sendInquiryConfirmation(
+  booking: BookingData,
+  apartment: Apartment
+): Promise<void> {
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+  const portalUrl = `${BASE_URL}/meine-buchung`;
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+    </p>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      vielen Dank f\u00fcr Ihre Anfrage! Wir pr\u00fcfen die Verf\u00fcgbarkeit und melden uns
+      in K\u00fcrze mit einer Best\u00e4tigung bei Ihnen.
+    </p>
+
+    <!-- Booking reference -->
+    <div style="text-align:center;margin:24px 0;">
+      <span style="display:inline-block;background:${GOLD};color:#ffffff;font-size:13px;font-weight:700;padding:8px 20px;border-radius:6px;letter-spacing:1.5px;">
+        ANFRAGE-NR. ${escapeHtml(ref)}
+      </span>
+    </div>
+
+    ${sectionHeading("Angefragte Buchung")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${sectionHeading("Preis\u00fcbersicht")}
+    ${priceTable(booking)}
+
+    ${ctaButton("Meine Anfrage ansehen", portalUrl)}
+
+    <p style="font-size:12px;color:${LIGHT_GRAY};line-height:1.6;margin:20px 0 0;text-align:center;">
+      Mit Ihrer Anfrage akzeptieren Sie unsere
+      <a href="${BASE_URL}/agb" style="color:${GOLD};text-decoration:underline;">AGB &amp; Buchungsbedingungen</a>.
+    </p>
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Ihre Anfrage ${escapeHtml(apartment.name)} \u2013 Nr. ${ref}`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Ihre Anfrage \u2013 ${escapeHtml(apartment.name)} \u2013 ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// sendBookingConfirmed (sent when admin confirms the booking)
+// ---------------------------------------------------------------------------
+
+export async function sendBookingConfirmed(
   booking: BookingData,
   apartment: Apartment,
   options?: {
@@ -351,8 +409,8 @@ export async function sendBookingConfirmation(
       Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
-      vielen Dank f\u00fcr Ihre Buchungsanfrage! Wir haben diese erhalten und melden uns
-      innerhalb von 24 Stunden mit einer Best\u00e4tigung bei Ihnen.
+      <strong>Gro\u00dfartige Neuigkeiten!</strong> Ihre Buchung im Ferienhaus Rita ist best\u00e4tigt.
+      Wir freuen uns sehr auf Ihren Besuch!
     </p>
 
     <!-- Booking reference -->
@@ -372,23 +430,18 @@ export async function sendBookingConfirmation(
 
     ${ctaButton("Meine Buchung ansehen", portalUrl)}
 
-    <p style="font-size:12px;color:${LIGHT_GRAY};line-height:1.6;margin:20px 0 0;text-align:center;">
-      Mit Ihrer Buchung akzeptieren Sie unsere
-      <a href="${BASE_URL}/agb" style="color:${GOLD};text-decoration:underline;">AGB &amp; Buchungsbedingungen</a>.
-    </p>
-
     ${signoff()}
   `;
 
   const html = emailBaseLayout(
     content,
-    `Ihre Buchungsanfrage ${escapeHtml(apartment.name)} \u2013 Buchungsnr. ${ref}`
+    `Buchungsbest\u00e4tigung ${escapeHtml(apartment.name)} \u2013 Buchungsnr. ${ref}`
   );
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: booking.email,
-    subject: `Buchungsanfrage ${escapeHtml(apartment.name)} \u2013 ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
+    subject: `Buchungsbest\u00e4tigung \u2013 ${escapeHtml(apartment.name)} \u2013 ${formatDate(booking.checkIn)} bis ${formatDate(booking.checkOut)}`,
     html,
   });
 }
@@ -404,9 +457,9 @@ export async function sendBookingNotification(
   const transporter = createTransporter();
 
   const content = `
-    <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">Neue Buchungsanfrage</h2>
+    <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">Neue Anfrage</h2>
     <p style="color:${GRAY};font-size:14px;margin:0 0 24px;">
-      Eine neue Buchungsanfrage ist eingegangen.
+      Eine neue Buchungsanfrage ist eingegangen. Bitte pr\u00fcfen und best\u00e4tigen Sie diese im Admin-Bereich.
     </p>
 
     ${sectionHeading("Gastdaten")}
@@ -433,13 +486,13 @@ export async function sendBookingNotification(
 
   const html = emailBaseLayout(
     content,
-    `Neue Buchung: ${apartment.name} \u2013 ${booking.firstName} ${booking.lastName}`
+    `Neue Anfrage: ${apartment.name} \u2013 ${booking.firstName} ${booking.lastName}`
   );
 
   await transporter.sendMail({
     from: process.env.SMTP_FROM,
     to: process.env.NOTIFICATION_EMAIL,
-    subject: `Neue Buchung: ${escapeHtml(apartment.name)} \u2013 ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)} (${formatDate(booking.checkIn)} \u2013 ${formatDate(booking.checkOut)})`,
+    subject: `Neue Anfrage: ${escapeHtml(apartment.name)} \u2013 ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)} (${formatDate(booking.checkIn)} \u2013 ${formatDate(booking.checkOut)})`,
     html,
   });
 }
@@ -638,7 +691,7 @@ export async function sendCheckinInfo(
     <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:20px 0 0;">
       Bei Fragen stehen wir Ihnen jederzeit zur Verf\u00fcgung &ndash; antworten Sie einfach
       auf diese E-Mail oder rufen Sie uns an unter
-      <a href="tel:+436769306474" style="color:${GOLD};text-decoration:none;font-weight:600;">+43 676 930 6474</a>.
+      <a href="${contact.phoneHref}" style="color:${GOLD};text-decoration:none;font-weight:600;">${contact.phone}</a>.
     </p>
 
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:20px 0 0;">

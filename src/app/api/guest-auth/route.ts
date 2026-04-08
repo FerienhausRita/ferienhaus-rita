@@ -14,8 +14,9 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Sanitize: code should be max 8 hex-like chars
-    const sanitizedCode = code.trim().toLowerCase().slice(0, 8);
+    // Sanitize: strip "FR-" prefix if present, then take max 8 hex-like chars
+    let sanitizedCode = code.trim().toLowerCase();
+    sanitizedCode = sanitizedCode.replace(/^fr-/i, "").slice(0, 8);
     const sanitizedLastName = lastName.trim();
 
     if (sanitizedCode.length < 4) {

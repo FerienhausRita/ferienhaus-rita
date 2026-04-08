@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentById } from "@/data/apartments";
 import {
-  sendBookingConfirmation,
+  sendBookingConfirmed,
   sendPaymentReminder,
   sendCheckinInfo,
   sendThankYou,
@@ -191,7 +191,7 @@ async function processScheduledEmails() {
             supabase,
             "bank_details"
           );
-          await sendBookingConfirmation(bookingData, apartment, {
+          await sendBookingConfirmed(bookingData, apartment, {
             bankDetails: bankDetails ?? undefined,
           });
           break;
