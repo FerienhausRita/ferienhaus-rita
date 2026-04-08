@@ -1,11 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentById } from "@/data/apartments";
 import { calculatePrice } from "@/lib/pricing";
-import { getMinNights } from "@/data/seasons";
+import { getMinNightsWithOverrides } from "@/lib/pricing";
 import { validateDiscountCode } from "@/data/discounts";
 import { isAvailableDB } from "@/lib/availability-server";
+import {
+  getApartmentWithPricing,
+  getSeasonConfigsFromDB,
+  getSeasonPeriodsFromDB,
+  getTaxConfigFromDB,
+} from "@/lib/pricing-data";
 import {
   sendBookingConfirmation,
   sendBookingNotification,
@@ -74,14 +79,21 @@ export async function POST(request: NextRequest) {
 
     const data = result.data;
 
-    // Verify apartment exists
-    const apartment = getApartmentById(data.apartmentId);
+    // Verify apartment exists (using DB pricing)
+    const apartment = await getApartmentWithPricing(data.apartmentId);
     if (!apartment) {
       return NextResponse.json(
         { success: false, message: "Wohnung nicht gefunden" },
         { status: 400 }
       );
     }
+
+    // Fetch pricing data from DB
+    const [seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
+      getSeasonConfigsFromDB(),
+      getSeasonPeriodsFromDB(),
+      getTaxConfigFromDB(),
+    ]);
 
     // Verify guest count doesn't exceed max
     const totalGuests = data.adults + data.children;
@@ -101,7 +113,18 @@ export async function POST(request: NextRequest) {
     const nights = Math.ceil(
       (checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24)
     );
-    const minNights = getMinNights(checkInDate, checkOutDate);
+    const pricingOverrides = {
+      seasonConfigs,
+      seasonPeriods,
+      localTaxPerNight: taxConfig.localTaxPerNight,
+      vatRate: taxConfig.vatRate,
+    };
+    const minNights = getMinNightsWithOverrides(
+      checkInDate,
+      checkOutDate,
+      seasonPeriods,
+      seasonConfigs
+    );
     if (nights < minNights) {
       return NextResponse.json(
         {
@@ -143,6 +166,7 @@ export async function POST(request: NextRequest) {
       children: data.children,
       dogs: data.dogs,
       discount,
+      overrides: pricingOverrides,
     });
 
     // Insert booking into database
@@ -185,6 +209,62 @@ export async function POST(request: NextRequest) {
         { success: false, message: "Fehler beim Speichern der Buchung" },
         { status: 500 }
       );
+    }
+
+    // Upsert guest record (non-blocking — don't fail the booking if guest upsert fails)
+    try {
+      const { data: guestData } = await supabase
+        .from("guests")
+        .upsert(
+          {
+            email: data.email,
+            first_name: data.firstName,
+            last_name: data.lastName,
+            phone: data.phone,
+            street: data.street,
+            zip: data.zip,
+            city: data.city,
+            country: data.country,
+          },
+          { onConflict: "email" }
+        )
+        .select("id")
+        .single();
+
+      if (guestData) {
+        // Update guest stats
+        const { data: guestBookings } = await supabase
+          .from("bookings")
+          .select("total_price, check_in, status")
+          .eq("email", data.email)
+          .neq("status", "cancelled");
+
+        const totalStays = guestBookings?.length ?? 1;
+        const totalRevenue = guestBookings?.reduce(
+          (sum, b) => sum + Number(b.total_price || 0),
+          0
+        ) ?? priceBreakdown.total;
+        const visits = guestBookings?.map((b) => b.check_in).sort() ?? [data.checkIn];
+
+        await supabase
+          .from("guests")
+          .update({
+            total_stays: totalStays,
+            total_revenue: totalRevenue,
+            first_visit: visits[0],
+            last_visit: visits[visits.length - 1],
+          })
+          .eq("id", guestData.id);
+
+        // Link guest to booking
+        await supabase
+          .from("bookings")
+          .update({ guest_id: guestData.id })
+          .eq("id", booking.id);
+      }
+    } catch (guestError) {
+      console.error("Guest upsert failed:", guestError);
+      // Don't fail the booking
     }
 
     // Send emails (non-blocking — don't fail the booking if email fails)

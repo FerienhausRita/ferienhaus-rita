@@ -1,10 +1,21 @@
 import { Apartment } from "@/data/apartments";
-import { getSeasonForDate, SeasonType } from "@/data/seasons";
+import { getSeasonForDate, SeasonType, SeasonConfig, SeasonPeriod, seasonConfigs as defaultSeasonConfigs, seasonPeriods as defaultSeasonPeriods } from "@/data/seasons";
 import { localTax, vat } from "@/data/taxes";
 import {
   DiscountCode,
   calculateDiscountAmount,
 } from "@/data/discounts";
+
+/**
+ * Optional overrides for dynamic pricing from DB.
+ * When provided, these take precedence over static file defaults.
+ */
+export interface PricingOverrides {
+  seasonConfigs?: Record<string, SeasonConfig>;
+  seasonPeriods?: SeasonPeriod[];
+  localTaxPerNight?: number;
+  vatRate?: number;
+}
 
 export interface BookingParams {
   apartment: Apartment;
@@ -14,6 +25,8 @@ export interface BookingParams {
   children: number;
   dogs: number;
   discount?: DiscountCode | null;
+  /** Optional: DB-sourced pricing overrides */
+  overrides?: PricingOverrides;
 }
 
 export interface SeasonBreakdownEntry {
@@ -54,12 +67,65 @@ export function calculateNights(checkIn: Date, checkOut: Date): number {
   return Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)));
 }
 
+/**
+ * Helper: Get season for a date using custom periods/configs (from DB) or defaults.
+ */
+function getSeasonForDateWithOverrides(
+  date: Date,
+  overridePeriods?: SeasonPeriod[],
+  overrideConfigs?: Record<string, SeasonConfig>
+): SeasonConfig {
+  const configs = overrideConfigs ?? defaultSeasonConfigs;
+  const periods = overridePeriods ?? defaultSeasonPeriods;
+
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mmdd = `${mm}-${dd}`;
+
+  for (const period of periods) {
+    if (period.start <= period.end) {
+      if (mmdd >= period.start && mmdd <= period.end) {
+        return configs[period.type] ?? configs.low;
+      }
+    } else {
+      if (mmdd >= period.start || mmdd <= period.end) {
+        return configs[period.type] ?? configs.low;
+      }
+    }
+  }
+
+  return configs.low;
+}
+
+/**
+ * Get the strictest minimum nights for a date range, with optional overrides.
+ */
+export function getMinNightsWithOverrides(
+  checkIn: Date,
+  checkOut: Date,
+  overridePeriods?: SeasonPeriod[],
+  overrideConfigs?: Record<string, SeasonConfig>
+): number {
+  let maxMin = 1;
+  const current = new Date(checkIn);
+  while (current < checkOut) {
+    const season = getSeasonForDateWithOverrides(current, overridePeriods, overrideConfigs);
+    if (season.minNights > maxMin) maxMin = season.minNights;
+    current.setDate(current.getDate() + 1);
+  }
+  return maxMin;
+}
+
 export function calculatePrice(params: BookingParams): PriceBreakdown {
-  const { apartment, checkIn, checkOut, adults, children, dogs, discount } =
+  const { apartment, checkIn, checkOut, adults, children, dogs, discount, overrides } =
     params;
   const nights = calculateNights(checkIn, checkOut);
   const totalGuests = adults + children;
   const extraGuests = Math.max(0, totalGuests - apartment.baseGuests);
+
+  // Use overrides if provided
+  const usedLocalTaxPerNight = overrides?.localTaxPerNight ?? localTax.perPersonPerNight;
+  const usedVatRate = overrides?.vatRate ?? vat.rate;
 
   // Day-by-day seasonal price calculation
   const seasonMap = new Map<
@@ -71,7 +137,7 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const current = new Date(checkIn);
 
   for (let i = 0; i < nights; i++) {
-    const season = getSeasonForDate(current);
+    const season = getSeasonForDateWithOverrides(current, overrides?.seasonPeriods, overrides?.seasonConfigs);
     const nightPrice = Math.round(apartment.basePrice * season.multiplier * 100) / 100;
 
     const existing = seasonMap.get(season.type);
@@ -115,7 +181,7 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const cleaningFee = apartment.cleaningFee;
 
   // Ortstaxe: adults only (children under 15 exempt)
-  const localTaxTotal = adults * nights * localTax.perPersonPerNight;
+  const localTaxTotal = adults * nights * usedLocalTaxPerNight;
 
   const subtotal =
     basePriceTotal + extraGuestsTotal + dogsTotal + cleaningFee + localTaxTotal;
@@ -137,7 +203,7 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   // Ortstaxe is a public levy and NOT subject to VAT.
   // VAT-liable gross = total - localTaxTotal
   const vatLiableGross = total - localTaxTotal;
-  const vatAmount = Math.round((vatLiableGross / (1 + vat.rate) * vat.rate) * 100) / 100;
+  const vatAmount = Math.round((vatLiableGross / (1 + usedVatRate) * usedVatRate) * 100) / 100;
 
   return {
     nights,

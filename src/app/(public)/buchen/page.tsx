@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
+import { getAllPricingData } from "@/lib/pricing-data";
 import BookingFlow from "@/components/booking/BookingFlow";
 
 export const metadata: Metadata = {
@@ -8,7 +9,43 @@ export const metadata: Metadata = {
     "Prüfen Sie die Verfügbarkeit und buchen Sie Ihre Ferienwohnung in Kals am Großglockner direkt beim Gastgeber.",
 };
 
-export default function BuchenPage() {
+export const dynamic = "force-dynamic";
+
+export default async function BuchenPage() {
+  const pricingData = await getAllPricingData();
+
+  // Serialize for client component
+  const serializedApartments = pricingData.apartments.map((a) => ({
+    id: a.id,
+    slug: a.slug,
+    name: a.name,
+    subtitle: a.subtitle,
+    description: a.description,
+    shortDescription: a.shortDescription,
+    size: a.size,
+    maxGuests: a.maxGuests,
+    baseGuests: a.baseGuests,
+    bedrooms: a.bedrooms,
+    bathrooms: a.bathrooms,
+    floor: a.floor,
+    basePrice: a.basePrice,
+    extraPersonPrice: a.extraPersonPrice,
+    cleaningFee: a.cleaningFee,
+    dogFee: a.dogFee,
+    features: a.features,
+    highlights: a.highlights,
+    amenities: a.amenities,
+    images: a.images,
+    available: a.available,
+  }));
+
+  const serializedSeasonPeriods = pricingData.seasonPeriods.map((p) => ({
+    start: p.start,
+    end: p.end,
+    type: p.type,
+    label: p.label,
+  }));
+
   return (
     <Suspense
       fallback={
@@ -17,7 +54,12 @@ export default function BuchenPage() {
         </div>
       }
     >
-      <BookingFlow />
+      <BookingFlow
+        apartmentsData={serializedApartments}
+        seasonConfigsData={pricingData.seasonConfigs}
+        seasonPeriodsData={serializedSeasonPeriods}
+        taxConfigData={pricingData.taxConfig}
+      />
     </Suspense>
   );
 }

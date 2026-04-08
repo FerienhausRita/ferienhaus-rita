@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getGuestBookings } from "../../actions";
+import { getGuestById, getGuestBookings } from "../../actions";
 import { apartments } from "@/data/apartments";
 
 export const metadata: Metadata = {
@@ -40,10 +40,10 @@ export default async function GuestDetailPage({
 }: {
   params: { id: string };
 }) {
-  const email = decodeURIComponent(params.id);
-  const bookings = await getGuestBookings(email);
+  const guestId = params.id;
+  const guest = await getGuestById(guestId);
 
-  if (bookings.length === 0) {
+  if (!guest) {
     return (
       <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
         <Link
@@ -55,16 +55,15 @@ export default async function GuestDetailPage({
           </svg>
           Zurück zu Gäste
         </Link>
-        <p className="text-stone-500">Kein Gast mit dieser E-Mail gefunden.</p>
+        <p className="text-stone-500">Gast nicht gefunden.</p>
       </div>
     );
   }
 
-  const guest = bookings[0]; // First booking has the latest data
-  const totalRevenue = bookings
-    .filter((b) => b.status !== "cancelled")
-    .reduce((sum, b) => sum + Number(b.total_price || 0), 0);
-  const totalStays = bookings.filter((b) => b.status !== "cancelled").length;
+  const bookings = await getGuestBookings(guest.email);
+  const totalRevenue = Number(guest.total_revenue || 0);
+  const totalStays = guest.total_stays || 0;
+  const email = guest.email;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
@@ -84,7 +83,7 @@ export default async function GuestDetailPage({
         <h1 className="text-2xl font-bold text-stone-900">
           {guest.first_name} {guest.last_name}
         </h1>
-        <p className="text-stone-500 text-sm mt-1">{email}</p>
+        <p className="text-stone-500 text-sm mt-1">{guest.email}</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

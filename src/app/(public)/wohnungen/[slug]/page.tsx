@@ -1,11 +1,14 @@
 import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { apartments, getApartmentBySlug } from "@/data/apartments";
+import { apartments } from "@/data/apartments";
+import { getAllApartmentsWithPricing, getApartmentBySlugWithPricing } from "@/lib/pricing-data";
 import { formatCurrency } from "@/lib/pricing";
 import Container from "@/components/ui/Container";
 import JsonLd from "@/components/seo/JsonLd";
 import ImageGallery from "@/components/ui/ImageGallery";
+
+export const dynamic = "force-dynamic";
 
 interface Props {
   params: { slug: string };
@@ -16,7 +19,7 @@ export async function generateStaticParams() {
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const apartment = getApartmentBySlug(params.slug);
+  const apartment = await getApartmentBySlugWithPricing(params.slug);
   if (!apartment) return { title: "Nicht gefunden" };
   return {
     title: apartment.name,
@@ -24,8 +27,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default function ApartmentDetailPage({ params }: Props) {
-  const apartment = getApartmentBySlug(params.slug);
+export default async function ApartmentDetailPage({ params }: Props) {
+  const apartment = await getApartmentBySlugWithPricing(params.slug);
   if (!apartment) notFound();
 
   return (

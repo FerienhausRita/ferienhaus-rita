@@ -996,3 +996,362 @@ export async function removeAdmin(userId: string) {
   revalidatePath("/admin/einstellungen");
   return { success: true };
 }
+
+// ============================================
+// DYNAMIC PRICING
+// ============================================
+
+/**
+ * Update apartment pricing
+ */
+export async function updateApartmentPricing(
+  apartmentId: string,
+  pricing: {
+    base_price: number;
+    extra_person_price: number;
+    cleaning_fee: number;
+    dog_fee: number;
+  }
+) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("apartment_pricing")
+    .update(pricing)
+    .eq("apartment_id", apartmentId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/wohnungen");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+/**
+ * Update season config (multiplier + min nights)
+ */
+export async function updateSeasonConfig(
+  type: string,
+  config: { multiplier: number; min_nights: number; label: string }
+) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("season_configs")
+    .update(config)
+    .eq("type", type);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+/**
+ * Get season periods from DB (for admin editor)
+ */
+export async function getSeasonPeriods() {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("season_periods")
+    .select("id, type, start_mmdd, end_mmdd, label")
+    .order("start_mmdd", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching season periods:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Create a season period
+ */
+export async function createSeasonPeriod(period: {
+  type: string;
+  start_mmdd: string;
+  end_mmdd: string;
+  label: string;
+}) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("season_periods").insert(period);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+/**
+ * Delete a season period
+ */
+export async function deleteSeasonPeriod(id: string) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("season_periods").delete().eq("id", id);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+/**
+ * Update tax config
+ */
+export async function updateTaxConfig(key: string, rate: number) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("tax_config")
+    .update({ rate })
+    .eq("key", key);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+// ============================================
+// MANUAL BOOKING CREATION
+// ============================================
+
+/**
+ * Create a booking manually from admin
+ */
+export async function createManualBooking(data: {
+  apartment_id: string;
+  check_in: string;
+  check_out: string;
+  adults: number;
+  children: number;
+  dogs: number;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  street: string;
+  zip: string;
+  city: string;
+  country: string;
+  notes?: string;
+  status: "pending" | "confirmed";
+  send_confirmation?: boolean;
+}) {
+  const supabase = createServerClient();
+
+  const { getApartmentWithPricing, getSeasonConfigsFromDB, getSeasonPeriodsFromDB, getTaxConfigFromDB } = await import("@/lib/pricing-data");
+  const { calculatePrice, calculateNights } = await import("@/lib/pricing");
+
+  const apartment = await getApartmentWithPricing(data.apartment_id);
+  if (!apartment) return { success: false, error: "Wohnung nicht gefunden" };
+
+  const [seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
+    getSeasonConfigsFromDB(),
+    getSeasonPeriodsFromDB(),
+    getTaxConfigFromDB(),
+  ]);
+
+  const checkIn = new Date(data.check_in);
+  const checkOut = new Date(data.check_out);
+  const nights = calculateNights(checkIn, checkOut);
+
+  if (nights <= 0) return { success: false, error: "Ungültiger Zeitraum" };
+
+  const breakdown = calculatePrice({
+    apartment,
+    checkIn,
+    checkOut,
+    adults: data.adults,
+    children: data.children,
+    dogs: data.dogs,
+    overrides: {
+      seasonConfigs,
+      seasonPeriods,
+      localTaxPerNight: taxConfig.localTaxPerNight,
+      vatRate: taxConfig.vatRate,
+    },
+  });
+
+  // Upsert guest
+  const { data: guestData } = await supabase
+    .from("guests")
+    .upsert(
+      {
+        email: data.email.toLowerCase().trim(),
+        first_name: data.first_name,
+        last_name: data.last_name,
+        phone: data.phone,
+        street: data.street,
+        zip: data.zip,
+        city: data.city,
+        country: data.country,
+      },
+      { onConflict: "email" }
+    )
+    .select("id, total_stays, total_revenue")
+    .single();
+
+  // Insert booking
+  const { data: booking, error } = await supabase
+    .from("bookings")
+    .insert({
+      apartment_id: data.apartment_id,
+      check_in: data.check_in,
+      check_out: data.check_out,
+      nights,
+      adults: data.adults,
+      children: data.children,
+      dogs: data.dogs,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email.toLowerCase().trim(),
+      phone: data.phone,
+      street: data.street,
+      zip: data.zip,
+      city: data.city,
+      country: data.country,
+      notes: data.notes || "",
+      price_per_night: breakdown.basePrice,
+      extra_guests_total: breakdown.extraGuestsTotal,
+      dogs_total: breakdown.dogsTotal,
+      cleaning_fee: breakdown.cleaningFee,
+      local_tax_total: breakdown.localTaxTotal,
+      discount_amount: 0,
+      total_price: breakdown.total,
+      status: data.status,
+      guest_id: guestData?.id ?? null,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Update guest stats
+  if (guestData?.id) {
+    await supabase
+      .from("guests")
+      .update({
+        total_stays: (guestData.total_stays ?? 0) + 1,
+        total_revenue: Number(guestData.total_revenue ?? 0) + breakdown.total,
+        last_visit: data.check_in,
+      })
+      .eq("id", guestData.id);
+  }
+
+  // Optionally send confirmation
+  if (data.send_confirmation && booking) {
+    try {
+      const { sendBookingConfirmation } = await import("@/lib/email");
+      await sendBookingConfirmation(
+        {
+          id: booking.id,
+          firstName: data.first_name,
+          lastName: data.last_name,
+          email: data.email,
+          phone: data.phone,
+          street: data.street,
+          zip: data.zip,
+          city: data.city,
+          country: data.country,
+          notes: data.notes || "",
+          checkIn,
+          checkOut,
+          adults: data.adults,
+          children: data.children,
+          dogs: data.dogs,
+          nights,
+          totalPrice: breakdown.total,
+          pricePerNight: breakdown.basePrice,
+          extraGuestsTotal: breakdown.extraGuestsTotal,
+          dogsTotal: breakdown.dogsTotal,
+          cleaningFee: breakdown.cleaningFee,
+          vatAmount: breakdown.vatAmount,
+        },
+        apartment
+      );
+
+      await supabase
+        .from("bookings")
+        .update({ confirmation_sent_at: new Date().toISOString() })
+        .eq("id", booking.id);
+    } catch {
+      // Email failure is non-critical
+    }
+  }
+
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin/kalender");
+  revalidatePath("/admin");
+  revalidatePath("/admin/gaeste");
+  return { success: true, bookingId: booking?.id };
+}
+
+// ============================================
+// GUESTS (DB-backed)
+// ============================================
+
+/**
+ * Get guests from the guests table
+ */
+export async function getGuestById(id: string) {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("guests")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error("Error fetching guest:", error);
+    return null;
+  }
+
+  return data;
+}
+
+export async function getGuestsFromDB(search?: string) {
+  const supabase = createServerClient();
+
+  let query = supabase
+    .from("guests")
+    .select("id, email, first_name, last_name, phone, city, country, total_stays, total_revenue, first_visit, last_visit, notes, created_at")
+    .order("last_visit", { ascending: false, nullsFirst: false });
+
+  if (search?.trim()) {
+    const s = search.trim();
+    query = query.or(
+      `first_name.ilike.%${s}%,last_name.ilike.%${s}%,email.ilike.%${s}%`
+    );
+  }
+
+  const { data, error } = await query.limit(200);
+
+  if (error) {
+    console.error("Error fetching guests:", error);
+    return [];
+  }
+
+  return data ?? [];
+}

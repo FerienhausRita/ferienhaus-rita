@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteBlockedDate } from "@/app/(admin)/admin/actions";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 
 interface Booking {
   id: string;
@@ -34,10 +34,16 @@ interface CalendarViewProps {
   apartments: { id: string; name: string }[];
 }
 
-const statusColors: Record<string, string> = {
-  pending: "bg-amber-400",
-  confirmed: "bg-emerald-500",
-  completed: "bg-stone-400",
+const statusColors: Record<string, { bg: string; text: string }> = {
+  pending: { bg: "bg-amber-400", text: "text-white" },
+  confirmed: { bg: "bg-emerald-500", text: "text-white" },
+  completed: { bg: "bg-stone-400", text: "text-white" },
+};
+
+const statusLabels: Record<string, string> = {
+  pending: "Offen",
+  confirmed: "Bestätigt",
+  completed: "Abgeschlossen",
 };
 
 const monthNames = [
@@ -54,6 +60,7 @@ export default function CalendarView({
 }: CalendarViewProps) {
   const router = useRouter();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const touchStartX = useRef<number | null>(null);
 
   const daysInMonth = new Date(year, month, 0).getDate();
   const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
@@ -66,13 +73,35 @@ export default function CalendarView({
   const nextMonth = month === 12 ? 1 : month + 1;
   const nextYear = month === 12 ? year + 1 : year;
 
-  // Helper: check if a date falls within a range
-  const isInRange = (day: number, start: string, end: string) => {
-    const dateStr = `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
-    return dateStr >= start && dateStr < end; // end date is checkout/exclusive
-  };
+  const goToPrev = useCallback(() => {
+    router.push(`/admin/kalender?year=${prevYear}&month=${prevMonth}`);
+  }, [router, prevYear, prevMonth]);
 
-  // Helper: get day of week label
+  const goToNext = useCallback(() => {
+    router.push(`/admin/kalender?year=${nextYear}&month=${nextMonth}`);
+  }, [router, nextYear, nextMonth]);
+
+  // Swipe handlers
+  const handleTouchStart = useCallback((e: React.TouchEvent) => {
+    touchStartX.current = e.touches[0].clientX;
+  }, []);
+
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (touchStartX.current === null) return;
+      const diff = e.changedTouches[0].clientX - touchStartX.current;
+      const threshold = 60;
+      if (diff > threshold) {
+        goToPrev();
+      } else if (diff < -threshold) {
+        goToNext();
+      }
+      touchStartX.current = null;
+    },
+    [goToPrev, goToNext]
+  );
+
+  // Helpers
   const getDayOfWeek = (day: number) => {
     const date = new Date(year, month - 1, day);
     return ["So", "Mo", "Di", "Mi", "Do", "Fr", "Sa"][date.getDay()];
@@ -89,6 +118,47 @@ export default function CalendarView({
     return dateStr === todayStr;
   };
 
+  const formatDateStr = (y: number, m: number, d: number) =>
+    `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+  const monthStart = formatDateStr(year, month, 1);
+  const monthEndExclusive = month === 12
+    ? formatDateStr(year + 1, 1, 1)
+    : formatDateStr(year, month + 1, 1);
+
+  // Calculate bar position for a date range [start, end) within this month
+  const calcBarPosition = (start: string, end: string) => {
+    // Parse start/end dates
+    const startParts = start.split("-").map(Number);
+    const endParts = end.split("-").map(Number);
+
+    // Clamp startDay: if booking starts before this month, use day 1
+    let startDay: number;
+    if (start < monthStart) {
+      startDay = 1;
+    } else {
+      startDay = startParts[2];
+    }
+
+    // Clamp endDay: end is exclusive (checkout day), so last occupied day = end - 1
+    // If end is after this month, last occupied day is last day of month
+    let endDay: number;
+    if (end >= monthEndExclusive) {
+      endDay = daysInMonth;
+    } else {
+      // end date day minus 1 (exclusive)
+      endDay = endParts[2] - 1;
+    }
+
+    // If endDay < startDay, booking doesn't actually cover any days this month
+    if (endDay < startDay) return null;
+
+    const leftPercent = ((startDay - 1) / daysInMonth) * 100;
+    const widthPercent = ((endDay - startDay + 1) / daysInMonth) * 100;
+
+    return { leftPercent, widthPercent, startDay, endDay };
+  };
+
   const handleDeleteBlock = async (id: string) => {
     if (!confirm("Sperrung wirklich aufheben?")) return;
     setDeletingId(id);
@@ -98,33 +168,39 @@ export default function CalendarView({
   };
 
   return (
-    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-      {/* Month Navigation */}
+    <div
+      className="bg-white rounded-2xl border border-stone-200 overflow-hidden"
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
+    >
+      {/* Monatsnavigation */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
-        <Link
-          href={`/admin/kalender?year=${prevYear}&month=${prevMonth}`}
+        <button
+          onClick={goToPrev}
           className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+          aria-label="Vorheriger Monat"
         >
           <svg className="w-5 h-5 text-stone-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 19.5L8.25 12l7.5-7.5" />
           </svg>
-        </Link>
+        </button>
         <div className="text-center">
           <h2 className="font-bold text-stone-900 text-lg">
             {monthNames[month - 1]} {year}
           </h2>
         </div>
-        <Link
-          href={`/admin/kalender?year=${nextYear}&month=${nextMonth}`}
+        <button
+          onClick={goToNext}
           className="p-2 hover:bg-stone-100 rounded-lg transition-colors"
+          aria-label="Nächster Monat"
         >
           <svg className="w-5 h-5 text-stone-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 4.5l7.5 7.5-7.5 7.5" />
           </svg>
-        </Link>
+        </button>
       </div>
 
-      {/* Legend */}
+      {/* Legende */}
       <div className="flex flex-wrap gap-4 px-5 py-3 border-b border-stone-100 text-xs">
         <div className="flex items-center gap-1.5">
           <div className="w-3 h-3 rounded bg-amber-400" />
@@ -144,12 +220,15 @@ export default function CalendarView({
         </div>
       </div>
 
-      {/* Calendar Grid */}
+      {/* Kalender-Raster */}
       <div className="overflow-x-auto">
         <div className="min-w-[800px]">
-          {/* Day headers */}
-          <div className="grid" style={{ gridTemplateColumns: `140px repeat(${daysInMonth}, 1fr)` }}>
-            <div className="px-3 py-2 border-b border-r border-stone-100 bg-stone-50 text-xs font-medium text-stone-500">
+          {/* Tages-Header */}
+          <div
+            className="grid"
+            style={{ gridTemplateColumns: `140px repeat(${daysInMonth}, 1fr)` }}
+          >
+            <div className="px-3 py-2 border-b border-r border-stone-100 bg-stone-50 text-xs font-medium text-stone-500 sticky left-0 z-10">
               Wohnung
             </div>
             {days.map((day) => (
@@ -169,7 +248,7 @@ export default function CalendarView({
             ))}
           </div>
 
-          {/* Apartment rows */}
+          {/* Wohnungszeilen */}
           {apartments.map((apt) => {
             const aptBookings = bookings.filter(
               (b) => b.apartment_id === apt.id
@@ -179,81 +258,95 @@ export default function CalendarView({
             );
 
             return (
-              <div
-                key={apt.id}
-                className="grid"
-                style={{
-                  gridTemplateColumns: `140px repeat(${daysInMonth}, 1fr)`,
-                }}
-              >
-                {/* Apartment label */}
-                <div className="px-3 py-3 border-b border-r border-stone-100 bg-stone-50">
+              <div key={apt.id} className="grid" style={{ gridTemplateColumns: `140px 1fr` }}>
+                {/* Wohnungsname */}
+                <div className="px-3 py-3 border-b border-r border-stone-100 bg-stone-50 flex items-center sticky left-0 z-10">
                   <p className="text-sm font-medium text-stone-900 truncate">
                     {apt.name}
                   </p>
                 </div>
 
-                {/* Day cells */}
-                {days.map((day) => {
-                  // Find booking for this day
-                  const booking = aptBookings.find((b) =>
-                    isInRange(day, b.check_in, b.check_out)
-                  );
-                  // Find blocked date for this day
-                  const blocked = aptBlocked.find((b) =>
-                    isInRange(day, b.start_date, b.end_date)
-                  );
+                {/* Tagesraster + Buchungsbalken */}
+                <div className="relative border-b border-stone-100" style={{ height: 48 }}>
+                  {/* Hintergrund-Gitterzellen */}
+                  <div
+                    className="absolute inset-0 grid"
+                    style={{ gridTemplateColumns: `repeat(${daysInMonth}, 1fr)` }}
+                  >
+                    {days.map((day) => (
+                      <div
+                        key={day}
+                        className={`border-r border-stone-100 ${
+                          isToday(day)
+                            ? "bg-[#c8a96e]/5"
+                            : isWeekend(day)
+                            ? "bg-stone-50/50"
+                            : ""
+                        }`}
+                      />
+                    ))}
+                  </div>
 
-                  // Is this the first day of a booking in this month?
-                  const isBookingStart =
-                    booking &&
-                    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` ===
-                      booking.check_in;
-                  // Is this the first day of a block in this month?
-                  const isBlockStart =
-                    blocked &&
-                    `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}` ===
-                      blocked.start_date;
+                  {/* Gesperrte Zeiträume */}
+                  {aptBlocked.map((block) => {
+                    const pos = calcBarPosition(block.start_date, block.end_date);
+                    if (!pos) return null;
 
-                  return (
-                    <div
-                      key={day}
-                      className={`relative border-b border-r border-stone-100 min-h-[44px] ${
-                        isToday(day) ? "bg-[#c8a96e]/5" : isWeekend(day) ? "bg-stone-50/50" : ""
-                      }`}
-                    >
-                      {booking && (
-                        <Link
-                          href={`/admin/buchungen/${booking.id}`}
-                          className={`absolute inset-0.5 rounded ${
-                            statusColors[booking.status] ?? "bg-stone-300"
-                          } opacity-80 hover:opacity-100 transition-opacity flex items-center overflow-hidden`}
-                          title={`${booking.first_name} ${booking.last_name} (${booking.status})`}
-                        >
-                          {isBookingStart && (
-                            <span className="text-white text-[9px] font-medium px-1 truncate">
-                              {booking.last_name}
-                            </span>
-                          )}
-                        </Link>
-                      )}
-                      {blocked && !booking && (
-                        <button
-                          onClick={() => handleDeleteBlock(blocked.id)}
-                          disabled={deletingId === blocked.id}
-                          className="absolute inset-0.5 rounded bg-red-200 opacity-60 hover:opacity-80 transition-opacity bg-stripes flex items-center overflow-hidden"
-                          title={`${blocked.reason} – Klicken zum Aufheben`}
-                        >
-                          {isBlockStart && (
-                            <span className="text-red-800 text-[9px] font-medium px-1 truncate">
-                              {blocked.reason?.replace("iCal: ", "") ?? "Gesperrt"}
-                            </span>
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
+                    return (
+                      <button
+                        key={block.id}
+                        onClick={() => handleDeleteBlock(block.id)}
+                        disabled={deletingId === block.id}
+                        className="absolute top-1 bottom-1 rounded bg-red-200 bg-stripes opacity-70 hover:opacity-90 transition-opacity flex items-center px-1.5 overflow-hidden z-10 cursor-pointer"
+                        style={{
+                          left: `${pos.leftPercent}%`,
+                          width: `${pos.widthPercent}%`,
+                        }}
+                        title={`${block.reason || "Gesperrt"} — Klicken zum Aufheben`}
+                      >
+                        <span className="text-red-800 text-[10px] font-medium truncate">
+                          {block.reason?.replace("iCal: ", "") ?? "Gesperrt"}
+                        </span>
+                      </button>
+                    );
+                  })}
+
+                  {/* Buchungsbalken */}
+                  {aptBookings.map((booking) => {
+                    const pos = calcBarPosition(booking.check_in, booking.check_out);
+                    if (!pos) return null;
+
+                    const colors = statusColors[booking.status] ?? {
+                      bg: "bg-stone-300",
+                      text: "text-white",
+                    };
+                    const label = `${booking.first_name} ${booking.last_name} · #${booking.id.slice(0, 4).toUpperCase()}`;
+                    const tooltip = [
+                      `${booking.first_name} ${booking.last_name}`,
+                      `#${booking.id.slice(0, 4).toUpperCase()}`,
+                      `${booking.check_in} — ${booking.check_out}`,
+                      `Status: ${statusLabels[booking.status] ?? booking.status}`,
+                      `${booking.adults} Erw.${booking.children ? `, ${booking.children} Kind${booking.children > 1 ? "er" : ""}` : ""}${booking.dogs ? `, ${booking.dogs} Hund${booking.dogs > 1 ? "e" : ""}` : ""}`,
+                    ].join("\n");
+
+                    return (
+                      <Link
+                        key={booking.id}
+                        href={`/admin/buchungen/${booking.id}`}
+                        className={`absolute top-1 bottom-1 rounded ${colors.bg} opacity-85 hover:opacity-100 transition-opacity flex items-center px-1.5 overflow-hidden z-20 shadow-sm`}
+                        style={{
+                          left: `${pos.leftPercent}%`,
+                          width: `${pos.widthPercent}%`,
+                        }}
+                        title={tooltip}
+                      >
+                        <span className={`${colors.text} text-[10px] font-medium truncate`}>
+                          {label}
+                        </span>
+                      </Link>
+                    );
+                  })}
+                </div>
               </div>
             );
           })}

@@ -20,15 +20,24 @@ interface SeasonConfig {
   minNights: number;
 }
 
+interface SeasonPeriod {
+  start: string;
+  end: string;
+  type: string;
+  label: string;
+}
+
 interface PriceSimulatorProps {
   apartments: Apartment[];
   seasons: SeasonConfig[];
+  seasonPeriods: SeasonPeriod[];
   localTaxPerNight: number;
 }
 
 export default function PriceSimulator({
   apartments,
   seasons,
+  seasonPeriods,
   localTaxPerNight,
 }: PriceSimulatorProps) {
   const [apartmentId, setApartmentId] = useState(apartments[0]?.id ?? "");
@@ -39,6 +48,50 @@ export default function PriceSimulator({
   const [dogs, setDogs] = useState(0);
 
   const apartment = apartments.find((a) => a.id === apartmentId);
+
+  // Build a lookup from season type to config
+  const seasonConfigMap = new Map(seasons.map((s) => [s.type, s]));
+
+  // Low season fallback
+  const lowSeason = seasonConfigMap.get("low") ?? {
+    type: "low",
+    label: "Nebensaison",
+    multiplier: 0.85,
+    minNights: 2,
+  };
+
+  const getSeasonForDate = (
+    date: Date
+  ): { multiplier: number; label: string } => {
+    const mm = String(date.getMonth() + 1).padStart(2, "0");
+    const dd = String(date.getDate()).padStart(2, "0");
+    const mmdd = `${mm}-${dd}`;
+
+    for (const period of seasonPeriods) {
+      if (period.start <= period.end) {
+        // Normal range (e.g. 07-01 to 08-31)
+        if (mmdd >= period.start && mmdd <= period.end) {
+          const config = seasonConfigMap.get(period.type);
+          return {
+            multiplier: config?.multiplier ?? 1.0,
+            label: config?.label ?? period.label,
+          };
+        }
+      } else {
+        // Wrapping range (e.g. 12-20 to 01-06)
+        if (mmdd >= period.start || mmdd <= period.end) {
+          const config = seasonConfigMap.get(period.type);
+          return {
+            multiplier: config?.multiplier ?? 1.0,
+            label: config?.label ?? period.label,
+          };
+        }
+      }
+    }
+
+    // Default: low season
+    return { multiplier: lowSeason.multiplier, label: lowSeason.label };
+  };
 
   const calculateResult = () => {
     if (!apartment || !checkIn || !checkOut) return null;
@@ -52,40 +105,29 @@ export default function PriceSimulator({
 
     if (nights <= 0) return null;
 
-    // Simplified season calculation (match by month/day)
-    const getSeasonMultiplier = (date: Date): { multiplier: number; label: string } => {
-      const mm = String(date.getMonth() + 1).padStart(2, "0");
-      const dd = String(date.getDate()).padStart(2, "0");
-      const mmdd = `${mm}-${dd}`;
-
-      // High season
-      if (mmdd >= "12-20" || mmdd <= "01-06") return { multiplier: 1.3, label: "Hochsaison" };
-      if (mmdd >= "02-01" && mmdd <= "03-07") return { multiplier: 1.3, label: "Hochsaison" };
-      if (mmdd >= "07-01" && mmdd <= "08-31") return { multiplier: 1.3, label: "Hochsaison" };
-
-      // Mid season
-      if (mmdd >= "01-07" && mmdd <= "01-31") return { multiplier: 1.0, label: "Zwischensaison" };
-      if (mmdd >= "03-08" && mmdd <= "04-20") return { multiplier: 1.0, label: "Zwischensaison" };
-      if (mmdd >= "06-01" && mmdd <= "06-30") return { multiplier: 1.0, label: "Zwischensaison" };
-      if (mmdd >= "09-01" && mmdd <= "10-15") return { multiplier: 1.0, label: "Zwischensaison" };
-
-      return { multiplier: 0.85, label: "Nebensaison" };
-    };
-
     let basePriceTotal = 0;
     const current = new Date(start);
-    const seasonBreakdown = new Map<string, { label: string; nights: number; pricePerNight: number; total: number }>();
+    const seasonBreakdown = new Map<
+      string,
+      { label: string; nights: number; pricePerNight: number; total: number }
+    >();
 
     for (let i = 0; i < nights; i++) {
-      const { multiplier, label } = getSeasonMultiplier(current);
-      const nightPrice = Math.round(apartment.basePrice * multiplier * 100) / 100;
+      const { multiplier, label } = getSeasonForDate(current);
+      const nightPrice =
+        Math.round(apartment.basePrice * multiplier * 100) / 100;
 
       const existing = seasonBreakdown.get(label);
       if (existing) {
         existing.nights += 1;
         existing.total += nightPrice;
       } else {
-        seasonBreakdown.set(label, { label, nights: 1, pricePerNight: nightPrice, total: nightPrice });
+        seasonBreakdown.set(label, {
+          label,
+          nights: 1,
+          pricePerNight: nightPrice,
+          total: nightPrice,
+        });
       }
 
       basePriceTotal += nightPrice;
@@ -94,10 +136,16 @@ export default function PriceSimulator({
 
     const totalGuests = adults + children;
     const extraGuests = Math.max(0, totalGuests - apartment.baseGuests);
-    const extraGuestsTotal = extraGuests * apartment.extraPersonPrice * nights;
+    const extraGuestsTotal =
+      extraGuests * apartment.extraPersonPrice * nights;
     const dogsTotal = dogs * apartment.dogFee * nights;
     const localTaxTotal = adults * nights * localTaxPerNight;
-    const total = basePriceTotal + extraGuestsTotal + dogsTotal + apartment.cleaningFee + localTaxTotal;
+    const total =
+      basePriceTotal +
+      extraGuestsTotal +
+      dogsTotal +
+      apartment.cleaningFee +
+      localTaxTotal;
 
     return {
       nights,
@@ -115,7 +163,10 @@ export default function PriceSimulator({
   const result = calculateResult();
 
   const fmt = (n: number) =>
-    new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR" }).format(n);
+    new Intl.NumberFormat("de-AT", {
+      style: "currency",
+      currency: "EUR",
+    }).format(n);
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
@@ -216,7 +267,8 @@ export default function PriceSimulator({
             {result.seasonBreakdown.map((s) => (
               <div key={s.label} className="flex justify-between">
                 <span className="text-stone-600">
-                  {s.nights} Nacht{s.nights > 1 ? "e" : ""} {s.label} &times; {fmt(s.pricePerNight)}
+                  {s.nights} Nacht{s.nights > 1 ? "e" : ""} {s.label} &times;{" "}
+                  {fmt(s.pricePerNight)}
                 </span>
                 <span className="text-stone-900">{fmt(s.total)}</span>
               </div>
@@ -224,15 +276,20 @@ export default function PriceSimulator({
             {result.extraGuests > 0 && (
               <div className="flex justify-between">
                 <span className="text-stone-600">
-                  {result.extraGuests} Zusatzgast{result.extraGuests > 1 ? "e" : ""} &times; {result.nights} Nächte
+                  {result.extraGuests} Zusatzgast
+                  {result.extraGuests > 1 ? "e" : ""} &times; {result.nights}{" "}
+                  Nächte
                 </span>
-                <span className="text-stone-900">{fmt(result.extraGuestsTotal)}</span>
+                <span className="text-stone-900">
+                  {fmt(result.extraGuestsTotal)}
+                </span>
               </div>
             )}
             {result.dogsTotal > 0 && (
               <div className="flex justify-between">
                 <span className="text-stone-600">
-                  {dogs} Hund{dogs > 1 ? "e" : ""} &times; {result.nights} Nächte
+                  {dogs} Hund{dogs > 1 ? "e" : ""} &times; {result.nights}{" "}
+                  Nächte
                 </span>
                 <span className="text-stone-900">{fmt(result.dogsTotal)}</span>
               </div>
@@ -243,9 +300,12 @@ export default function PriceSimulator({
             </div>
             <div className="flex justify-between">
               <span className="text-stone-600">
-                Ortstaxe ({adults} Erw. &times; {result.nights} Nächte &times; {fmt(localTaxPerNight)})
+                Ortstaxe ({adults} Erw. &times; {result.nights} Nächte &times;{" "}
+                {fmt(localTaxPerNight)})
               </span>
-              <span className="text-stone-900">{fmt(result.localTaxTotal)}</span>
+              <span className="text-stone-900">
+                {fmt(result.localTaxTotal)}
+              </span>
             </div>
             <div className="flex justify-between pt-3 border-t border-stone-200 font-bold text-base">
               <span className="text-stone-900">Gesamt</span>

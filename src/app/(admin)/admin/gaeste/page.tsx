@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getGuests } from "../actions";
+import { getGuestsFromDB } from "../actions";
 import GuestSearch from "@/components/admin/GuestSearch";
 
 export const metadata: Metadata = {
@@ -29,7 +29,19 @@ export default async function GaestePage({
 }: {
   searchParams: { search?: string };
 }) {
-  const guests = await getGuests(searchParams.search);
+  const rawGuests = await getGuestsFromDB(searchParams.search);
+  const guests = rawGuests.map((g) => ({
+    id: g.id,
+    email: g.email,
+    firstName: g.first_name,
+    lastName: g.last_name,
+    phone: g.phone,
+    city: g.city,
+    country: g.country,
+    totalStays: g.total_stays,
+    totalRevenue: Number(g.total_revenue || 0),
+    lastVisit: g.last_visit || g.created_at?.split("T")[0] || "",
+  }));
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -61,7 +73,7 @@ export default async function GaestePage({
                 <tr key={guest.email} className="hover:bg-stone-50">
                   <td className="px-5 py-3">
                     <Link
-                      href={`/admin/gaeste/${encodeURIComponent(guest.email)}`}
+                      href={`/admin/gaeste/${guest.id}`}
                       className="font-medium text-stone-900 text-sm hover:text-[#c8a96e] transition-colors"
                     >
                       {guest.firstName} {guest.lastName}
@@ -114,7 +126,7 @@ export default async function GaestePage({
         {guests.map((guest) => (
           <Link
             key={guest.email}
-            href={`/admin/gaeste/${encodeURIComponent(guest.email)}`}
+            href={`/admin/gaeste/${guest.id}`}
             className="block bg-white rounded-2xl border border-stone-200 p-4 active:bg-stone-50"
           >
             <div className="flex items-start justify-between mb-1">

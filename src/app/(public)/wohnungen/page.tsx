@@ -1,5 +1,5 @@
 import { Metadata } from "next";
-import { apartments } from "@/data/apartments";
+import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import ApartmentCard from "@/components/apartments/ApartmentCard";
 import Container from "@/components/ui/Container";
 import SectionHeading from "@/components/ui/SectionHeading";
@@ -10,7 +10,11 @@ export const metadata: Metadata = {
     "Vier liebevoll eingerichtete Ferienwohnungen in Kals am Großglockner – von 40 m² bis 96 m² für 2 bis 6 Personen.",
 };
 
-export default function WohnungenPage() {
+export const dynamic = "force-dynamic";
+
+export default async function WohnungenPage() {
+  const apartments = await getAllApartmentsWithPricing();
+
   return (
     <div className="pt-28 pb-24">
       <Container>

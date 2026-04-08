@@ -2,16 +2,25 @@
 
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import { apartments, Apartment } from "@/data/apartments";
-import { calculatePrice, formatCurrency, PriceBreakdown } from "@/lib/pricing";
+import { apartments as staticApartments, Apartment } from "@/data/apartments";
+import { calculatePrice, formatCurrency, PriceBreakdown, PricingOverrides, getMinNightsWithOverrides } from "@/lib/pricing";
 import { isAvailable } from "@/lib/availability";
 import { getMinNights } from "@/data/seasons";
 import { validateDiscountCode, DiscountCode } from "@/data/discounts";
+import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
 import Container from "@/components/ui/Container";
 import PriceSummary from "@/components/booking/PriceSummary";
 import AvailabilityCalendar from "@/components/booking/AvailabilityCalendar";
 
 type Step = "search" | "details" | "confirmation";
+
+interface BookingFlowProps {
+  /** DB-sourced apartments (optional – falls back to static) */
+  apartmentsData?: Apartment[];
+  seasonConfigsData?: Record<string, SeasonConfig>;
+  seasonPeriodsData?: SeasonPeriod[];
+  taxConfigData?: { localTaxPerNight: number; vatRate: number };
+}
 
 interface BookingSearch {
   checkIn: string;
@@ -37,8 +46,27 @@ interface GuestDetails {
 const inputClasses =
   "w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all";
 
-export default function BookingFlow() {
+export default function BookingFlow({
+  apartmentsData,
+  seasonConfigsData,
+  seasonPeriodsData,
+  taxConfigData,
+}: BookingFlowProps = {}) {
   const searchParams = useSearchParams();
+
+  // Use DB-sourced data if available, fall back to static
+  const apartments = apartmentsData ?? staticApartments;
+
+  // Build pricing overrides from DB data
+  const pricingOverrides: PricingOverrides | undefined =
+    seasonConfigsData || seasonPeriodsData || taxConfigData
+      ? {
+          seasonConfigs: seasonConfigsData,
+          seasonPeriods: seasonPeriodsData,
+          localTaxPerNight: taxConfigData?.localTaxPerNight,
+          vatRate: taxConfigData?.vatRate,
+        }
+      : undefined;
 
   const [step, setStep] = useState<Step>("search");
   const [search, setSearch] = useState<BookingSearch>({
@@ -127,13 +155,22 @@ export default function BookingFlow() {
       children: search.children,
       dogs: search.dogs,
       discount: activeDiscount,
+      overrides: pricingOverrides,
     });
-  }, [selectedApartment, search, activeDiscount]);
+  }, [selectedApartment, search, activeDiscount, pricingOverrides]);
 
   const minNights = useMemo(() => {
     if (!search.checkIn || !search.checkOut) return 1;
+    if (pricingOverrides?.seasonPeriods || pricingOverrides?.seasonConfigs) {
+      return getMinNightsWithOverrides(
+        new Date(search.checkIn),
+        new Date(search.checkOut),
+        pricingOverrides.seasonPeriods,
+        pricingOverrides.seasonConfigs
+      );
+    }
     return getMinNights(new Date(search.checkIn), new Date(search.checkOut));
-  }, [search.checkIn, search.checkOut]);
+  }, [search.checkIn, search.checkOut, pricingOverrides]);
 
   const nightsCount = useMemo(() => {
     if (!search.checkIn || !search.checkOut) return 0;
@@ -355,6 +392,7 @@ export default function BookingFlow() {
                       apartment: apt, checkIn: new Date(search.checkIn),
                       checkOut: new Date(search.checkOut), adults: search.adults,
                       children: search.children, dogs: search.dogs,
+                      overrides: pricingOverrides,
                     });
                     const isSelected = selectedApartment?.id === apt.id;
                     return (

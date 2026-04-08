@@ -1,5 +1,4 @@
 import { Metadata } from "next";
-import { apartments } from "@/data/apartments";
 import { getCalendarData } from "../actions";
 import CalendarView from "@/components/admin/CalendarView";
 import BlockDateForm from "@/components/admin/BlockDateForm";
@@ -9,6 +8,13 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
+
+const calendarApartments = [
+  { id: "grossglockner-suite", name: "Großglockner Suite" },
+  { id: "gletscherblick", name: "Gletscherblick" },
+  { id: "almrausch", name: "Almrausch" },
+  { id: "edelweiss", name: "Edelweiß" },
+];
 
 export default async function KalenderPage({
   searchParams,
@@ -21,11 +27,6 @@ export default async function KalenderPage({
 
   const { bookings, blockedDates } = await getCalendarData(year, month);
 
-  const apartmentList = apartments.map((a) => ({
-    id: a.id,
-    name: a.name,
-  }));
-
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -35,7 +36,7 @@ export default async function KalenderPage({
             Übersicht aller Wohnungen
           </p>
         </div>
-        <BlockDateForm apartments={apartmentList} />
+        <BlockDateForm apartments={calendarApartments} />
       </div>
 
       <CalendarView
@@ -43,7 +44,7 @@ export default async function KalenderPage({
         month={month}
         bookings={bookings}
         blockedDates={blockedDates}
-        apartments={apartmentList}
+        apartments={calendarApartments}
       />
     </div>
   );
