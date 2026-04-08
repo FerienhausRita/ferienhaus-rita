@@ -46,7 +46,7 @@ interface GuestDetails {
 }
 
 const inputClasses =
-  "w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all";
+  "w-full h-[46px] px-4 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all";
 
 export default function BookingFlow({
   apartmentsData,
@@ -349,8 +349,8 @@ export default function BookingFlow({
             </p>
 
             <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 sm:p-8 mb-10">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-[1fr_1fr_auto_auto_auto] gap-4 items-end">
-                <div className="col-span-2 sm:col-span-2 lg:col-span-2">
+              <div className="grid grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr] gap-4 items-end">
+                <div className="col-span-2 lg:col-span-1">
                   <label className="block text-sm font-medium text-stone-700 mb-2">Reisezeitraum</label>
                   <DateRangePicker
                     checkIn={search.checkIn}
@@ -378,7 +378,7 @@ export default function BookingFlow({
                   <label className="block text-sm font-medium text-stone-700 mb-2">Hunde</label>
                   <select value={search.dogs}
                     onChange={(e) => setSearch({ ...search, dogs: parseInt(e.target.value) })}
-                    className={`${inputClasses} w-20`}>
+                    className={inputClasses}>
                     {[0, 1, 2].map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>

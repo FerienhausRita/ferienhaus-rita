@@ -233,7 +233,7 @@ export default function DateRangePicker({
       <button
         type="button"
         onClick={handleOpen}
-        className="w-full bg-stone-50 border border-stone-200 rounded-xl px-4 py-3 flex items-center text-left transition-all hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-alpine-400/40 focus:border-alpine-400"
+        className="w-full h-[46px] bg-stone-50 border border-stone-200 rounded-xl px-4 flex items-center text-left transition-all hover:border-stone-300 focus:outline-none focus:ring-2 focus:ring-alpine-400/40 focus:border-alpine-400"
       >
         <span className={`text-sm ${checkIn ? "text-stone-800" : "text-stone-400"}`}>
           {checkIn ? formatDateGerman(checkIn) : "Anreise"}
