@@ -86,6 +86,7 @@ export default function ImageGallery({
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-500"
                   sizes="(max-width: 640px) 50vw, 25vw"
+                  loading="lazy"
                 />
                 <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                 {/* "Show all" overlay on last visible image */}
@@ -187,7 +188,7 @@ export default function ImageGallery({
               fill
               className="object-contain"
               sizes="100vw"
-              priority
+              loading="eager"
             />
           </div>
 
