@@ -1,7 +1,9 @@
-import { apartments } from "@/data/apartments";
+import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import ApartmentCard from "@/components/apartments/ApartmentCard";
 
-export default function ApartmentOverview() {
+export default async function ApartmentOverview() {
+  const apartments = await getAllApartmentsWithPricing();
+
   return (
     <section className="py-24 sm:py-32" id="wohnungen">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">

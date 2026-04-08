@@ -6,6 +6,8 @@ import TestimonialSection from "@/components/sections/TestimonialSection";
 import CTASection from "@/components/sections/CTASection";
 import AnimateIn from "@/components/ui/AnimateIn";
 
+export const dynamic = "force-dynamic";
+
 export default function Home() {
   return (
     <>
