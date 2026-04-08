@@ -24,21 +24,21 @@ const huetten = [
     altitude: "2.621 m",
     description:
       "Panoramarestaurant auf der Bergstation mit atemberaubendem 360°-Blick auf über 60 Dreitausender. Gehobene Küche auf höchstem Niveau.",
-    image: "/images/region/huette.jpg",
+    image: "/images/region/huette-adlerlounge.jpg",
   },
   {
     name: "Lucknerhaus",
     altitude: "1.920 m",
     description:
       "Traditionelle Jausenstation am Fuße des Großglockners. Idealer Ausgangspunkt für Wanderungen und Skitouren ins Ködnitztal.",
-    image: "/images/region/huette.jpg",
+    image: "/images/region/huette-lucknerhaus.jpg",
   },
   {
     name: "Lesacher Alm",
     altitude: "1.650 m",
     description:
       "Gemütliche Almhütte mit hausgemachten Tiroler Spezialitäten. Direkt an der Rodelbahn gelegen – perfekt für eine Einkehr nach der Abfahrt.",
-    image: "/images/region/huette.jpg",
+    image: "/images/region/huette-lesacheralm.jpg",
   },
 ];
 
