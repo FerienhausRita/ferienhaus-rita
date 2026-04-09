@@ -38,7 +38,7 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 
 const paymentLabels: Record<string, { label: string; className: string }> = {
   unpaid: { label: "Offen", className: "text-red-600" },
-  partial: { label: "Teilweise", className: "text-amber-600" },
+  deposit_paid: { label: "Anzahlung", className: "text-amber-600" },
   paid: { label: "Bezahlt", className: "text-emerald-600" },
   refunded: { label: "Erstattet", className: "text-stone-500" },
 };

@@ -634,6 +634,135 @@ export async function sendPaymentReminder(
 }
 
 // ---------------------------------------------------------------------------
+// sendDepositReminder
+// ---------------------------------------------------------------------------
+
+export async function sendDepositReminder(
+  booking: BookingData,
+  apartment: Apartment,
+  bankDetails: BankDetails,
+  depositAmount: number,
+  dueDate: string
+): Promise<void> {
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+
+  const formattedDue = formatDate(new Date(dueDate + "T00:00:00Z"));
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+    </p>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      wir freuen uns auf Ihren Besuch im Ferienhaus Rita! Gerne m\u00f6chten wir Sie
+      an die f\u00e4llige <strong>Anzahlung</strong> f\u00fcr Ihre Buchung erinnern.
+    </p>
+
+    <!-- Deposit amount -->
+    <div style="text-align:center;margin:28px 0;">
+      <div style="display:inline-block;background:${CARD_BG};border:2px solid ${GOLD};border-radius:10px;padding:20px 36px;">
+        <p style="margin:0 0 4px;font-size:12px;color:${GRAY};text-transform:uppercase;letter-spacing:1.5px;">Anzahlung (30%)</p>
+        <p style="margin:0;font-size:28px;font-weight:700;color:${DARK};">${formatCurrency(depositAmount)}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${formattedDue}</p>
+      </div>
+    </div>
+
+    ${sectionHeading("Buchungs\u00fcbersicht")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${sectionHeading("Zahlungsinformationen")}
+    <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
+      Bitte \u00fcberweisen Sie die Anzahlung unter Angabe des Verwendungszwecks:
+    </p>
+    ${bankDetailsBlock(bankDetails, ref, depositAmount)}
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.6;margin:16px 0 0;">
+      Der Restbetrag von ${formatCurrency(booking.totalPrice - depositAmount)} wird vor Ihrer Anreise f\u00e4llig.
+      Sollte sich Ihre Zahlung mit dieser Erinnerung \u00fcberschnitten haben, bitten wir Sie,
+      diese Nachricht als gegenstandslos zu betrachten.
+    </p>
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Anzahlung f\u00e4llig \u2013 Buchung ${ref}`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Anzahlung f\u00e4llig \u2013 Buchung ${ref} \u2013 Ferienhaus Rita`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// sendRemainderReminder
+// ---------------------------------------------------------------------------
+
+export async function sendRemainderReminder(
+  booking: BookingData,
+  apartment: Apartment,
+  bankDetails: BankDetails,
+  remainderAmount: number,
+  dueDate: string
+): Promise<void> {
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+
+  const formattedDue = formatDate(new Date(dueDate + "T00:00:00Z"));
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+    </p>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
+      vielen Dank f\u00fcr Ihre Anzahlung! Gerne m\u00f6chten wir Sie an den
+      f\u00e4lligen <strong>Restbetrag</strong> f\u00fcr Ihre Buchung erinnern.
+    </p>
+
+    <!-- Remainder amount -->
+    <div style="text-align:center;margin:28px 0;">
+      <div style="display:inline-block;background:${CARD_BG};border:2px solid ${GOLD};border-radius:10px;padding:20px 36px;">
+        <p style="margin:0 0 4px;font-size:12px;color:${GRAY};text-transform:uppercase;letter-spacing:1.5px;">Restbetrag</p>
+        <p style="margin:0;font-size:28px;font-weight:700;color:${DARK};">${formatCurrency(remainderAmount)}</p>
+        <p style="margin:6px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${formattedDue}</p>
+      </div>
+    </div>
+
+    ${sectionHeading("Buchungs\u00fcbersicht")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    ${sectionHeading("Zahlungsinformationen")}
+    <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
+      Bitte \u00fcberweisen Sie den Restbetrag unter Angabe des Verwendungszwecks:
+    </p>
+    ${bankDetailsBlock(bankDetails, ref, remainderAmount)}
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.6;margin:16px 0 0;">
+      Sollte sich Ihre Zahlung mit dieser Erinnerung \u00fcberschnitten haben, bitten wir Sie,
+      diese Nachricht als gegenstandslos zu betrachten.
+    </p>
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Restbetrag f\u00e4llig \u2013 Buchung ${ref}`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Restbetrag f\u00e4llig \u2013 Buchung ${ref} \u2013 Ferienhaus Rita`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // sendCheckinInfo
 // ---------------------------------------------------------------------------
 

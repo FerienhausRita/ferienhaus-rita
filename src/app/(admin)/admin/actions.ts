@@ -330,9 +330,59 @@ export async function updateBookingStatus(
     return { success: false, error: fetchError?.message || "Buchung nicht gefunden" };
   }
 
+  // When confirming: calculate deposit/remainder amounts
+  const updateData: Record<string, unknown> = { status };
+
+  if (status === "confirmed" && booking.status !== "confirmed") {
+    try {
+      const { data: depositConfigRow } = await supabase
+        .from("site_settings")
+        .select("value")
+        .eq("key", "deposit_config")
+        .single();
+
+      const depositConfig = depositConfigRow?.value as {
+        deposit_percent?: number;
+        deposit_due_days?: number;
+        remainder_days_before_checkin?: number;
+      } | null;
+
+      const depositPercent = depositConfig?.deposit_percent ?? 30;
+      const depositDueDays = depositConfig?.deposit_due_days ?? 7;
+      const remainderDaysBefore = depositConfig?.remainder_days_before_checkin ?? 14;
+
+      const totalPrice = Number(booking.total_price || 0);
+      const now = new Date();
+      const ciDate = new Date(booking.check_in + "T00:00:00Z");
+      const daysUntilCheckin = Math.ceil((ciDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (daysUntilCheckin > remainderDaysBefore) {
+        // Split payment: deposit now, remainder later
+        const depositAmount = Math.round(totalPrice * (depositPercent / 100) * 100) / 100;
+        const remainderAmount = Math.round((totalPrice - depositAmount) * 100) / 100;
+
+        const depositDueDate = new Date(now.getTime() + depositDueDays * 24 * 60 * 60 * 1000);
+        const remainderDueDate = new Date(ciDate.getTime() - remainderDaysBefore * 24 * 60 * 60 * 1000);
+
+        updateData.deposit_amount = depositAmount;
+        updateData.deposit_due_date = depositDueDate.toISOString().split("T")[0];
+        updateData.remainder_amount = remainderAmount;
+        updateData.remainder_due_date = remainderDueDate.toISOString().split("T")[0];
+      } else {
+        // Full payment due immediately (check-in too close for split)
+        updateData.deposit_amount = totalPrice;
+        updateData.deposit_due_date = new Date(now.getTime() + depositDueDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+        updateData.remainder_amount = 0;
+        updateData.remainder_due_date = null;
+      }
+    } catch (depositError) {
+      console.error("Error calculating deposit:", depositError);
+    }
+  }
+
   const { error } = await supabase
     .from("bookings")
-    .update({ status })
+    .update(updateData)
     .eq("id", bookingId);
 
   if (error) {
@@ -340,7 +390,7 @@ export async function updateBookingStatus(
   }
 
   // When confirming: send confirmation email + schedule automated emails
-  if (status === "confirmed") {
+  if (status === "confirmed" && booking.status !== "confirmed") {
     try {
       const apartment = getApartmentById(booking.apartment_id);
       if (apartment) {
@@ -414,15 +464,33 @@ export async function updateBookingStatus(
         status: string;
       }[] = [];
 
-      const paymentDate = new Date(now.getTime() + paymentDays * 24 * 60 * 60 * 1000);
-      paymentDate.setUTCHours(8, 0, 0, 0);
-      if (paymentDate < ciDate) {
-        scheduledEmails.push({
-          booking_id: bookingId,
-          email_type: "payment_reminder",
-          scheduled_for: paymentDate.toISOString(),
-          status: "pending",
-        });
+      // Schedule deposit reminder (based on deposit_due_date if set)
+      const depositDueDate = (updateData.deposit_due_date as string) || null;
+      const remainderDueDate = (updateData.remainder_due_date as string) || null;
+
+      if (depositDueDate) {
+        const depositReminder = new Date(depositDueDate + "T08:00:00Z");
+        if (depositReminder > now) {
+          scheduledEmails.push({
+            booking_id: bookingId,
+            email_type: "deposit_reminder",
+            scheduled_for: depositReminder.toISOString(),
+            status: "pending",
+          });
+        }
+      }
+
+      // Schedule remainder reminder (if split payment)
+      if (remainderDueDate) {
+        const remainderReminder = new Date(remainderDueDate + "T08:00:00Z");
+        if (remainderReminder > now) {
+          scheduledEmails.push({
+            booking_id: bookingId,
+            email_type: "remainder_reminder",
+            scheduled_for: remainderReminder.toISOString(),
+            status: "pending",
+          });
+        }
       }
 
       const checkinInfoDate = new Date(ciDate.getTime() - checkinDays * 24 * 60 * 60 * 1000);
@@ -493,11 +561,11 @@ export async function updateBookingStatus(
 }
 
 /**
- * Update payment status
+ * Update payment status (legacy – kept for backward compat)
  */
 export async function updatePaymentStatus(
   bookingId: string,
-  paymentStatus: "unpaid" | "partial" | "paid" | "refunded"
+  paymentStatus: "unpaid" | "deposit_paid" | "paid" | "refunded"
 ) {
   const supabase = createServerClient();
 
@@ -512,7 +580,121 @@ export async function updatePaymentStatus(
 
   revalidatePath("/admin/buchungen");
   revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
   return { success: true };
+}
+
+/**
+ * Mark deposit as paid
+ */
+export async function markDepositPaid(bookingId: string) {
+  const supabase = createServerClient();
+
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("remainder_amount")
+    .eq("id", bookingId)
+    .single();
+
+  const remainderAmount = Number(booking?.remainder_amount || 0);
+  const newStatus = remainderAmount > 0 ? "deposit_paid" : "paid";
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      deposit_paid_at: new Date().toISOString(),
+      payment_status: newStatus,
+    })
+    .eq("id", bookingId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Skip deposit_reminder emails
+  await supabase
+    .from("email_schedule")
+    .update({ status: "skipped" })
+    .eq("booking_id", bookingId)
+    .eq("email_type", "deposit_reminder")
+    .eq("status", "pending");
+
+  revalidatePath("/admin/buchungen");
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Mark remainder as paid
+ */
+export async function markRemainderPaid(bookingId: string) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      remainder_paid_at: new Date().toISOString(),
+      payment_status: "paid",
+    })
+    .eq("id", bookingId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Skip remainder_reminder emails
+  await supabase
+    .from("email_schedule")
+    .update({ status: "skipped" })
+    .eq("booking_id", bookingId)
+    .eq("email_type", "remainder_reminder")
+    .eq("status", "pending");
+
+  revalidatePath("/admin/buchungen");
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Get payment overview for dashboard and payments page
+ */
+export async function getPaymentOverview() {
+  const supabase = createServerClient();
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data: bookings } = await supabase
+    .from("bookings")
+    .select("id, apartment_id, first_name, last_name, check_in, check_out, total_price, deposit_amount, deposit_due_date, deposit_paid_at, remainder_amount, remainder_due_date, remainder_paid_at, payment_status, status")
+    .in("status", ["confirmed", "pending"])
+    .neq("payment_status", "paid")
+    .neq("payment_status", "refunded")
+    .order("deposit_due_date", { ascending: true, nullsFirst: false });
+
+  const all = bookings ?? [];
+
+  const overdueDeposits = all.filter(
+    (b) => b.deposit_due_date && b.deposit_due_date < today && !b.deposit_paid_at && Number(b.deposit_amount) > 0
+  );
+  const overdueRemainders = all.filter(
+    (b) => b.remainder_due_date && b.remainder_due_date < today && !b.remainder_paid_at && Number(b.remainder_amount) > 0
+  );
+
+  const totalOutstanding = all.reduce((sum, b) => {
+    let amount = 0;
+    if (!b.deposit_paid_at && Number(b.deposit_amount) > 0) amount += Number(b.deposit_amount);
+    if (!b.remainder_paid_at && Number(b.remainder_amount) > 0) amount += Number(b.remainder_amount);
+    return sum + amount;
+  }, 0);
+
+  return {
+    bookings: all,
+    overdueCount: overdueDeposits.length + overdueRemainders.length,
+    totalOutstanding,
+  };
 }
 
 /**

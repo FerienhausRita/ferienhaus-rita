@@ -224,11 +224,44 @@ export default async function BookingOverviewPage({
             <PaymentBadge status={booking.payment_status || "pending"} />
           </div>
 
-          <div className="border-t border-stone-100 pt-4">
-            <div className="flex justify-between items-center text-lg font-semibold text-stone-900">
-              <span>Gesamtpreis</span>
-              <span>{formatCurrency(booking.total_price)}</span>
-            </div>
+          <div className="border-t border-stone-100 pt-4 space-y-2">
+            {Number(booking.deposit_amount || 0) > 0 && Number(booking.remainder_amount || 0) > 0 ? (
+              <>
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-stone-600">
+                    Anzahlung (30%)
+                    {booking.deposit_paid_at && <span className="ml-1 text-emerald-600">&#10003;</span>}
+                  </span>
+                  <span className={`font-medium ${booking.deposit_paid_at ? "text-emerald-600" : "text-stone-900"}`}>
+                    {formatCurrency(Number(booking.deposit_amount))}
+                  </span>
+                </div>
+                {booking.deposit_due_date && !booking.deposit_paid_at && (
+                  <p className="text-xs text-stone-400">F&auml;llig bis {formatDate(booking.deposit_due_date)}</p>
+                )}
+                <div className="flex justify-between items-center text-sm">
+                  <span className="text-stone-600">
+                    Restbetrag
+                    {booking.remainder_paid_at && <span className="ml-1 text-emerald-600">&#10003;</span>}
+                  </span>
+                  <span className={`font-medium ${booking.remainder_paid_at ? "text-emerald-600" : "text-stone-900"}`}>
+                    {formatCurrency(Number(booking.remainder_amount))}
+                  </span>
+                </div>
+                {booking.remainder_due_date && !booking.remainder_paid_at && (
+                  <p className="text-xs text-stone-400">F&auml;llig bis {formatDate(booking.remainder_due_date)}</p>
+                )}
+                <div className="flex justify-between items-center text-lg font-semibold text-stone-900 pt-2 border-t border-stone-100">
+                  <span>Gesamtpreis</span>
+                  <span>{formatCurrency(booking.total_price)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between items-center text-lg font-semibold text-stone-900">
+                <span>Gesamtpreis</span>
+                <span>{formatCurrency(booking.total_price)}</span>
+              </div>
+            )}
           </div>
 
           {/* Bank details only when confirmed and not fully paid */}

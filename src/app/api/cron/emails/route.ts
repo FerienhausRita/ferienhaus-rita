@@ -4,6 +4,8 @@ import { getApartmentById } from "@/data/apartments";
 import {
   sendBookingConfirmed,
   sendPaymentReminder,
+  sendDepositReminder,
+  sendRemainderReminder,
   sendCheckinInfo,
   sendThankYou,
   BankDetails,
@@ -170,6 +172,26 @@ async function processScheduledEmails() {
         continue;
       }
 
+      // For deposit_reminder: skip if deposit already paid
+      if (
+        entry.email_type === "deposit_reminder" &&
+        (booking.deposit_paid_at || booking.payment_status === "paid")
+      ) {
+        await markSkipped(supabase, entry.id);
+        skipped++;
+        continue;
+      }
+
+      // For remainder_reminder: skip if remainder already paid
+      if (
+        entry.email_type === "remainder_reminder" &&
+        (booking.remainder_paid_at || booking.payment_status === "paid")
+      ) {
+        await markSkipped(supabase, entry.id);
+        skipped++;
+        continue;
+      }
+
       // Load apartment
       const apartment = getApartmentById(booking.apartment_id);
       if (!apartment) {
@@ -235,6 +257,46 @@ async function processScheduledEmails() {
             continue;
           }
           await sendCheckinInfo(bookingData, apartment, checkinInfo);
+          break;
+        }
+
+        case "deposit_reminder": {
+          const bankDetailsDeposit = await loadSiteSetting<BankDetails>(
+            supabase,
+            "bank_details"
+          );
+          if (!bankDetailsDeposit) {
+            await markFailed(supabase, entry.id, "Bank details not configured");
+            failed++;
+            continue;
+          }
+          await sendDepositReminder(
+            bookingData,
+            apartment,
+            bankDetailsDeposit,
+            Number(booking.deposit_amount || 0),
+            booking.deposit_due_date || ""
+          );
+          break;
+        }
+
+        case "remainder_reminder": {
+          const bankDetailsRemainder = await loadSiteSetting<BankDetails>(
+            supabase,
+            "bank_details"
+          );
+          if (!bankDetailsRemainder) {
+            await markFailed(supabase, entry.id, "Bank details not configured");
+            failed++;
+            continue;
+          }
+          await sendRemainderReminder(
+            bookingData,
+            apartment,
+            bankDetailsRemainder,
+            Number(booking.remainder_amount || 0),
+            booking.remainder_due_date || ""
+          );
           break;
         }
 

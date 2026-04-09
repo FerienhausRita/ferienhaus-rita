@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getDashboardStats, getAnalyticsData } from "./actions";
+import { getDashboardStats, getAnalyticsData, getPaymentOverview } from "./actions";
 import { apartments } from "@/data/apartments";
 import RevenueChart from "@/components/admin/RevenueChart";
 import OccupancyStats from "@/components/admin/OccupancyStats";
@@ -40,15 +40,16 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 
 const paymentLabels: Record<string, { label: string; className: string }> = {
   unpaid: { label: "Offen", className: "text-red-600" },
-  partial: { label: "Teilweise", className: "text-amber-600" },
+  deposit_paid: { label: "Anzahlung", className: "text-amber-600" },
   paid: { label: "Bezahlt", className: "text-emerald-600" },
   refunded: { label: "Erstattet", className: "text-stone-500" },
 };
 
 export default async function AdminDashboard() {
-  const [stats, analytics] = await Promise.all([
+  const [stats, analytics, payments] = await Promise.all([
     getDashboardStats(),
     getAnalyticsData(),
+    getPaymentOverview(),
   ]);
 
   return (
@@ -65,7 +66,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
         <Link
           href="/admin/buchungen?filter=pending"
           className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
@@ -112,6 +113,31 @@ export default async function AdminDashboard() {
             {stats.unreadMessages}
           </p>
           <p className="text-sm text-stone-500">Ungelesene Nachrichten</p>
+        </Link>
+
+        <Link
+          href="/admin/zahlungen"
+          className={`rounded-2xl p-5 border hover:border-[#c8a96e]/30 transition-colors ${
+            payments.overdueCount > 0
+              ? "bg-red-50 border-red-200"
+              : "bg-white border-stone-200"
+          }`}
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+              payments.overdueCount > 0 ? "bg-red-100" : "bg-stone-100"
+            }`}>
+              <svg className={`w-5 h-5 ${payments.overdueCount > 0 ? "text-red-600" : "text-stone-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
+              </svg>
+            </div>
+          </div>
+          <p className={`text-2xl font-bold ${payments.overdueCount > 0 ? "text-red-600" : "text-stone-900"}`}>
+            {formatCurrency(payments.totalOutstanding)}
+          </p>
+          <p className="text-sm text-stone-500">
+            Ausstehend{payments.overdueCount > 0 && ` (${payments.overdueCount} \u00fcberf\u00e4llig)`}
+          </p>
         </Link>
       </div>
 

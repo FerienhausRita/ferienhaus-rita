@@ -8,6 +8,7 @@ import BookingNotes from "@/components/admin/BookingNotes";
 import EmailCompose from "@/components/admin/EmailCompose";
 import EmailTimeline from "@/components/admin/EmailTimeline";
 import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
+import DepositTracker from "@/components/admin/DepositTracker";
 import { getMeldeschein } from "../../actions";
 
 export const metadata: Metadata = {
@@ -417,6 +418,18 @@ export default async function BookingDetailPage({
               )}
             </div>
           </div>
+
+          <DepositTracker
+            bookingId={booking.id}
+            totalPrice={Number(booking.total_price)}
+            depositAmount={Number(booking.deposit_amount || 0)}
+            depositDueDate={booking.deposit_due_date}
+            depositPaidAt={booking.deposit_paid_at}
+            remainderAmount={Number(booking.remainder_amount || 0)}
+            remainderDueDate={booking.remainder_due_date}
+            remainderPaidAt={booking.remainder_paid_at}
+            paymentStatus={booking.payment_status}
+          />
 
           <BookingActions
             bookingId={booking.id}

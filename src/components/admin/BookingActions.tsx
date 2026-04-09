@@ -24,7 +24,7 @@ const statusTransitions: Record<string, { label: string; next: string; className
 
 const paymentOptions = [
   { value: "unpaid", label: "Offen", className: "text-red-600" },
-  { value: "partial", label: "Teilweise", className: "text-amber-600" },
+  { value: "deposit_paid", label: "Anzahlung", className: "text-amber-600" },
   { value: "paid", label: "Bezahlt", className: "text-emerald-600" },
   { value: "refunded", label: "Erstattet", className: "text-stone-500" },
 ];
@@ -81,7 +81,7 @@ export default function BookingActions({
 
     const result = await updatePaymentStatus(
       bookingId,
-      newStatus as "unpaid" | "partial" | "paid" | "refunded"
+      newStatus as "unpaid" | "deposit_paid" | "paid" | "refunded"
     );
 
     setLoading(null);
