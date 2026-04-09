@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminBottomNav from "@/components/admin/AdminBottomNav";
+import RouterRefresh from "@/components/admin/RouterRefresh";
 
 export const metadata: Metadata = {
   title: {
@@ -33,6 +34,7 @@ export default async function AdminLayout({
 
   return (
     <div className="min-h-screen bg-stone-50">
+      <RouterRefresh />
       <AdminSidebar userName={userName} userEmail={userEmail} />
       <AdminBottomNav />
 
