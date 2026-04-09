@@ -698,6 +698,36 @@ export async function getPaymentOverview() {
 }
 
 /**
+ * Get cleaning schedule – bookings with check-out in date range
+ */
+export async function getCleaningSchedule(start: string, end: string) {
+  const supabase = createServerClient();
+
+  // Departures (need cleaning)
+  const { data: departures } = await supabase
+    .from("bookings")
+    .select("id, apartment_id, first_name, last_name, check_in, check_out, adults, children, dogs")
+    .gte("check_out", start)
+    .lte("check_out", end)
+    .neq("status", "cancelled")
+    .order("check_out", { ascending: true });
+
+  // Arrivals (next guest info for turnover)
+  const { data: arrivals } = await supabase
+    .from("bookings")
+    .select("id, apartment_id, first_name, last_name, check_in, check_out, adults, children, dogs")
+    .gte("check_in", start)
+    .lte("check_in", end)
+    .neq("status", "cancelled")
+    .order("check_in", { ascending: true });
+
+  return {
+    departures: departures ?? [],
+    arrivals: arrivals ?? [],
+  };
+}
+
+/**
  * Resend booking confirmation email
  */
 export async function resendConfirmation(bookingId: string) {

@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import Container from "@/components/ui/Container";
 import FAQAccordion from "@/components/ui/FAQAccordion";
+import FAQJsonLd from "@/components/seo/FAQJsonLd";
 
 export const metadata: Metadata = {
   title: "Häufige Fragen",
@@ -108,7 +109,11 @@ const faqGroups = [
 ];
 
 export default function FAQPage() {
+  const allItems = faqGroups.flatMap((g) => g.items);
+
   return (
+    <>
+    <FAQJsonLd items={allItems} />
     <div className="pt-28 pb-24">
       <Container narrow>
         <div className="text-center mb-16">
@@ -148,5 +153,6 @@ export default function FAQPage() {
         </div>
       </Container>
     </div>
+    </>
   );
 }

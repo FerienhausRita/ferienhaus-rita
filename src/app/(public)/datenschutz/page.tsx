@@ -161,7 +161,29 @@ export default function DatenschutzPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-stone-900">
-              5. Schriftarten
+              5. Kartendienst
+            </h2>
+
+            <h3 className="text-lg font-semibold text-stone-800">
+              Contwise Maps
+            </h3>
+            <p>
+              Auf unseren Regionsseiten verwenden wir interaktive Karten
+              von Contwise Maps (phoenix.contwise.io), einem Dienst der
+              Contwise GmbH, Österreich. Beim Aufrufen einer Seite mit
+              eingebetteter Karte wird eine Verbindung zu den Servern von
+              Contwise hergestellt. Dabei können Ihre IP-Adresse sowie
+              technische Daten (Browsertyp, Zeitpunkt des Zugriffs) an
+              Contwise übermittelt werden. Rechtsgrundlage ist Art. 6
+              Abs. 1 lit. f DSGVO (berechtigtes Interesse an einer
+              ansprechenden Darstellung unserer Angebote und der leichten
+              Auffindbarkeit der von uns auf der Website angegebenen Orte).
+            </p>
+          </section>
+
+          <section>
+            <h2 className="text-xl font-semibold text-stone-900">
+              6. Schriftarten
             </h2>
             <p>
               Diese Website nutzt die Schriftarten &ldquo;Inter&rdquo; und
@@ -175,7 +197,7 @@ export default function DatenschutzPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-stone-900">
-              6. Cookies
+              7. Cookies
             </h2>
             <p>
               Diese Website verwendet ausschließlich technisch notwendige
@@ -190,7 +212,7 @@ export default function DatenschutzPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-stone-900">
-              7. Ihre Rechte
+              8. Ihre Rechte
             </h2>
             <p>
               Sie haben gemäß DSGVO folgende Rechte bezüglich Ihrer
@@ -245,7 +267,7 @@ export default function DatenschutzPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-stone-900">
-              8. Ortstaxe / Meldepflicht
+              9. Ortstaxe / Meldepflicht
             </h2>
             <p>
               Gemäß dem Tiroler Aufenthaltsabgabegesetz und dem
@@ -259,7 +281,7 @@ export default function DatenschutzPage() {
 
           <section>
             <h2 className="text-xl font-semibold text-stone-900">
-              9. Änderung der Datenschutzerklärung
+              10. Änderung der Datenschutzerklärung
             </h2>
             <p>
               Wir behalten uns vor, diese Datenschutzerklärung anzupassen,

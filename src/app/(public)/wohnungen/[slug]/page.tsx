@@ -7,6 +7,8 @@ import { formatCurrency } from "@/lib/pricing";
 import Container from "@/components/ui/Container";
 import JsonLd from "@/components/seo/JsonLd";
 import ImageGallery from "@/components/ui/ImageGallery";
+import AvailabilityPreview from "@/components/apartments/AvailabilityPreview";
+import BreadcrumbJsonLd from "@/components/seo/BreadcrumbJsonLd";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +36,11 @@ export default async function ApartmentDetailPage({ params }: Props) {
   return (
     <>
     <JsonLd type="vacationRental" apartment={apartment} />
+    <BreadcrumbJsonLd items={[
+      { name: "Startseite", href: "/" },
+      { name: "Wohnungen", href: "/wohnungen" },
+      { name: apartment.name, href: `/wohnungen/${apartment.slug}` },
+    ]} />
     <div className="pt-24 pb-24">
       {/* Hero Gallery */}
       <div className="mb-12">
@@ -140,9 +147,10 @@ export default async function ApartmentDetailPage({ params }: Props) {
             </div>
           </div>
 
-          {/* Sidebar - Booking Card */}
-          <div className="lg:col-span-1">
-            <div className="sticky top-28 bg-white rounded-2xl border border-stone-200 shadow-lg p-6">
+          {/* Sidebar - Booking Card + Availability */}
+          <div className="lg:col-span-1 space-y-6">
+            <div className="sticky top-28 space-y-6">
+            <div className="bg-white rounded-2xl border border-stone-200 shadow-lg p-6">
               <div className="mb-6">
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-stone-900">
@@ -223,6 +231,12 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   </Link>
                 </p>
               </div>
+            </div>
+
+            <AvailabilityPreview
+              apartmentId={apartment.id}
+              apartmentSlug={apartment.slug}
+            />
             </div>
           </div>
         </div>

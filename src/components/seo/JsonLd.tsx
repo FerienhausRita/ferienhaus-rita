@@ -38,6 +38,8 @@ export default function JsonLd({ type, apartment }: JsonLdProps) {
         "@type": "Rating",
         ratingValue: "4",
       },
+      image: `${BASE_URL}/images/hero/haus-sommer.jpg`,
+      priceRange: "€90 - €170",
       amenityFeature: [
         { "@type": "LocationFeatureSpecification", name: "WLAN", value: true },
         { "@type": "LocationFeatureSpecification", name: "Parkplatz", value: true },
@@ -62,6 +64,14 @@ export default function JsonLd({ type, apartment }: JsonLdProps) {
       occupancy: {
         "@type": "QuantitativeValue",
         maxValue: apartment!.maxGuests,
+      },
+      image: apartment!.images[0] ? `${BASE_URL}${apartment!.images[0]}` : undefined,
+      offers: {
+        "@type": "AggregateOffer",
+        priceCurrency: "EUR",
+        lowPrice: apartment!.basePrice,
+        highPrice: apartment!.basePrice,
+        offerCount: 1,
       },
       amenityFeature: apartment!.features.map((f) => ({
         "@type": "LocationFeatureSpecification",
