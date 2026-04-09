@@ -8,6 +8,7 @@ import BookingNotes from "@/components/admin/BookingNotes";
 import EmailCompose from "@/components/admin/EmailCompose";
 import EmailTimeline from "@/components/admin/EmailTimeline";
 import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
+import { getMeldeschein } from "../../actions";
 
 export const metadata: Metadata = {
   title: "Buchungsdetail",
@@ -72,10 +73,11 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes, emailSchedule] = await Promise.all([
+  const [booking, notes, emailSchedule, meldeschein] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
     getEmailSchedule(params.id),
+    getMeldeschein(params.id),
   ]);
 
   if (!booking) {
@@ -378,6 +380,44 @@ export default async function BookingDetailPage({
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Meldeschein status */}
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-100">
+              <h2 className="font-semibold text-stone-900 text-sm">Meldeschein</h2>
+            </div>
+            <div className="p-5">
+              {meldeschein ? (
+                <div className="flex items-center justify-between">
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full font-medium ${
+                      meldeschein.status === "verified"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : meldeschein.status === "completed"
+                        ? "bg-blue-100 text-blue-700"
+                        : "bg-amber-100 text-amber-700"
+                    }`}
+                  >
+                    {meldeschein.status === "verified"
+                      ? "Geprüft"
+                      : meldeschein.status === "completed"
+                      ? "Ausgefüllt"
+                      : "Ausstehend"}
+                  </span>
+                  <Link
+                    href={`/admin/meldeschein/${booking.id}`}
+                    className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
+                  >
+                    Ansehen
+                  </Link>
+                </div>
+              ) : (
+                <p className="text-xs text-stone-400">
+                  Noch nicht ausgefüllt
+                </p>
+              )}
+            </div>
+          </div>
+
           <BookingActions
             bookingId={booking.id}
             currentStatus={booking.status}

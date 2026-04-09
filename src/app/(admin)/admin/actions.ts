@@ -2063,3 +2063,113 @@ export async function triggerICalSync() {
   revalidatePath("/admin/kalender");
   return { apartments: apartmentResults, synced_at };
 }
+
+// =========================================================================
+// Meldeschein (Guest Registration)
+// =========================================================================
+
+export interface MeldescheinData {
+  first_name: string;
+  last_name: string;
+  date_of_birth: string;
+  nationality: string;
+  id_type: "passport" | "id_card" | "drivers_license";
+  id_number: string;
+  street: string;
+  zip: string;
+  city: string;
+  country: string;
+  companions: {
+    first_name: string;
+    last_name: string;
+    date_of_birth: string;
+    nationality: string;
+  }[];
+  arrival_date: string;
+  departure_date: string;
+}
+
+export async function submitMeldeschein(
+  bookingId: string,
+  data: MeldescheinData
+) {
+  const supabase = createServerClient();
+
+  // Check booking exists
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("id")
+    .eq("id", bookingId)
+    .single();
+
+  if (!booking) {
+    return { success: false, error: "Buchung nicht gefunden" };
+  }
+
+  // Upsert meldeschein (in case guest re-submits)
+  const { error } = await supabase.from("meldeschein").upsert(
+    {
+      booking_id: bookingId,
+      first_name: data.first_name,
+      last_name: data.last_name,
+      date_of_birth: data.date_of_birth,
+      nationality: data.nationality,
+      id_type: data.id_type,
+      id_number: data.id_number,
+      street: data.street,
+      zip: data.zip,
+      city: data.city,
+      country: data.country,
+      companions: data.companions,
+      arrival_date: data.arrival_date,
+      departure_date: data.departure_date,
+      status: "completed",
+      completed_at: new Date().toISOString(),
+    },
+    { onConflict: "booking_id" }
+  );
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  return { success: true };
+}
+
+export async function getMeldeschein(bookingId: string) {
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from("meldeschein")
+    .select("*")
+    .eq("booking_id", bookingId)
+    .single();
+  return data;
+}
+
+export async function verifyMeldeschein(bookingId: string) {
+  const authSupabase = createAuthServerClient();
+  const {
+    data: { user },
+  } = await authSupabase.auth.getUser();
+
+  if (!user) return { success: false, error: "Nicht angemeldet" };
+
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("meldeschein")
+    .update({
+      status: "verified",
+      verified_by: user.id,
+      verified_at: new Date().toISOString(),
+    })
+    .eq("booking_id", bookingId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath(`/admin/meldeschein/${bookingId}`);
+  return { success: true };
+}

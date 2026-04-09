@@ -106,6 +106,13 @@ export default async function BookingOverviewPage({
     redirect("/meine-buchung");
   }
 
+  // --- Load meldeschein status ---
+  const { data: meldeschein } = await supabase
+    .from("meldeschein")
+    .select("status")
+    .eq("booking_id", code)
+    .single();
+
   // --- Load bank details ---
   const { data: bankRow } = await supabase
     .from("site_settings")
@@ -304,6 +311,37 @@ export default async function BookingOverviewPage({
 
         {/* Action links */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Meldeschein */}
+          <Link
+            href={`/meine-buchung/${code}/meldeschein`}
+            className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200 p-5 shadow-sm hover:border-alpine-300 hover:shadow-md transition-all group"
+          >
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center flex-shrink-0 transition-colors ${
+              meldeschein?.status === "completed" || meldeschein?.status === "verified"
+                ? "bg-emerald-100 group-hover:bg-emerald-200"
+                : "bg-amber-100 group-hover:bg-amber-200"
+            }`}>
+              {meldeschein?.status === "completed" || meldeschein?.status === "verified" ? (
+                <svg className="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              ) : (
+                <svg className="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              )}
+            </div>
+            <div>
+              <p className="font-semibold text-stone-900">Meldeschein</p>
+              <p className="text-sm text-stone-500">
+                {meldeschein?.status === "completed" || meldeschein?.status === "verified"
+                  ? "Bereits ausgefüllt"
+                  : "Gästedaten eintragen"}
+              </p>
+            </div>
+          </Link>
+
+          {/* Check-in Info */}
           <Link
             href={`/meine-buchung/${code}/anreise`}
             className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200 p-5 shadow-sm hover:border-alpine-300 hover:shadow-md transition-all group"
