@@ -61,7 +61,7 @@ async function runSync() {
   const supabase = createServerClient();
   const results: Record<
     string,
-    { imported: number; deleted: number; error?: string }
+    { imported: number; deleted: number; skipped_bookings?: number; error?: string }
   > = {};
 
   for (const [apartmentId, feedUrls] of Object.entries(icalFeeds)) {
