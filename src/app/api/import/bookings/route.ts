@@ -171,6 +171,15 @@ export async function POST(request: NextRequest) {
           .eq("id", guestData.id);
       }
 
+      // Remove matching iCal blocked_dates (the booking now covers this period)
+      await supabase
+        .from("blocked_dates")
+        .delete()
+        .eq("apartment_id", row.apartment_id)
+        .eq("start_date", row.check_in)
+        .eq("end_date", row.check_out)
+        .like("reason", "iCal:%");
+
       imported++;
     } catch (err) {
       errors.push({ row: rowNum, message: String(err) });

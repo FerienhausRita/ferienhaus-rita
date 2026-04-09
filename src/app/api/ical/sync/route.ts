@@ -103,15 +103,32 @@ async function runSync() {
         .like("reason", "iCal:%")
         .select("id");
 
-      // Insert new blocked dates from feeds
+      // Insert new blocked dates from feeds – but skip periods that already have a booking
       const today = new Date().toISOString().split("T")[0];
       const futureEvents = allEvents.filter((e) => e.end > today);
 
-      if (futureEvents.length > 0) {
+      // Fetch existing bookings for this apartment to avoid creating blocks that overlap
+      const { data: existingBookings } = await supabase
+        .from("bookings")
+        .select("check_in, check_out")
+        .eq("apartment_id", apartmentId)
+        .neq("status", "cancelled")
+        .gte("check_out", today);
+
+      const bookingsList = existingBookings ?? [];
+
+      // Filter out iCal events that exactly match or overlap with existing bookings
+      const filteredEvents = futureEvents.filter((e) => {
+        return !bookingsList.some(
+          (b) => b.check_in < e.end && b.check_out > e.start
+        );
+      });
+
+      if (filteredEvents.length > 0) {
         const { error: insertError } = await supabase
           .from("blocked_dates")
           .insert(
-            futureEvents.map((e) => {
+            filteredEvents.map((e) => {
               // Build a descriptive reason: prefer description (has guest info) over summary
               let reason = `iCal: ${e.summary}`;
               if (e.description) {
@@ -139,8 +156,9 @@ async function runSync() {
       }
 
       results[apartmentId] = {
-        imported: futureEvents.length,
+        imported: filteredEvents.length,
         deleted: deleted?.length ?? 0,
+        skipped_bookings: futureEvents.length - filteredEvents.length,
       };
     } catch (error) {
       results[apartmentId] = {
