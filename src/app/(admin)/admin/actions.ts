@@ -1963,51 +1963,26 @@ export async function updateInvoiceNumber(
 }
 
 /**
- * Debug: Fetch and show raw iCal feed data from Smoobu without syncing
- */
-export async function debugICalFeeds() {
-  const { icalFeeds } = await import("@/data/ical-feeds");
-  const { parseICal } = await import("@/lib/ical");
-
-  const results: Record<string, unknown> = {};
-
-  for (const [apartmentId, feedUrls] of Object.entries(icalFeeds)) {
-    for (const url of feedUrls) {
-      try {
-        const response = await fetch(url, {
-          headers: { "User-Agent": "FerienhausRita/1.0" },
-          cache: "no-store",
-        });
-        const text = await response.text();
-        const events = parseICal(text);
-        results[apartmentId] = {
-          status: response.status,
-          eventCount: events.length,
-          events: events.map((e) => ({
-            start: e.start,
-            end: e.end,
-            summary: e.summary,
-            description: e.description || "(leer)",
-          })),
-        };
-      } catch (err) {
-        results[apartmentId] = { error: String(err) };
-      }
-    }
-  }
-
-  return results;
-}
-
-/**
- * Trigger a manual iCal sync
+ * Trigger a manual iCal sync – returns structured summary for UI
  */
 export async function triggerICalSync() {
   const { icalFeeds } = await import("@/data/ical-feeds");
   const { parseICal } = await import("@/lib/ical");
+  const { apartments } = await import("@/data/apartments");
   const supabase = createServerClient();
 
-  const results: Record<string, { imported: number; deleted: number; error?: string }> = {};
+  const apartmentNames: Record<string, string> = {};
+  for (const apt of apartments) {
+    apartmentNames[apt.id] = apt.name;
+  }
+
+  const apartmentResults: {
+    name: string;
+    blocked_count: number;
+    deleted_count: number;
+    status: "ok" | "error";
+    error?: string;
+  }[] = [];
 
   for (const [apartmentId, feedUrls] of Object.entries(icalFeeds)) {
     try {
@@ -2055,17 +2030,36 @@ export async function triggerICalSync() {
           );
 
         if (insertError) {
-          results[apartmentId] = { imported: 0, deleted: deleted?.length ?? 0, error: insertError.message };
+          apartmentResults.push({
+            name: apartmentNames[apartmentId] || apartmentId,
+            blocked_count: 0,
+            deleted_count: deleted?.length ?? 0,
+            status: "error",
+            error: insertError.message,
+          });
           continue;
         }
       }
 
-      results[apartmentId] = { imported: futureEvents.length, deleted: deleted?.length ?? 0 };
+      apartmentResults.push({
+        name: apartmentNames[apartmentId] || apartmentId,
+        blocked_count: futureEvents.length,
+        deleted_count: deleted?.length ?? 0,
+        status: "ok",
+      });
     } catch (err) {
-      results[apartmentId] = { imported: 0, deleted: 0, error: String(err) };
+      apartmentResults.push({
+        name: apartmentNames[apartmentId] || apartmentId,
+        blocked_count: 0,
+        deleted_count: 0,
+        status: "error",
+        error: String(err),
+      });
     }
   }
 
+  const synced_at = new Date().toISOString();
+
   revalidatePath("/admin/kalender");
-  return results;
+  return { apartments: apartmentResults, synced_at };
 }

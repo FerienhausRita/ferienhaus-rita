@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import { getCalendarDataForYear } from "../actions";
 import CalendarView from "@/components/admin/CalendarView";
 import BlockDateForm from "@/components/admin/BlockDateForm";
-import ICalDebug from "@/components/admin/ICalDebug";
+import ICalSync from "@/components/admin/ICalDebug";
 
 export const metadata: Metadata = {
   title: "Kalender",
@@ -37,10 +37,11 @@ export default async function KalenderPage({
             Übersicht aller Wohnungen – {year}
           </p>
         </div>
-        <BlockDateForm apartments={calendarApartments} />
+        <div className="flex items-center gap-3">
+          <ICalSync />
+          <BlockDateForm apartments={calendarApartments} />
+        </div>
       </div>
-
-      <ICalDebug />
 
       <CalendarView
         year={year}

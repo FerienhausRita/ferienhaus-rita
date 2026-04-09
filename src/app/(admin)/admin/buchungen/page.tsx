@@ -59,12 +59,20 @@ export default async function BookingsPage({
             {bookings.length} Buchung{bookings.length !== 1 ? "en" : ""}
           </p>
         </div>
-        <Link
-          href="/admin/buchungen/neu"
-          className="px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors"
-        >
-          + Neue Buchung
-        </Link>
+        <div className="flex items-center gap-2">
+          <Link
+            href="/admin/import"
+            className="px-4 py-2 bg-white border border-stone-200 text-stone-700 text-sm font-medium rounded-xl hover:border-[#c8a96e]/50 hover:text-[#c8a96e] transition-colors"
+          >
+            Import
+          </Link>
+          <Link
+            href="/admin/buchungen/neu"
+            className="px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors"
+          >
+            + Neue Buchung
+          </Link>
+        </div>
       </div>
 
       <BookingFilters
