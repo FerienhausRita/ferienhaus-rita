@@ -272,12 +272,14 @@ export default function SommerPage() {
           <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full">
             <div className="max-w-lg">
               <h2 className="font-serif text-3xl sm:text-4xl font-bold text-white tracking-tight">
-                Großglockner Hochalpenstraße
+                Kalser Glocknerstraße
               </h2>
               <p className="text-white/80 text-lg leading-relaxed font-light mt-4">
-                Österreichs berühmteste Panoramastraße führt auf 2.504 Meter Höhe zur
-                Kaiser-Franz-Josefs-Höhe mit Blick auf den Großglockner und die Pasterze.
-                Von Kals aus erreichen Sie die Mautstation in nur 20 Minuten.
+                Die Kalser Glocknerstraße führt direkt von Kals zum Lucknerhaus auf
+                1.920 Meter – dem Ausgangspunkt für Wanderungen ins Ködnitztal, zur
+                Lucknerhütte und zur Besteigung des Großglockners. Die berühmte
+                Großglockner Hochalpenstraße liegt auf der anderen Seite des Glockners
+                und ist über Heiligenblut erreichbar (ca. 85 km).
               </p>
               <a
                 href="https://www.grossglockner.at/"
@@ -285,7 +287,7 @@ export default function SommerPage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 text-white/80 hover:text-white text-sm mt-4 transition-colors"
               >
-                Öffnungszeiten & Mautpreise
+                Großglockner Hochalpenstraße – Infos & Maut
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                 </svg>

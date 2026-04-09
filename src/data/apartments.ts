@@ -97,7 +97,7 @@ export const apartments: Apartment[] = [
           "Badezimmer mit Dusche",
           "Handtücher inklusive",
           "Föhn",
-          "Waschmaschine",
+          "Waschmaschine/Trockner (auf Anfrage)",
         ],
       },
       {
@@ -106,13 +106,12 @@ export const apartments: Apartment[] = [
           "Balkon mit Bergblick",
           "Skiraum",
           "Parkplatz",
-          "Garten (Mitbenutzung)",
+          "Grillplatz",
         ],
       },
     ],
     images: [
       "/images/apartments/grossglockner-suite/living.jpg",
-      "/images/apartments/grossglockner-suite/living2.jpg",
       "/images/apartments/grossglockner-suite/tv.jpg",
       "/images/apartments/grossglockner-suite/bedroom.jpg",
       "/images/apartments/grossglockner-suite/bath.jpg",
@@ -189,7 +188,7 @@ export const apartments: Apartment[] = [
           "Badezimmer mit Dusche",
           "Handtücher inklusive",
           "Föhn",
-          "Waschmaschine",
+          "Waschmaschine/Trockner (auf Anfrage)",
         ],
       },
       {
@@ -198,7 +197,7 @@ export const apartments: Apartment[] = [
           "Balkon mit Panoramablick",
           "Skiraum",
           "Parkplatz",
-          "Garten (Mitbenutzung)",
+          "Grillplatz",
         ],
       },
     ],
@@ -219,7 +218,7 @@ export const apartments: Apartment[] = [
     name: "Almrausch",
     subtitle: "Gemütliches Alpenapartment für Paare & kleine Familien",
     description:
-      "Das Apartment Almrausch ist mit ca. 50 m² ideal für Paare oder kleine Familien. Die warme, alpine Einrichtung und die durchdachte Raumaufteilung schaffen ein gemütliches Zuhause auf Zeit. Genießen Sie den Blick auf die Berge und die Ruhe des Tals.",
+      "Das Apartment Almrausch ist mit ca. 50 m² ideal für Paare oder kleine Familien. Im Erdgeschoss gelegen mit ebenerdiger Südterrasse. Die warme, alpine Einrichtung und die durchdachte Raumaufteilung schaffen ein gemütliches Zuhause auf Zeit.",
     shortDescription:
       "50 m² alpine Gemütlichkeit – ideal für Paare und kleine Familien bis 4 Personen.",
     size: 50,
@@ -244,7 +243,7 @@ export const apartments: Apartment[] = [
       "50 m² Wohnfläche",
       "Bis zu 4 Personen",
       "Gemütlich & warm",
-      "Terrasse mit Bergblick",
+      "Südterrasse ebenerdig",
     ],
     amenities: [
       {
@@ -281,14 +280,13 @@ export const apartments: Apartment[] = [
       },
       {
         category: "Außen",
-        items: ["Terrasse", "Skiraum", "Parkplatz", "Garten (Mitbenutzung)"],
+        items: ["Südterrasse (ebenerdig)", "Skiraum", "Parkplatz", "Grillplatz"],
       },
     ],
     images: [
       "/images/apartments/almrausch/living.jpg",
+      "/images/apartments/almrausch/living2.jpg",
       "/images/apartments/almrausch/bedroom.jpg",
-      "/images/apartments/almrausch/bath.jpg",
-      "/images/apartments/almrausch/view.jpg",
     ],
     available: true,
   },
@@ -298,7 +296,7 @@ export const apartments: Apartment[] = [
     name: "Edelweiß",
     subtitle: "Kompaktes Apartment für Paare & Kurzurlauber",
     description:
-      "Das Apartment Edelweiß bietet auf ca. 40 m² alles Wichtige für einen erholsamen Aufenthalt. Perfekt für Paare oder Alleinreisende, die eine hochwertige Unterkunft in bester Lage suchen. Klein, aber fein – mit alpinem Charme und modernem Komfort.",
+      "Das Apartment Edelweiß bietet auf ca. 40 m² alles Wichtige für einen erholsamen Aufenthalt. Im Erdgeschoss gelegen mit ebenerdiger Südterrasse – perfekt für Paare oder Alleinreisende, die eine hochwertige Unterkunft in bester Lage suchen. Klein, aber fein – mit alpinem Charme und modernem Komfort.",
     shortDescription:
       "40 m² für Genießer – kompakt, hochwertig und perfekt für Paare.",
     size: 40,
@@ -306,7 +304,7 @@ export const apartments: Apartment[] = [
     baseGuests: 2,
     bedrooms: 1,
     bathrooms: 1,
-    floor: "Obergeschoss",
+    floor: "Erdgeschoss",
     basePrice: 90,
     extraPersonPrice: 20,
     cleaningFee: 50,
@@ -315,7 +313,7 @@ export const apartments: Apartment[] = [
       "Bergblick",
       "Kompakte Küche",
       "Gemütlicher Wohnbereich",
-      "Balkon",
+      "Südterrasse",
       "Skiraum",
       "Parkplatz",
     ],
@@ -323,7 +321,7 @@ export const apartments: Apartment[] = [
       "40 m² Wohnfläche",
       "Bis zu 4 Personen",
       "Klein & fein",
-      "Balkon mit Aussicht",
+      "Südterrasse ebenerdig",
     ],
     amenities: [
       {
@@ -360,14 +358,12 @@ export const apartments: Apartment[] = [
       },
       {
         category: "Außen",
-        items: ["Balkon", "Skiraum", "Parkplatz", "Garten (Mitbenutzung)"],
+        items: ["Südterrasse (ebenerdig)", "Skiraum", "Parkplatz", "Grillplatz"],
       },
     ],
     images: [
       "/images/apartments/edelweiss/living.jpg",
       "/images/apartments/edelweiss/bedroom.jpg",
-      "/images/apartments/edelweiss/bath.jpg",
-      "/images/apartments/edelweiss/view.jpg",
     ],
     available: true,
   },

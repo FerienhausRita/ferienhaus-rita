@@ -61,7 +61,7 @@ const faqGroups = [
       {
         question: "Gibt es einen Parkplatz?",
         answer:
-          "Ja, für jede Wohnung steht ein kostenfreier Parkplatz direkt am Haus zur Verfügung.",
+          "Ja, es stehen kostenfreie Parkplätze direkt am Haus zur Verfügung.",
       },
       {
         question: "Gibt es einen Skiraum?",
@@ -101,7 +101,7 @@ const faqGroups = [
       {
         question: "Welche Aktivitäten gibt es im Sommer?",
         answer:
-          "Im Sommer bietet die Region zahllose Wanderwege, Klettersteige, Mountainbike-Trails und die berühmte Großglockner Hochalpenstraße. Der Nationalpark Hohe Tauern liegt direkt vor der Tür.",
+          "Im Sommer bietet die Region zahllose Wanderwege, Klettersteige, Mountainbike-Trails und die Kalser Glocknerstraße zum Lucknerhaus. Der Nationalpark Hohe Tauern liegt direkt vor der Tür.",
       },
     ],
   },

@@ -51,7 +51,7 @@ export const restaurants: Restaurant[] = [
     description:
       "Beliebtes Ausflugslokal in Kals mit regionaler Küche und gemütlicher Atmosphäre. Bekannt für Wild- und Almspezialitäten.",
     cuisine: "Regionale Küche",
-    location: "Kals am Großglockner",
+    location: "Großdorf bei Kals",
     image: "/images/region/gamsalm.png",
     features: ["Wildspezialitäten", "Familienfreundlich"],
   },

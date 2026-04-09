@@ -26,9 +26,9 @@ export default function ApartmentCard({ apartment }: ApartmentCardProps) {
       <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/10 transition-opacity duration-500" />
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors duration-500" />
 
-      {/* Size badge */}
-      <div className="absolute top-6 right-6 text-white/70 text-xs tracking-wider uppercase font-medium">
-        {apartment.size} m²
+      {/* Meta badges */}
+      <div className="absolute top-6 right-6 flex items-center gap-3 text-white/70 text-xs tracking-wider font-medium">
+        <span>{apartment.maxGuests} Pers.</span>
       </div>
 
       {/* Content - Bottom */}
