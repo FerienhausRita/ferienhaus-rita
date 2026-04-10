@@ -3,7 +3,7 @@ import BookingWidget from "@/components/booking/BookingWidget";
 
 export default function Hero() {
   return (
-    <section className="relative h-[70vh] md:h-screen min-h-[480px] md:min-h-[700px] flex items-center justify-center overflow-hidden">
+    <section className="relative h-[100svh] md:h-screen min-h-[500px] md:min-h-[700px] flex items-center justify-center overflow-hidden">
       {/* Background Image with Ken Burns */}
       <div className="absolute inset-0">
         <div className="ken-burns absolute inset-0">
