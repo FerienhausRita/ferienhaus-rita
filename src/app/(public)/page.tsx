@@ -1,4 +1,5 @@
 import Hero from "@/components/sections/Hero";
+import MobileBookingBanner from "@/components/sections/MobileBookingBanner";
 import ApartmentOverview from "@/components/sections/ApartmentOverview";
 import HighlightsSection from "@/components/sections/HighlightsSection";
 import RegionPreview from "@/components/sections/RegionPreview";
@@ -12,6 +13,7 @@ export default function Home() {
   return (
     <>
       <Hero />
+      <MobileBookingBanner />
       <AnimateIn>
         <ApartmentOverview />
       </AnimateIn>
