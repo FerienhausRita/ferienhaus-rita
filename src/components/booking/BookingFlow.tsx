@@ -521,7 +521,7 @@ export default function BookingFlow({
             <p className="text-stone-500 mb-10">Bitte geben Sie Ihre Daten ein, um die Buchungsanfrage abzuschließen.</p>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-8">
+              <form onSubmit={handleSubmit} className="lg:col-span-2 space-y-8 order-2 lg:order-1">
                 <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-8">
                   <h2 className="text-lg font-semibold text-stone-900 mb-6">Persönliche Daten</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -599,7 +599,7 @@ export default function BookingFlow({
                 </div>
               </form>
 
-              <div className="lg:col-span-1">
+              <div className="lg:col-span-1 order-1 lg:order-2">
                 <div className="sticky top-28 bg-white rounded-2xl border border-stone-200 shadow-sm p-6">
                   <h3 className="font-semibold text-stone-900 mb-4">Ihre Buchung</h3>
                   <div className="space-y-4 text-sm">
