@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   title: "Winter in Kals am Großglockner",
   description:
     "Skifahren im GG Resort, Rodeln, Langlaufen, Skitouren und gemütliche Hütten – Winter in Kals am Großglockner.",
+  openGraph: {
+    images: [{ url: "/images/region/winter-split.jpg", width: 1200, height: 630, alt: "Winter in Kals am Großglockner" }],
+  },
 };
 
 

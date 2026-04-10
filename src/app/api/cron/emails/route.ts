@@ -8,9 +8,11 @@ import {
   sendRemainderReminder,
   sendCheckinInfo,
   sendThankYou,
+  sendLoyaltyEmail,
   BankDetails,
   CheckinInfo,
 } from "@/lib/email";
+import { createLoyaltyCode } from "@/lib/loyalty";
 
 // ---------------------------------------------------------------------------
 // Auth (same pattern as /api/ical/sync)
@@ -303,6 +305,22 @@ async function processScheduledEmails() {
 
         case "thankyou": {
           await sendThankYou(bookingData, apartment);
+          break;
+        }
+
+        case "loyalty": {
+          const loyaltyCode = await createLoyaltyCode(
+            booking.email,
+            booking.id,
+            10
+          );
+          if (loyaltyCode) {
+            await sendLoyaltyEmail(bookingData, apartment, loyaltyCode, 10);
+          } else {
+            await markFailed(supabase, entry.id, "Could not create loyalty code");
+            failed++;
+            continue;
+          }
           break;
         }
 

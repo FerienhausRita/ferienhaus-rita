@@ -954,3 +954,58 @@ export async function sendThankYou(
     html,
   });
 }
+
+export async function sendLoyaltyEmail(
+  booking: BookingData,
+  apartment: Apartment,
+  loyaltyCode: string,
+  discountPercent: number = 10
+): Promise<void> {
+  const transporter = createTransporter();
+  const bookingUrl = `${BASE_URL}/buchen?apartment=${apartment.slug}`;
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Hallo ${escapeHtml(booking.firstName)},
+    </p>
+
+    <h2 style="margin:0 0 12px;font-size:20px;color:${DARK};">Ein Geschenk f\u00fcr Stammg\u00e4ste</h2>
+    <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 20px;">
+      Als Dankesch\u00f6n f\u00fcr Ihren Aufenthalt im Ferienhaus Rita haben wir einen pers\u00f6nlichen
+      Rabattcode f\u00fcr Ihre n\u00e4chste Buchung:
+    </p>
+
+    <div style="background:linear-gradient(135deg, ${GOLD}15, ${GOLD}08);border:2px dashed ${GOLD};border-radius:12px;padding:24px;text-align:center;margin:0 0 20px;">
+      <p style="font-size:12px;color:${GRAY};margin:0 0 8px;text-transform:uppercase;letter-spacing:0.1em;">
+        Ihr pers\u00f6nlicher Rabattcode
+      </p>
+      <p style="font-size:28px;font-weight:700;color:${DARK};margin:0 0 8px;letter-spacing:0.05em;font-family:monospace;">
+        ${escapeHtml(loyaltyCode)}
+      </p>
+      <p style="font-size:14px;color:${GOLD};font-weight:600;margin:0;">
+        ${discountPercent}% Rabatt auf Ihre n\u00e4chste Buchung
+      </p>
+    </div>
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Der Code ist 12 Monate g\u00fcltig und kann einmalig bei der n\u00e4chsten Buchung eingel\u00f6st werden.
+      Geben Sie ihn einfach im Buchungsformular ein.
+    </p>
+
+    ${ctaButton("Jetzt buchen", bookingUrl)}
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `${discountPercent}% Stammgast-Rabatt f\u00fcr Ihre n\u00e4chste Buchung!`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: booking.email,
+    subject: `Ihr ${discountPercent}% Stammgast-Rabatt \u2013 Ferienhaus Rita`,
+    html,
+  });
+}

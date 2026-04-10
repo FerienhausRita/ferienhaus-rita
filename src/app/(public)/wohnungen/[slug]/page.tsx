@@ -26,6 +26,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: apartment.name,
     description: apartment.shortDescription,
+    openGraph: {
+      images: apartment.images[0]
+        ? [{ url: apartment.images[0], width: 1200, height: 630, alt: apartment.name }]
+        : undefined,
+    },
   };
 }
 

@@ -15,6 +15,7 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL("https://www.ferienhaus-rita-kals.at"),
   title: {
     default: "Ferienhaus Rita – Urlaub in Kals am Großglockner",
     template: "%s | Ferienhaus Rita",
@@ -36,6 +37,14 @@ export const metadata: Metadata = {
     locale: "de_AT",
     url: "https://www.ferienhaus-rita-kals.at",
     siteName: "Ferienhaus Rita",
+    images: [
+      {
+        url: "/images/hero/hero.jpg",
+        width: 1200,
+        height: 630,
+        alt: "Ferienhaus Rita – Ferienwohnungen in Kals am Großglockner",
+      },
+    ],
   },
   twitter: {
     card: "summary_large_image",

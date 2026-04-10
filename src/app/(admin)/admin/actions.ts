@@ -524,6 +524,15 @@ export async function updateBookingStatus(
         status: "pending",
       });
 
+      // Loyalty email: 2 days after thank-you
+      const loyaltyDate = new Date(thankyouDate.getTime() + 2 * 24 * 60 * 60 * 1000);
+      scheduledEmails.push({
+        booking_id: bookingId,
+        email_type: "loyalty",
+        scheduled_for: loyaltyDate.toISOString(),
+        status: "pending",
+      });
+
       if (scheduledEmails.length > 0) {
         await supabase.from("email_schedule").insert(scheduledEmails);
       }

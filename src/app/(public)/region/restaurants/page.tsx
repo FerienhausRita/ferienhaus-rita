@@ -9,6 +9,9 @@ export const metadata: Metadata = {
   title: "Restaurants & Hütten in Kals am Großglockner",
   description:
     "Von der Almhütte bis zum Panoramarestaurant – die besten Einkehrmöglichkeiten in Kals am Großglockner.",
+  openGraph: {
+    images: [{ url: "/images/region/kals-village.jpg", width: 1200, height: 630, alt: "Restaurants in Kals am Großglockner" }],
+  },
 };
 
 export default function RestaurantsPage() {

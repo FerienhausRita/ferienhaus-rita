@@ -10,6 +10,9 @@ export const metadata: Metadata = {
   title: "Sommer in Kals am Großglockner",
   description:
     "Wandern, Mountainbiken, Klettern und Trailrunning – Sommer in Kals am Großglockner im Nationalpark Hohe Tauern.",
+  openGraph: {
+    images: [{ url: "/images/region/summer-split.jpg", width: 1200, height: 630, alt: "Sommer in Kals am Großglockner" }],
+  },
 };
 
 type Difficulty = "leicht" | "mittel" | "schwer";

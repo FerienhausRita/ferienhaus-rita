@@ -7,6 +7,9 @@ import { verifyGuestToken } from "@/lib/guest-auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentById } from "@/data/apartments";
 import { formatCurrency, formatDate } from "@/lib/pricing";
+import WeatherWidget from "@/components/guest/WeatherWidget";
+import RebookButton from "@/components/guest/RebookButton";
+import ChatSection from "@/components/guest/ChatSection";
 
 export const dynamic = "force-dynamic";
 
@@ -527,6 +530,34 @@ export default async function BookingOverviewPage({
             </div>
           )}
 
+          {/* Gästemappe */}
+          <Link
+            href={`/meine-buchung/${code}/gaestemappe`}
+            className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200 p-5 shadow-sm hover:border-alpine-300 hover:shadow-md transition-all group"
+          >
+            <div className="w-12 h-12 rounded-xl bg-[#c8a96e]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[#c8a96e]/20 transition-colors">
+              <svg
+                className="w-6 h-6 text-[#c8a96e]"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25"
+                />
+              </svg>
+            </div>
+            <div>
+              <p className="font-semibold text-stone-900">Gästemappe</p>
+              <p className="text-sm text-stone-500">
+                WLAN, Hausregeln, Tipps & mehr
+              </p>
+            </div>
+          </Link>
+
           {/* AGB & Hausregeln */}
           <Link
             href="/agb"
@@ -555,6 +586,27 @@ export default async function BookingOverviewPage({
             </div>
           </Link>
         </div>
+
+        {/* Weather Widget – only for confirmed/completed */}
+        {(booking.status === "confirmed" || booking.status === "completed") && (
+          <div className="mt-6">
+            <WeatherWidget />
+          </div>
+        )}
+
+        {/* Chat – for confirmed/completed bookings */}
+        {(booking.status === "confirmed" || booking.status === "completed") && (
+          <div className="mt-6">
+            <ChatSection bookingId={code} />
+          </div>
+        )}
+
+        {/* Rebook CTA – only for completed bookings */}
+        {booking.status === "completed" && apartment && (
+          <div className="mt-6">
+            <RebookButton apartmentSlug={apartment.slug} />
+          </div>
+        )}
       </Container>
     </div>
   );

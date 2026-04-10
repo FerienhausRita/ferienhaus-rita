@@ -45,9 +45,12 @@ const mainNav = [
 ];
 
 const moreItems = [
+  { label: "Chat", href: "/admin/chat" },
   { label: "Gäste", href: "/admin/gaeste" },
   { label: "Aufgaben", href: "/admin/aufgaben" },
   { label: "Preise", href: "/admin/preise" },
+  { label: "Karte", href: "/admin/karte" },
+  { label: "Gästemappe", href: "/admin/gaestemappe" },
   { label: "Einstellungen", href: "/admin/einstellungen" },
 ];
 
