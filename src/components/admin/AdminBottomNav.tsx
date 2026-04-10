@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { createAuthBrowserClient } from "@/lib/supabase/auth-client";
+import { useChatUnread } from "@/hooks/useChatUnread";
 
 const mainNav = [
   {
@@ -58,6 +59,7 @@ export default function AdminBottomNav() {
   const pathname = usePathname();
   const router = useRouter();
   const [showMore, setShowMore] = useState(false);
+  const chatUnread = useChatUnread();
 
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
@@ -93,13 +95,18 @@ export default function AdminBottomNav() {
                 key={item.href}
                 href={item.href}
                 onClick={() => setShowMore(false)}
-                className={`block px-5 py-3.5 text-sm font-medium border-b border-stone-100 last:border-0 ${
+                className={`flex items-center justify-between px-5 py-3.5 text-sm font-medium border-b border-stone-100 last:border-0 ${
                   isActive(item.href)
                     ? "text-[#c8a96e] bg-[#c8a96e]/5"
                     : "text-stone-700 active:bg-stone-50"
                 }`}
               >
                 {item.label}
+                {item.label === "Chat" && chatUnread > 0 && (
+                  <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {chatUnread}
+                  </span>
+                )}
               </Link>
             ))}
             <button
@@ -130,7 +137,7 @@ export default function AdminBottomNav() {
           {/* More button */}
           <button
             onClick={() => setShowMore(!showMore)}
-            className={`flex flex-col items-center justify-center gap-1 min-w-[3rem] py-1 ${
+            className={`flex flex-col items-center justify-center gap-1 min-w-[3rem] py-1 relative ${
               isMoreActive || showMore ? "text-[#c8a96e]" : "text-stone-400"
             }`}
           >
@@ -138,6 +145,9 @@ export default function AdminBottomNav() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M6.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM12.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0zM18.75 12a.75.75 0 11-1.5 0 .75.75 0 011.5 0z" />
             </svg>
             <span className="text-[10px] font-medium">Mehr</span>
+            {chatUnread > 0 && !showMore && (
+              <span className="absolute top-0 right-1 w-2 h-2 bg-red-500 rounded-full" />
+            )}
           </button>
         </div>
       </nav>

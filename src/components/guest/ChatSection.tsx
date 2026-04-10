@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 
 interface Message {
   id: string;
@@ -20,8 +20,10 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
+  const lastSeenCountRef = useRef(0);
 
   // Initialize conversation
   useEffect(() => {
@@ -40,33 +42,52 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
     init();
   }, [bookingId]);
 
-  // Poll for messages when open
-  useEffect(() => {
-    if (!conversationId || !isOpen) return;
+  const fetchMessages = useCallback(async () => {
+    if (!conversationId) return;
+    try {
+      const res = await fetch(`/api/chat/${conversationId}/messages`);
+      if (res.ok) {
+        const data: Message[] = await res.json();
+        setMessages(data);
 
-    async function fetchMessages() {
-      try {
-        const res = await fetch(`/api/chat/${conversationId}/messages`);
-        if (res.ok) {
-          const data = await res.json();
-          setMessages(data);
+        // Count admin messages for unread badge
+        const adminMsgCount = data.filter((m) => m.sender_type === "admin").length;
+        if (!isOpen && adminMsgCount > lastSeenCountRef.current) {
+          setUnreadCount(adminMsgCount - lastSeenCountRef.current);
         }
-      } catch (err) {
-        console.error("Fetch messages error:", err);
       }
+    } catch (err) {
+      console.error("Fetch messages error:", err);
     }
+  }, [conversationId, isOpen]);
+
+  // Poll for messages (always, not just when open)
+  useEffect(() => {
+    if (!conversationId) return;
 
     fetchMessages();
-    pollRef.current = setInterval(fetchMessages, 10000); // Poll every 10s
+    pollRef.current = setInterval(fetchMessages, 10000);
 
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
-  }, [conversationId, isOpen]);
+  }, [conversationId, fetchMessages]);
 
-  // Scroll to bottom on new messages
+  // Mark as read when opening
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    if (isOpen) {
+      const adminMsgCount = messages.filter((m) => m.sender_type === "admin").length;
+      lastSeenCountRef.current = adminMsgCount;
+      setUnreadCount(0);
+    }
+  }, [isOpen, messages]);
+
+  // Scroll to bottom within container only
+  useEffect(() => {
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages]);
 
   const sendMessage = async () => {
@@ -99,10 +120,15 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
         onClick={() => setIsOpen(!isOpen)}
         className="w-full flex items-center gap-4 p-5 hover:bg-stone-50 transition-colors"
       >
-        <div className="w-12 h-12 rounded-xl bg-alpine-100 flex items-center justify-center flex-shrink-0">
+        <div className="relative w-12 h-12 rounded-xl bg-alpine-100 flex items-center justify-center flex-shrink-0">
           <svg className="w-6 h-6 text-alpine-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z" />
           </svg>
+          {!isOpen && unreadCount > 0 && (
+            <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+              {unreadCount}
+            </span>
+          )}
         </div>
         <div className="flex-1 text-left">
           <p className="font-semibold text-stone-900">Nachricht an uns</p>
@@ -120,7 +146,7 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
       {isOpen && (
         <div className="border-t border-stone-100">
           {/* Messages */}
-          <div className="h-64 overflow-y-auto px-4 py-3 space-y-3 bg-stone-50">
+          <div ref={messagesContainerRef} className="h-64 overflow-y-auto px-4 py-3 space-y-3 bg-stone-50">
             {messages.length === 0 && (
               <div className="flex items-center justify-center h-full">
                 <p className="text-sm text-stone-400">
@@ -154,7 +180,6 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
                 </div>
               </div>
             ))}
-            <div ref={messagesEndRef} />
           </div>
 
           {/* Input */}

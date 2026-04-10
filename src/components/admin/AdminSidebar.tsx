@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { createAuthBrowserClient } from "@/lib/supabase/auth-client";
 import { useRouter } from "next/navigation";
+import { useChatUnread } from "@/hooks/useChatUnread";
 
 const navItems = [
   {
@@ -135,6 +136,7 @@ interface AdminSidebarProps {
 export default function AdminSidebar({ userName, userEmail }: AdminSidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const chatUnread = useChatUnread();
 
   const isActive = (href: string) => {
     if (href === "/admin") return pathname === "/admin";
@@ -178,7 +180,12 @@ export default function AdminSidebar({ userName, userEmail }: AdminSidebarProps)
                 }`}
               >
                 {item.icon}
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.label === "Chat" && chatUnread > 0 && (
+                  <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                    {chatUnread}
+                  </span>
+                )}
               </Link>
             </li>
           ))}

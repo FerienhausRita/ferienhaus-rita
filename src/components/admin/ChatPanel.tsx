@@ -30,7 +30,7 @@ export default function ChatPanel({
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch messages for selected conversation
@@ -68,7 +68,10 @@ export default function ChatPanel({
   }, []);
 
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    const container = messagesContainerRef.current;
+    if (container) {
+      container.scrollTop = container.scrollHeight;
+    }
   }, [messages]);
 
   const sendMessage = async () => {
@@ -152,7 +155,7 @@ export default function ChatPanel({
             </div>
 
             {/* Messages area */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-stone-50">
+            <div ref={messagesContainerRef} className="flex-1 overflow-y-auto p-4 space-y-3 bg-stone-50">
               {messages.map((msg) => (
                 <div
                   key={msg.id}
@@ -179,7 +182,6 @@ export default function ChatPanel({
                   </div>
                 </div>
               ))}
-              <div ref={messagesEndRef} />
             </div>
 
             {/* Input */}
