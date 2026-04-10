@@ -816,7 +816,9 @@ export async function resendConfirmation(bookingId: string) {
     revalidatePath(`/admin/buchungen/${bookingId}`);
     return { success: true };
   } catch (err) {
-    return { success: false, error: "E-Mail konnte nicht gesendet werden" };
+    console.error("resendConfirmation error:", err);
+    const message = err instanceof Error ? err.message : "Unbekannter Fehler";
+    return { success: false, error: `E-Mail konnte nicht gesendet werden: ${message}` };
   }
 }
 
