@@ -3,7 +3,7 @@ import BookingWidget from "@/components/booking/BookingWidget";
 
 export default function Hero() {
   return (
-    <section className="relative h-screen min-h-[700px] flex items-center justify-center overflow-hidden">
+    <section className="relative h-[70vh] md:h-screen min-h-[480px] md:min-h-[700px] flex items-center justify-center overflow-hidden">
       {/* Background Image with Ken Burns */}
       <div className="absolute inset-0">
         <div className="ken-burns absolute inset-0">
@@ -22,7 +22,7 @@ export default function Hero() {
       </div>
 
       {/* Content */}
-      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-32 pb-20">
+      <div className="relative z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 text-center pt-20 md:pt-32 pb-10 md:pb-20">
         {/* Decorative line */}
         <div className="flex justify-center mb-8">
           <div className="hero-line h-px bg-[var(--color-gold)]/60" />
@@ -43,7 +43,7 @@ export default function Hero() {
         </h1>
 
         {/* Description */}
-        <p className="hero-reveal-3 text-base sm:text-lg text-white/60 max-w-xl mx-auto mb-16 leading-relaxed font-light">
+        <p className="hero-reveal-3 text-base sm:text-lg text-white/60 max-w-xl mx-auto mb-8 md:mb-16 leading-relaxed font-light">
           Vier liebevoll eingerichtete Ferienwohnungen am Fuße des Großglockners.
           Alpiner Charme, moderne Ausstattung und unvergessliche Bergpanoramen.
         </p>
@@ -54,7 +54,7 @@ export default function Hero() {
         </div>
 
         {/* Trust Indicators */}
-        <div className="hero-reveal-4 mt-8 md:mt-16 flex flex-wrap items-center justify-center gap-10 text-white/40 text-xs tracking-wider uppercase">
+        <div className="hero-reveal-4 mt-8 md:mt-16 hidden md:flex flex-wrap items-center justify-center gap-10 text-white/40 text-xs tracking-wider uppercase">
           <div className="flex items-center gap-2">
             <div className="w-1 h-1 rounded-full bg-[var(--color-gold)]" />
             Direkt buchen

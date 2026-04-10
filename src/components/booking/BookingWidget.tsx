@@ -26,7 +26,7 @@ export default function BookingWidget({ compact = false }: { compact?: boolean }
         onSubmit={handleSearch}
         className="flex flex-col sm:flex-row gap-3 items-end"
       >
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full min-w-0">
           <label className="block text-xs font-medium text-stone-500 mb-1">
             Anreise
           </label>
@@ -35,11 +35,11 @@ export default function BookingWidget({ compact = false }: { compact?: boolean }
             value={checkIn}
             min={today}
             onChange={(e) => setCheckIn(e.target.value)}
-            className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)]"
+            className="w-full max-w-full box-border appearance-none px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)]"
             required
           />
         </div>
-        <div className="flex-1 w-full">
+        <div className="flex-1 w-full min-w-0">
           <label className="block text-xs font-medium text-stone-500 mb-1">
             Abreise
           </label>
@@ -48,18 +48,18 @@ export default function BookingWidget({ compact = false }: { compact?: boolean }
             value={checkOut}
             min={checkIn || today}
             onChange={(e) => setCheckOut(e.target.value)}
-            className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)]"
+            className="w-full max-w-full box-border appearance-none px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)]"
             required
           />
         </div>
-        <div className="w-full sm:w-32">
+        <div className="w-full sm:w-32 min-w-0">
           <label className="block text-xs font-medium text-stone-500 mb-1">
             Gäste
           </label>
           <select
             value={guests}
             onChange={(e) => setGuests(e.target.value)}
-            className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)]"
+            className="w-full max-w-full box-border px-3 py-2.5 bg-white border border-stone-200 rounded-lg text-sm text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)]"
           >
             {[1, 2, 3, 4, 5, 6].map((n) => (
               <option key={n} value={n}>
