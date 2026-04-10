@@ -306,10 +306,10 @@ function bankDetailsBlock(bankDetails: BankDetails, reference: string, amount?: 
     <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:16px 0;border-left:4px solid ${GOLD};">
       <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:${DARK};">Bankverbindung</p>
       <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
-        ${detailRow("Empf\u00e4nger", escapeHtml(bankDetails.account_holder), { bold: true })}
-        ${detailRow("IBAN", escapeHtml(bankDetails.iban), { bold: true })}
-        ${detailRow("BIC", escapeHtml(bankDetails.bic), { bold: true })}
-        ${detailRow("Bank", escapeHtml(bankDetails.bank_name), { bold: true })}
+        ${bankDetails.account_holder ? detailRow("Empfänger", escapeHtml(bankDetails.account_holder), { bold: true }) : ""}
+        ${bankDetails.iban ? detailRow("IBAN", escapeHtml(bankDetails.iban), { bold: true }) : ""}
+        ${bankDetails.bic ? detailRow("BIC", escapeHtml(bankDetails.bic), { bold: true }) : ""}
+        ${bankDetails.bank_name ? detailRow("Bank", escapeHtml(bankDetails.bank_name), { bold: true }) : ""}
         ${detailRow("Verwendungszweck", `<span style="color:${GOLD};font-weight:700;">${escapeHtml(reference)}</span>`, { bold: true })}
         ${amount !== undefined ? detailRow("Betrag", `<span style="font-weight:700;">${formatCurrency(amount)}</span>`, { bold: true }) : ""}
       </table>
