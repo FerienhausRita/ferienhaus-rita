@@ -291,7 +291,7 @@ export default async function BookingOverviewPage({
                   </span>
                 </div>
                 {booking.deposit_due_date && !booking.deposit_paid_at && (
-                  <p className="text-xs text-stone-400">Fällig bis {formatDate(booking.deposit_due_date)}</p>
+                  <p className="text-xs text-stone-400">Fällig bis {formatDate(new Date(booking.deposit_due_date))}</p>
                 )}
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-stone-600">
@@ -303,7 +303,7 @@ export default async function BookingOverviewPage({
                   </span>
                 </div>
                 {booking.remainder_due_date && !booking.remainder_paid_at && (
-                  <p className="text-xs text-stone-400">Fällig bis {formatDate(booking.remainder_due_date)}</p>
+                  <p className="text-xs text-stone-400">Fällig bis {formatDate(new Date(booking.remainder_due_date))}</p>
                 )}
               </div>
             )}
