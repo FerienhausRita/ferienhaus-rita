@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems } from "../../actions";
+import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting } from "../../actions";
 import { getApartmentById } from "@/data/apartments";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
@@ -75,12 +75,13 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes, emailSchedule, meldeschein, lineItems] = await Promise.all([
+  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
     getEmailSchedule(params.id),
     getMeldeschein(params.id),
     getBookingLineItems(params.id),
+    getSiteSetting("bank_details"),
   ]);
 
   if (!booking) {
@@ -323,6 +324,15 @@ export default async function BookingDetailPage({
             bookingId={booking.id}
             guestEmail={booking.email}
             guestName={`${booking.first_name} ${booking.last_name}`}
+            guestFirstName={booking.first_name}
+            bookingRef={`FR-${booking.id.slice(0, 8).toUpperCase()}`}
+            totalPrice={Number(booking.total_price)}
+            depositAmount={Number(booking.deposit_amount || 0)}
+            remainderAmount={Number(booking.remainder_amount || 0)}
+            checkIn={booking.check_in}
+            checkOut={booking.check_out}
+            apartmentName={apartment?.name || ""}
+            bankDetails={bankDetails as { iban?: string; bic?: string; account_holder?: string; bank_name?: string } | null}
           />
 
           {/* Internal Notes */}
