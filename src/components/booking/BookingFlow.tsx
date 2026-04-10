@@ -409,18 +409,18 @@ export default function BookingFlow({
                           isSelected ? "border-alpine-500 shadow-lg ring-1 ring-alpine-500" : "border-stone-200 hover:border-alpine-300 hover:shadow-md"
                         }`}
                         onClick={() => setSelectedApartment(apt)}>
-                        <div className="flex items-center gap-4 sm:gap-6">
-                          <div className="relative w-20 h-20 sm:w-28 sm:h-28 rounded-xl overflow-hidden flex-shrink-0">
-                            <Image src={apt.images[0]} alt={apt.name} fill className="object-cover" sizes="120px" />
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4 sm:gap-6">
+                          <div className="relative w-full h-40 sm:w-28 sm:h-28 rounded-xl overflow-hidden flex-shrink-0">
+                            <Image src={apt.images[0]} alt={apt.name} fill className="object-cover" sizes="(max-width: 640px) 100vw, 120px" />
                           </div>
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-3 mb-2">
+                            <div className="flex items-center gap-2 flex-wrap mb-2">
                               <h3 className="text-lg font-semibold text-stone-900">{apt.name}</h3>
                               <span className="text-xs font-medium bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">{apt.size} m²</span>
                               <span className="text-xs font-medium bg-stone-100 text-stone-600 px-2 py-0.5 rounded-full">max. {apt.maxGuests} Gäste</span>
                             </div>
-                            <p className="text-sm text-stone-500 mb-3">{apt.shortDescription}</p>
-                            <div className="flex flex-wrap gap-2">
+                            <p className="text-sm text-stone-500 mb-3 line-clamp-2">{apt.shortDescription}</p>
+                            <div className="flex flex-wrap gap-2 hidden sm:flex">
                               {apt.features.slice(0, 4).map((f) => (
                                 <span key={f} className="inline-flex items-center gap-1 text-xs text-stone-500">
                                   <svg className="w-3 h-3 text-alpine-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -431,9 +431,11 @@ export default function BookingFlow({
                               ))}
                             </div>
                           </div>
-                          <div className="text-right flex-shrink-0">
-                            <div className="text-2xl font-bold text-stone-900">{formatCurrency(price.total)}</div>
-                            <div className="text-sm text-stone-500">{price.nights} {price.nights === 1 ? "Nacht" : "Nächte"}</div>
+                          <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-center flex-shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-stone-100 sm:text-right">
+                            <div>
+                              <div className="text-2xl font-bold text-stone-900">{formatCurrency(price.total)}</div>
+                              <div className="text-sm text-stone-500">{price.nights} {price.nights === 1 ? "Nacht" : "Nächte"}</div>
+                            </div>
                             <div className="text-xs text-stone-400 mt-1">{formatCurrency(apt.basePrice)} / Nacht *</div>
                           </div>
                         </div>

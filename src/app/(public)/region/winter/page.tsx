@@ -73,8 +73,8 @@ const externalLinks = [
 export default function WinterPage() {
   return (
     <div>
-      {/* Hero */}
-      <div className="relative h-[50vh] min-h-[400px] flex items-end overflow-hidden">
+      {/* Hero – Full Screen */}
+      <div className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
         <Image
           src="/images/region/winter-split.jpg"
           alt="Winter in Kals am Großglockner – verschneite Berglandschaft"
@@ -83,23 +83,31 @@ export default function WinterPage() {
           priority
           sizes="100vw"
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-black/20" />
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-16 w-full">
+        <div className="absolute inset-0 bg-gradient-to-b from-black/50 via-black/20 to-black/60" />
+        <div className="relative z-10 text-center px-4 sm:px-6 lg:px-8">
           <Link
             href="/region"
-            className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-sm mb-4 transition-colors"
+            className="inline-flex items-center gap-1.5 text-white/60 hover:text-white text-sm mb-6 transition-colors"
           >
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
             Region
           </Link>
-          <span className="text-[var(--color-gold)] text-xs font-medium tracking-[0.3em] uppercase block">
+          <span className="text-[var(--color-gold)] text-xs font-medium tracking-[0.3em] uppercase block mb-4">
             Dezember – April
           </span>
-          <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold text-white mt-3 tracking-tight">
+          <h1 className="font-serif text-5xl sm:text-6xl lg:text-7xl font-bold text-white tracking-tight">
             Winter in Kals
           </h1>
+        </div>
+
+        {/* Scroll-down arrow */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
+          <span className="text-white/30 text-[10px] tracking-[0.3em] uppercase">Entdecken</span>
+          <svg className="w-5 h-5 text-white/40 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
         </div>
       </div>
 

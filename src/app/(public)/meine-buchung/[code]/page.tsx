@@ -217,16 +217,70 @@ export default async function BookingOverviewPage({
           </div>
         </div>
 
-        {/* Price & Payment */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm mb-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-semibold text-stone-900">Zahlung</h3>
-            <PaymentBadge status={booking.payment_status || "pending"} />
-          </div>
+        {/* Price & Payment – only shown when confirmed/completed */}
+        {(booking.status === "confirmed" || booking.status === "completed") && (
+          <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="font-semibold text-stone-900">Zahlung</h3>
+              <PaymentBadge status={booking.payment_status || "pending"} />
+            </div>
 
-          <div className="border-t border-stone-100 pt-4 space-y-2">
-            {Number(booking.deposit_amount || 0) > 0 && Number(booking.remainder_amount || 0) > 0 ? (
-              <>
+            {/* Full price breakdown */}
+            <div className="border-t border-stone-100 pt-4 space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-stone-500">{nights} x Übernachtung</span>
+                <span className="font-medium text-stone-900">
+                  {formatCurrency(Number(booking.price_per_night || 0) * nights)}
+                </span>
+              </div>
+              {Number(booking.extra_guests_total || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Zusatzgäste</span>
+                  <span className="font-medium text-stone-900">
+                    {formatCurrency(Number(booking.extra_guests_total))}
+                  </span>
+                </div>
+              )}
+              {Number(booking.dogs_total || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Hund(e)</span>
+                  <span className="font-medium text-stone-900">
+                    {formatCurrency(Number(booking.dogs_total))}
+                  </span>
+                </div>
+              )}
+              <div className="flex justify-between">
+                <span className="text-stone-500">Endreinigung</span>
+                <span className="font-medium text-stone-900">
+                  {formatCurrency(Number(booking.cleaning_fee || 0))}
+                </span>
+              </div>
+              {Number(booking.local_tax_total || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Ortstaxe</span>
+                  <span className="font-medium text-stone-900">
+                    {formatCurrency(Number(booking.local_tax_total))}
+                  </span>
+                </div>
+              )}
+              {Number(booking.discount_amount || 0) > 0 && (
+                <div className="flex justify-between">
+                  <span className="text-stone-500">Rabatt</span>
+                  <span className="font-medium text-red-600">
+                    -{formatCurrency(Number(booking.discount_amount))}
+                  </span>
+                </div>
+              )}
+
+              <div className="flex justify-between items-center text-lg font-semibold text-stone-900 pt-3 border-t border-stone-200">
+                <span>Gesamtpreis</span>
+                <span>{formatCurrency(booking.total_price)}</span>
+              </div>
+            </div>
+
+            {/* Deposit / Remainder details */}
+            {Number(booking.deposit_amount || 0) > 0 && Number(booking.remainder_amount || 0) > 0 && (
+              <div className="mt-4 pt-4 border-t border-stone-100 space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-stone-600">
                     Anzahlung (30%)
@@ -237,7 +291,7 @@ export default async function BookingOverviewPage({
                   </span>
                 </div>
                 {booking.deposit_due_date && !booking.deposit_paid_at && (
-                  <p className="text-xs text-stone-400">F&auml;llig bis {formatDate(booking.deposit_due_date)}</p>
+                  <p className="text-xs text-stone-400">Fällig bis {formatDate(booking.deposit_due_date)}</p>
                 )}
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-stone-600">
@@ -249,68 +303,77 @@ export default async function BookingOverviewPage({
                   </span>
                 </div>
                 {booking.remainder_due_date && !booking.remainder_paid_at && (
-                  <p className="text-xs text-stone-400">F&auml;llig bis {formatDate(booking.remainder_due_date)}</p>
+                  <p className="text-xs text-stone-400">Fällig bis {formatDate(booking.remainder_due_date)}</p>
                 )}
-                <div className="flex justify-between items-center text-lg font-semibold text-stone-900 pt-2 border-t border-stone-100">
-                  <span>Gesamtpreis</span>
-                  <span>{formatCurrency(booking.total_price)}</span>
+              </div>
+            )}
+
+            {/* Bank details only when confirmed and not fully paid */}
+            {booking.status === "confirmed" && !isPaid && bankDetails?.iban && (
+              <div className="mt-5 rounded-xl bg-amber-50 border border-amber-200 p-4">
+                <h4 className="text-sm font-semibold text-amber-900 mb-2">
+                  Bankverbindung
+                </h4>
+                <dl className="text-sm space-y-1.5">
+                  {bankDetails.account_holder && (
+                    <div className="flex justify-between">
+                      <dt className="text-amber-700">Kontoinhaber</dt>
+                      <dd className="font-medium text-amber-900">
+                        {bankDetails.account_holder}
+                      </dd>
+                    </div>
+                  )}
+                  <div className="flex justify-between">
+                    <dt className="text-amber-700">IBAN</dt>
+                    <dd className="font-medium text-amber-900 font-mono text-xs">
+                      {bankDetails.iban}
+                    </dd>
+                  </div>
+                  {bankDetails.bic && (
+                    <div className="flex justify-between">
+                      <dt className="text-amber-700">BIC</dt>
+                      <dd className="font-medium text-amber-900 font-mono text-xs">
+                        {bankDetails.bic}
+                      </dd>
+                    </div>
+                  )}
+                  {bankDetails.bank_name && (
+                    <div className="flex justify-between">
+                      <dt className="text-amber-700">Bank</dt>
+                      <dd className="font-medium text-amber-900">
+                        {bankDetails.bank_name}
+                      </dd>
+                    </div>
+                  )}
+                </dl>
+                <div className="mt-3 pt-3 border-t border-amber-200">
+                  <p className="text-xs text-amber-700">Verwendungszweck:</p>
+                  <p className="font-mono text-sm font-semibold text-amber-900 mt-0.5">
+                    {booking.invoice_number || booking.id.slice(0, 8).toUpperCase()}
+                  </p>
                 </div>
-              </>
-            ) : (
-              <div className="flex justify-between items-center text-lg font-semibold text-stone-900">
-                <span>Gesamtpreis</span>
-                <span>{formatCurrency(booking.total_price)}</span>
               </div>
             )}
           </div>
+        )}
 
-          {/* Bank details only when confirmed and not fully paid */}
-          {booking.status === "confirmed" && !isPaid && bankDetails?.iban && (
-            <div className="mt-5 rounded-xl bg-amber-50 border border-amber-200 p-4">
-              <h4 className="text-sm font-semibold text-amber-900 mb-2">
-                Bankverbindung
-              </h4>
-              <dl className="text-sm space-y-1.5">
-                {bankDetails.account_holder && (
-                  <div className="flex justify-between">
-                    <dt className="text-amber-700">Kontoinhaber</dt>
-                    <dd className="font-medium text-amber-900">
-                      {bankDetails.account_holder}
-                    </dd>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <dt className="text-amber-700">IBAN</dt>
-                  <dd className="font-medium text-amber-900 font-mono text-xs">
-                    {bankDetails.iban}
-                  </dd>
-                </div>
-                {bankDetails.bic && (
-                  <div className="flex justify-between">
-                    <dt className="text-amber-700">BIC</dt>
-                    <dd className="font-medium text-amber-900 font-mono text-xs">
-                      {bankDetails.bic}
-                    </dd>
-                  </div>
-                )}
-                {bankDetails.bank_name && (
-                  <div className="flex justify-between">
-                    <dt className="text-amber-700">Bank</dt>
-                    <dd className="font-medium text-amber-900">
-                      {bankDetails.bank_name}
-                    </dd>
-                  </div>
-                )}
-              </dl>
-              <div className="mt-3 pt-3 border-t border-amber-200">
-                <p className="text-xs text-amber-700">Verwendungszweck:</p>
-                <p className="font-mono text-sm font-semibold text-amber-900 mt-0.5">
-                  {booking.invoice_number || booking.id.slice(0, 8).toUpperCase()}
+        {/* Pending info banner */}
+        {booking.status === "pending" && (
+          <div className="bg-amber-50 rounded-2xl border border-amber-200 p-6 shadow-sm mb-6">
+            <div className="flex items-start gap-3">
+              <svg className="w-6 h-6 text-amber-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              <div>
+                <h3 className="font-semibold text-amber-900 mb-1">Ihre Anfrage wird geprüft</h3>
+                <p className="text-sm text-amber-700">
+                  Wir prüfen Ihre Buchungsanfrage und melden uns innerhalb von 24 Stunden bei Ihnen.
+                  Zahlungsinformationen erhalten Sie nach der Bestätigung.
                 </p>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Guest info */}
         <div className="bg-white rounded-2xl border border-stone-200 p-6 shadow-sm mb-6">

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import Link from "next/link";
 
 interface AvailabilityPreviewProps {
   apartmentId: string;
@@ -181,12 +180,6 @@ export default function AvailabilityPreview({ apartmentId, apartmentSlug }: Avai
         </div>
       </div>
 
-      <Link
-        href={`/buchen?apartment=${apartmentSlug}`}
-        className="mt-4 block w-full text-center py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors"
-      >
-        Jetzt buchen
-      </Link>
     </div>
   );
 }

@@ -48,13 +48,13 @@ export default function Hero() {
           Alpiner Charme, moderne Ausstattung und unvergessliche Bergpanoramen.
         </p>
 
-        {/* Booking Widget */}
-        <div className="hero-reveal-4 max-w-4xl mx-auto">
+        {/* Booking Widget – hidden on mobile, shown below fold instead */}
+        <div className="hero-reveal-4 max-w-4xl mx-auto hidden md:block">
           <BookingWidget />
         </div>
 
         {/* Trust Indicators */}
-        <div className="hero-reveal-4 mt-16 flex flex-wrap items-center justify-center gap-10 text-white/40 text-xs tracking-wider uppercase">
+        <div className="hero-reveal-4 mt-8 md:mt-16 flex flex-wrap items-center justify-center gap-10 text-white/40 text-xs tracking-wider uppercase">
           <div className="flex items-center gap-2">
             <div className="w-1 h-1 rounded-full bg-[var(--color-gold)]" />
             Direkt buchen
