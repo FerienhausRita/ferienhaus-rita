@@ -93,7 +93,7 @@ export default function BookingWidget({ compact = false }: { compact?: boolean }
             value={checkIn}
             min={today}
             onChange={(e) => setCheckIn(e.target.value)}
-            className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all"
+            className="w-full max-w-full box-border appearance-none px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all"
             required
           />
         </div>
@@ -106,7 +106,7 @@ export default function BookingWidget({ compact = false }: { compact?: boolean }
             value={checkOut}
             min={checkIn || today}
             onChange={(e) => setCheckOut(e.target.value)}
-            className="w-full px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all"
+            className="w-full max-w-full box-border appearance-none px-4 py-3 bg-stone-50 border border-stone-200 rounded-xl text-stone-800 focus:outline-none focus:ring-2 focus:ring-[var(--color-gold)]/40 focus:border-[var(--color-gold)] transition-all"
             required
           />
         </div>
