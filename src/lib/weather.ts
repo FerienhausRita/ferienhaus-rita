@@ -25,27 +25,27 @@ export interface WeatherData {
 }
 
 export async function getWeather(): Promise<WeatherData | null> {
-  const apiKey = process.env.OPENWEATHERMAP_API_KEY;
-  if (!apiKey) return null;
-
-  const supabase = createServerClient();
-
-  // Check cache
-  const { data: cached } = await supabase
-    .from("weather_cache")
-    .select("data, fetched_at")
-    .eq("id", 1)
-    .single();
-
-  if (cached?.data && cached.fetched_at) {
-    const age = Date.now() - new Date(cached.fetched_at).getTime();
-    if (age < CACHE_TTL_MS && Object.keys(cached.data as object).length > 0) {
-      return cached.data as WeatherData;
-    }
-  }
-
-  // Fetch fresh data
   try {
+    const apiKey = process.env.OPENWEATHERMAP_API_KEY;
+    if (!apiKey) return null;
+
+    const supabase = createServerClient();
+
+    // Check cache
+    const { data: cached } = await supabase
+      .from("weather_cache")
+      .select("data, fetched_at")
+      .eq("id", 1)
+      .single();
+
+    if (cached?.data && cached.fetched_at) {
+      const age = Date.now() - new Date(cached.fetched_at).getTime();
+      if (age < CACHE_TTL_MS && Object.keys(cached.data as object).length > 0) {
+        return cached.data as WeatherData;
+      }
+    }
+
+    // Fetch fresh data
     const [currentRes, forecastRes] = await Promise.all([
       fetch(
         `https://api.openweathermap.org/data/2.5/weather?lat=${KALS_LAT}&lon=${KALS_LON}&units=metric&lang=de&appid=${apiKey}`,
@@ -75,7 +75,6 @@ export async function getWeather(): Promise<WeatherData | null> {
       }
       const day = dayMap.get(date)!;
       day.temps.push(item.main.temp);
-      // Prefer noon forecast for description/icon
       const hour = parseInt(item.dt_txt.split(" ")[1].split(":")[0]);
       if (hour === 12 || day.descriptions.length === 0) {
         day.descriptions[0] = item.weather[0].description;
@@ -87,7 +86,7 @@ export async function getWeather(): Promise<WeatherData | null> {
     const today = new Date().toISOString().split("T")[0];
 
     for (const [date, data] of dayMap) {
-      if (date === today) continue; // Skip today, we have current weather
+      if (date === today) continue;
       if (forecastDays.length >= 5) break;
       forecastDays.push({
         date,
@@ -116,7 +115,7 @@ export async function getWeather(): Promise<WeatherData | null> {
 
     return weatherData;
   } catch (err) {
-    console.error("Weather fetch error:", err);
-    return (cached?.data as WeatherData) || null;
+    console.error("Weather service error:", err);
+    return null;
   }
 }

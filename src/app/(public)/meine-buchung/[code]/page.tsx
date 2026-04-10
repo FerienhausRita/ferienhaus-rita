@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import Image from "next/image";
@@ -590,7 +591,9 @@ export default async function BookingOverviewPage({
         {/* Weather Widget – only for confirmed/completed */}
         {(booking.status === "confirmed" || booking.status === "completed") && (
           <div className="mt-6">
-            <WeatherWidget />
+            <Suspense fallback={null}>
+              <WeatherWidget />
+            </Suspense>
           </div>
         )}
 

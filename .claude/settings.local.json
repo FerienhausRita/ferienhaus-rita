@@ -113,7 +113,11 @@
       "Bash(/usr/local/bin/node node_modules/.bin/next build)",
       "Bash(ls /Users/manuel/Desktop/ferienhaus-rita/supabase/migrations/011*)",
       "Bash(find /Users/manuel/Desktop/ferienhaus-rita/src/components/admin -type f -name *.tsx -o -name *.ts)",
-      "Bash(grep -r \"bank_details\\\\|site_settings\" /Users/manuel/Desktop/ferienhaus-rita/src --include=*.ts --include=*.tsx -B 2 -A 2)"
+      "Bash(grep -r \"bank_details\\\\|site_settings\" /Users/manuel/Desktop/ferienhaus-rita/src --include=*.ts --include=*.tsx -B 2 -A 2)",
+      "Bash(ls -la \"src/app/\\(public\\)/page.tsx\" src/app/page.tsx)",
+      "Bash(node -e \"const p = require\\('/Users/manuel/Desktop/ferienhaus-rita/node_modules/react-leaflet/package.json'\\); console.log\\(JSON.stringify\\(p.peerDependencies, null, 2\\)\\)\")",
+      "Bash(node -e \"const p = require\\('/Users/manuel/Desktop/ferienhaus-rita/package.json'\\); console.log\\('react:', p.dependencies.react, 'react-dom:', p.dependencies['react-dom']\\)\")",
+      "Bash(node -e \"const p = require\\('/Users/manuel/Desktop/ferienhaus-rita/node_modules/react-leaflet/package.json'\\); console.log\\('version:', p.version, 'peers:', JSON.stringify\\(p.peerDependencies\\)\\)\")"
     ]
   }
 }
