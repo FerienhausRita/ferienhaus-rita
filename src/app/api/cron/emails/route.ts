@@ -97,6 +97,7 @@ function buildBookingData(row: BookingRow) {
     extraGuestsTotal: Number(row.extra_guests_total),
     dogsTotal: Number(row.dogs_total),
     cleaningFee: Number(row.cleaning_fee),
+    localTaxTotal: Number(row.local_tax_total || 0),
     vatAmount,
   };
 }

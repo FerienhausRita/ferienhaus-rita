@@ -42,7 +42,12 @@ interface BookingData {
   extraGuestsTotal: number;
   dogsTotal: number;
   cleaningFee: number;
+  localTaxTotal: number;
   vatAmount: number;
+  depositAmount?: number;
+  depositDueDate?: string;
+  remainderAmount?: number;
+  remainderDueDate?: string;
 }
 
 export interface BankDetails {
@@ -282,6 +287,7 @@ function priceTable(booking: BookingData): string {
       ${booking.extraGuestsTotal > 0 ? detailRow("Zusatzg\u00e4ste", formatCurrency(booking.extraGuestsTotal), { alignRight: true }) : ""}
       ${booking.dogsTotal > 0 ? detailRow(`Hund${booking.dogs > 1 ? "e" : ""}`, formatCurrency(booking.dogsTotal), { alignRight: true }) : ""}
       ${detailRow("Endreinigung", formatCurrency(booking.cleaningFee), { alignRight: true })}
+      ${booking.localTaxTotal > 0 ? detailRow("Ortstaxe", formatCurrency(booking.localTaxTotal), { alignRight: true }) : ""}
       ${strongDivider()}
       <tr>
         <td style="padding:12px 0;font-weight:700;font-size:17px;color:${DARK};">Gesamtpreis</td>
@@ -332,7 +338,7 @@ export async function sendInquiryConfirmation(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       vielen Dank f\u00fcr Ihre Anfrage! Wir pr\u00fcfen die Verf\u00fcgbarkeit und melden uns
@@ -395,18 +401,56 @@ export async function sendBookingConfirmed(
 
   let paymentSection = "";
   if (options?.bankDetails) {
-    paymentSection = `
-      ${sectionHeading("Zahlung")}
-      <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
-        Bitte \u00fcberweisen Sie den Gesamtbetrag unter Angabe des Verwendungszwecks auf folgendes Konto:
-      </p>
-      ${bankDetailsBlock(options.bankDetails, ref, booking.totalPrice)}
-    `;
+    const hasDeposit = booking.depositAmount && booking.depositAmount < booking.totalPrice;
+
+    if (hasDeposit) {
+      // Split payment: deposit now, remainder later
+      const depositDueFormatted = booking.depositDueDate
+        ? formatDate(new Date(booking.depositDueDate + "T00:00:00Z"))
+        : "innerhalb von 7 Tagen";
+      const remainderDueFormatted = booking.remainderDueDate
+        ? formatDate(new Date(booking.remainderDueDate + "T00:00:00Z"))
+        : "30 Tage vor Anreise";
+
+      paymentSection = `
+        ${sectionHeading("Zahlung")}
+        <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 16px;">
+          Die Zahlung erfolgt in zwei Schritten:
+        </p>
+
+        <div style="background:${CARD_BG};border-radius:10px;padding:16px 24px;margin:0 0 12px;border-left:4px solid ${GOLD};">
+          <p style="margin:0 0 4px;font-size:13px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">1. Anzahlung (30%)</p>
+          <p style="margin:0;font-size:22px;font-weight:700;color:${DARK};">${formatCurrency(booking.depositAmount!)}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${depositDueFormatted}</p>
+        </div>
+
+        <div style="background:${CARD_BG};border-radius:10px;padding:16px 24px;margin:0 0 16px;">
+          <p style="margin:0 0 4px;font-size:13px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">2. Restbetrag (70%)</p>
+          <p style="margin:0;font-size:22px;font-weight:700;color:${DARK};">${formatCurrency(booking.remainderAmount || 0)}</p>
+          <p style="margin:4px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${remainderDueFormatted}</p>
+        </div>
+
+        <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
+          Bitte \u00fcberweisen Sie unter Angabe des Verwendungszwecks auf folgendes Konto:
+        </p>
+        ${bankDetailsBlock(options.bankDetails, ref, booking.depositAmount!)}
+      `;
+    } else {
+      // Full payment due immediately
+      paymentSection = `
+        ${sectionHeading("Zahlung")}
+        <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 8px;">
+          Da Ihre Anreise in weniger als 30 Tagen stattfindet, ist der <strong>Gesamtbetrag sofort f\u00e4llig</strong>.
+          Bitte \u00fcberweisen Sie unter Angabe des Verwendungszwecks auf folgendes Konto:
+        </p>
+        ${bankDetailsBlock(options.bankDetails, ref, booking.totalPrice)}
+      `;
+    }
   }
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       <strong>Gro\u00dfartige Neuigkeiten!</strong> Ihre Buchung im Ferienhaus Rita ist best\u00e4tigt.
@@ -429,6 +473,11 @@ export async function sendBookingConfirmed(
     ${paymentSection}
 
     ${ctaButton("Meine Buchung ansehen", portalUrl)}
+
+    <p style="font-size:12px;color:${LIGHT_GRAY};line-height:1.6;margin:20px 0 0;text-align:center;">
+      Es gelten unsere
+      <a href="${BASE_URL}/agb" style="color:${GOLD};text-decoration:underline;">Buchungsbedingungen &amp; Hausregeln</a>.
+    </p>
 
     ${signoff()}
   `;
@@ -588,7 +637,7 @@ export async function sendPaymentReminder(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       wir freuen uns auf Ihren Besuch im Ferienhaus Rita! Gerne m\u00f6chten wir Sie
@@ -651,7 +700,7 @@ export async function sendDepositReminder(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       wir freuen uns auf Ihren Besuch im Ferienhaus Rita! Gerne m\u00f6chten wir Sie
@@ -716,7 +765,7 @@ export async function sendRemainderReminder(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       vielen Dank f\u00fcr Ihre Anzahlung! Gerne m\u00f6chten wir Sie an den
@@ -776,7 +825,7 @@ export async function sendCheckinInfo(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
 
     <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">In wenigen Tagen geht&rsquo;s los!</h2>
@@ -865,7 +914,7 @@ export async function sendThankYou(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Liebe/r ${escapeHtml(booking.firstName)} ${escapeHtml(booking.lastName)},
+      Hallo ${escapeHtml(booking.firstName)},
     </p>
 
     <h2 style="margin:0 0 12px;font-size:20px;color:${DARK};">Vielen Dank f\u00fcr Ihren Besuch!</h2>

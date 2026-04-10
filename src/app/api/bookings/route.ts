@@ -199,6 +199,9 @@ export async function POST(request: NextRequest) {
         discount_amount: priceBreakdown.discountAmount,
         total_price: priceBreakdown.total,
         status: "pending",
+        consent_accepted_at: new Date().toISOString(),
+        consent_ip: ip,
+        terms_version: "2026-04",
       })
       .select("id")
       .single();
@@ -290,6 +293,7 @@ export async function POST(request: NextRequest) {
       extraGuestsTotal: priceBreakdown.extraGuestsTotal,
       dogsTotal: priceBreakdown.dogsTotal,
       cleaningFee: priceBreakdown.cleaningFee,
+      localTaxTotal: priceBreakdown.localTaxTotal || 0,
       vatAmount: priceBreakdown.vatAmount,
     };
 

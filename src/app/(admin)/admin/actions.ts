@@ -349,7 +349,7 @@ export async function updateBookingStatus(
 
       const depositPercent = depositConfig?.deposit_percent ?? 30;
       const depositDueDays = depositConfig?.deposit_due_days ?? 7;
-      const remainderDaysBefore = depositConfig?.remainder_days_before_checkin ?? 14;
+      const remainderDaysBefore = depositConfig?.remainder_days_before_checkin ?? 30;
 
       const totalPrice = Number(booking.total_price || 0);
       const now = new Date();
@@ -424,12 +424,23 @@ export async function updateBookingStatus(
           extraGuestsTotal: Number(booking.extra_guests_total || 0),
           dogsTotal: Number(booking.dogs_total || 0),
           cleaningFee: Number(booking.cleaning_fee || 0),
+          localTaxTotal: Number(booking.local_tax_total || 0),
           vatAmount: Number(booking.vat_amount || 0),
+          depositAmount: updateData.deposit_amount ? Number(updateData.deposit_amount) : undefined,
+          depositDueDate: updateData.deposit_due_date ? String(updateData.deposit_due_date) : undefined,
+          remainderAmount: updateData.remainder_amount ? Number(updateData.remainder_amount) : undefined,
+          remainderDueDate: updateData.remainder_due_date ? String(updateData.remainder_due_date) : undefined,
         };
 
         await sendBookingConfirmed(bookingEmailData, apartment, {
           bankDetails: bankDetails || undefined,
         });
+
+        // Mark terms as sent with confirmation email
+        await supabase
+          .from("bookings")
+          .update({ terms_sent_at: new Date().toISOString() })
+          .eq("id", bookingId);
       }
     } catch (emailError) {
       console.error("Error sending confirmation email:", emailError);
@@ -785,7 +796,12 @@ export async function resendConfirmation(bookingId: string) {
         extraGuestsTotal: Number(booking.extra_guests_total),
         dogsTotal: Number(booking.dogs_total),
         cleaningFee: Number(booking.cleaning_fee),
+        localTaxTotal: Number(booking.local_tax_total || 0),
         vatAmount,
+        depositAmount: booking.deposit_amount ? Number(booking.deposit_amount) : undefined,
+        depositDueDate: booking.deposit_due_date || undefined,
+        remainderAmount: booking.remainder_amount ? Number(booking.remainder_amount) : undefined,
+        remainderDueDate: booking.remainder_due_date || undefined,
       },
       apartment,
       { bankDetails: bankDetails || undefined }
@@ -1850,6 +1866,7 @@ export async function createManualBooking(data: {
           extraGuestsTotal: breakdown.extraGuestsTotal,
           dogsTotal: breakdown.dogsTotal,
           cleaningFee: breakdown.cleaningFee,
+          localTaxTotal: breakdown.localTaxTotal || 0,
           vatAmount: breakdown.vatAmount,
         },
         apartment,
@@ -2384,4 +2401,111 @@ export async function verifyMeldeschein(bookingId: string) {
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath(`/admin/meldeschein/${bookingId}`);
   return { success: true };
+}
+
+// ---------------------------------------------------------------------------
+// Booking price editing
+// ---------------------------------------------------------------------------
+
+export async function getBookingLineItems(bookingId: string) {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("booking_line_items")
+    .select("*")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: true });
+
+  if (error) return [];
+  return data || [];
+}
+
+export async function updateBookingPrices(
+  bookingId: string,
+  prices: {
+    price_per_night: number;
+    extra_guests_total: number;
+    dogs_total: number;
+    cleaning_fee: number;
+    local_tax_total: number;
+    discount_amount: number;
+    nights: number;
+  },
+  lineItems: { id?: string; label: string; amount: number }[]
+) {
+  const supabase = createServerClient();
+
+  // Calculate new total
+  const baseTotal =
+    prices.price_per_night * prices.nights +
+    prices.extra_guests_total +
+    prices.dogs_total +
+    prices.cleaning_fee +
+    prices.local_tax_total -
+    prices.discount_amount;
+
+  const lineItemsTotal = lineItems.reduce((sum, li) => sum + li.amount, 0);
+  const totalPrice = Math.round((baseTotal + lineItemsTotal) * 100) / 100;
+
+  // Update booking prices
+  const { error: updateError } = await supabase
+    .from("bookings")
+    .update({
+      price_per_night: prices.price_per_night,
+      extra_guests_total: prices.extra_guests_total,
+      dogs_total: prices.dogs_total,
+      cleaning_fee: prices.cleaning_fee,
+      local_tax_total: prices.local_tax_total,
+      discount_amount: prices.discount_amount,
+      total_price: totalPrice,
+    })
+    .eq("id", bookingId);
+
+  if (updateError) {
+    return { success: false, error: updateError.message };
+  }
+
+  // Sync line items: delete all existing, then insert new ones
+  await supabase
+    .from("booking_line_items")
+    .delete()
+    .eq("booking_id", bookingId);
+
+  if (lineItems.length > 0) {
+    const { error: liError } = await supabase
+      .from("booking_line_items")
+      .insert(
+        lineItems.map((li) => ({
+          booking_id: bookingId,
+          label: li.label,
+          amount: li.amount,
+        }))
+      );
+
+    if (liError) {
+      return { success: false, error: liError.message };
+    }
+  }
+
+  // Update deposit/remainder proportionally if they exist
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status")
+    .eq("id", bookingId)
+    .single();
+
+  if (booking && booking.deposit_amount && !booking.deposit_paid_at && !booking.remainder_paid_at) {
+    // Recalculate 30/70 split only if nothing paid yet
+    const depositAmount = Math.round(totalPrice * 0.3 * 100) / 100;
+    const remainderAmount = Math.round((totalPrice - depositAmount) * 100) / 100;
+
+    await supabase
+      .from("bookings")
+      .update({ deposit_amount: depositAmount, remainder_amount: remainderAmount })
+      .eq("id", bookingId);
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin");
+  return { success: true, totalPrice };
 }

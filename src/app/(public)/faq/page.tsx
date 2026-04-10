@@ -3,12 +3,20 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 import FAQAccordion from "@/components/ui/FAQAccordion";
 import FAQJsonLd from "@/components/seo/FAQJsonLd";
+import { apartments } from "@/data/apartments";
 
 export const metadata: Metadata = {
   title: "Häufige Fragen",
   description:
     "Antworten auf häufig gestellte Fragen rund um Ihren Aufenthalt im Ferienhaus Rita.",
 };
+
+// Dynamic pricing from apartment data
+const cleaningFees = [...new Set(apartments.map((a) => a.cleaningFee))].sort((a, b) => a - b);
+const cleaningFeeText = cleaningFees.length === 1
+  ? `${cleaningFees[0]} €`
+  : `${cleaningFees[0]} € bis ${cleaningFees[cleaningFees.length - 1]} €`;
+const dogFee = apartments[0]?.dogFee ?? 15;
 
 const faqGroups = [
   {
@@ -22,7 +30,7 @@ const faqGroups = [
       {
         question: "Wann kann ich anreisen und abreisen?",
         answer:
-          "Die Anreise ist ab 15:00 Uhr möglich, die Abreise bitten wir bis 10:00 Uhr. Abweichende Zeiten können in manchen Fällen nach Absprache arrangiert werden.",
+          "Die Anreise ist ab 16:00 Uhr möglich, die Abreise bitten wir bis 10:00 Uhr. Abweichende Zeiten können in manchen Fällen nach Absprache arrangiert werden.",
       },
       {
         question: "Gibt es einen Mindestaufenthalt?",
@@ -32,12 +40,12 @@ const faqGroups = [
       {
         question: "Welche Zahlungsmethoden werden akzeptiert?",
         answer:
-          "Wir akzeptieren Zahlung per Banküberweisung. Die Zahlungsdetails erhalten Sie mit der Buchungsbestätigung. Eine Anzahlung von 30% ist bei Buchung fällig, der Restbetrag 14 Tage vor Anreise.",
+          "Wir akzeptieren Zahlung per Banküberweisung. Die Zahlungsdetails erhalten Sie mit der Buchungsbestätigung. Eine Anzahlung von 30% ist innerhalb von 7 Tagen nach Bestätigung fällig, der Restbetrag 30 Tage vor Anreise. Bei Buchungen innerhalb von 30 Tagen vor Anreise ist der Gesamtbetrag sofort fällig.",
       },
       {
         question: "Wie sind die Stornobedingungen?",
         answer:
-          "Bis 30 Tage vor Anreise ist eine kostenlose Stornierung möglich. Bei Stornierung zwischen 30 und 14 Tagen vor Anreise berechnen wir 50% des Gesamtpreises. Bei späterer Stornierung wird der volle Betrag fällig. Wir empfehlen eine Reiserücktrittsversicherung.",
+          "Bis 60 Tage vor Anreise ist eine kostenlose Stornierung möglich. Bei Stornierung zwischen 59 und 30 Tagen vor Anreise erhalten Sie 70% des Gesamtpreises zurück (30% Stornogebühr). Bei weniger als 30 Tagen vor Anreise ist keine Erstattung möglich. Wir empfehlen den Abschluss einer Reiserücktrittsversicherung.",
       },
     ],
   },
@@ -57,7 +65,7 @@ const faqGroups = [
       {
         question: "Ist die Endreinigung inklusive?",
         answer:
-          "Die Endreinigung wird separat berechnet: 100 € für die großen Wohnungen (96 m²) und 50 € für die kleineren Wohnungen. Der Betrag wird automatisch in der Preisberechnung berücksichtigt.",
+          `Die Endreinigung wird separat berechnet (${cleaningFeeText}, je nach Wohnungsgröße) und ist im Gesamtpreis bereits enthalten. Der Betrag wird automatisch in der Preisberechnung berücksichtigt.`,
       },
       {
         question: "Gibt es einen Parkplatz?",
@@ -77,7 +85,7 @@ const faqGroups = [
       {
         question: "Sind Hunde erlaubt?",
         answer:
-          "Ja, Hunde sind bei uns herzlich willkommen! Der Aufpreis beträgt 15 € pro Hund und Nacht. Bitte geben Sie bei der Buchung an, dass Sie einen Hund mitbringen.",
+          `Ja, Hunde sind bei uns herzlich willkommen! Der Aufpreis beträgt ${dogFee} € pro Hund und Nacht. Bitte geben Sie bei der Buchung an, dass Sie einen Hund mitbringen.`,
       },
       {
         question: "Was muss ich bei der Anreise mit Hund beachten?",
@@ -92,12 +100,12 @@ const faqGroups = [
       {
         question: "Wie weit ist das Skigebiet entfernt?",
         answer:
-          "Das GG Resort Kals-Matrei ist nur wenige Fahrminuten entfernt. Mit dem Skibus, der direkt am Haus hält, erreichen Sie die Talstation bequem und kostenlos.",
+          "Ski in / Ski out – die Piste des GG Resorts Kals-Matrei liegt direkt neben dem Haus. Sie können vom Haus aus mit den Ski losfahren und direkt wieder zurückkehren.",
       },
       {
         question: "Gibt es Einkaufsmöglichkeiten in der Nähe?",
         answer:
-          "In Kals gibt es einen kleinen Supermarkt und eine Bäckerei. Größere Einkaufsmöglichkeiten finden Sie in Lienz (ca. 30 Minuten Fahrt).",
+          "In Kals gibt es einen MPREIS-Supermarkt sowie einen weiteren MPREIS im Gradonna. Größere Einkaufsmöglichkeiten finden Sie in Lienz (ca. 30 Minuten Fahrt).",
       },
       {
         question: "Welche Aktivitäten gibt es im Sommer?",

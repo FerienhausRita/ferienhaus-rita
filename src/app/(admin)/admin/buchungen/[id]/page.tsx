@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById, getBookingNotes, getEmailSchedule } from "../../actions";
+import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems } from "../../actions";
 import { getApartmentById } from "@/data/apartments";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
@@ -9,6 +9,7 @@ import EmailCompose from "@/components/admin/EmailCompose";
 import EmailTimeline from "@/components/admin/EmailTimeline";
 import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
 import DepositTracker from "@/components/admin/DepositTracker";
+import BookingPriceEditor from "@/components/admin/BookingPriceEditor";
 import { getMeldeschein } from "../../actions";
 
 export const metadata: Metadata = {
@@ -74,11 +75,12 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes, emailSchedule, meldeschein] = await Promise.all([
+  const [booking, notes, emailSchedule, meldeschein, lineItems] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
     getEmailSchedule(params.id),
     getMeldeschein(params.id),
+    getBookingLineItems(params.id),
   ]);
 
   if (!booking) {
@@ -259,72 +261,23 @@ export default async function BookingDetailPage({
 
           {/* Price Breakdown */}
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-stone-100">
-              <h2 className="font-semibold text-stone-900">
-                Preisaufschlüsselung
-              </h2>
-            </div>
             <div className="p-5">
-              <div className="space-y-2 text-sm">
-                <div className="flex justify-between">
-                  <span className="text-stone-600">
-                    {booking.nights} Nächte &times;{" "}
-                    {formatCurrency(Number(booking.price_per_night))}
-                  </span>
-                  <span className="text-stone-900">
-                    {formatCurrency(
-                      Number(booking.price_per_night) * booking.nights
-                    )}
-                  </span>
-                </div>
-                {Number(booking.extra_guests_total) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-stone-600">Zusatzgäste</span>
-                    <span className="text-stone-900">
-                      {formatCurrency(Number(booking.extra_guests_total))}
-                    </span>
-                  </div>
-                )}
-                {Number(booking.dogs_total) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-stone-600">Hunde</span>
-                    <span className="text-stone-900">
-                      {formatCurrency(Number(booking.dogs_total))}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between">
-                  <span className="text-stone-600">Endreinigung</span>
-                  <span className="text-stone-900">
-                    {formatCurrency(Number(booking.cleaning_fee))}
-                  </span>
-                </div>
-                {Number(booking.local_tax_total) > 0 && (
-                  <div className="flex justify-between">
-                    <span className="text-stone-600">Ortstaxe</span>
-                    <span className="text-stone-900">
-                      {formatCurrency(Number(booking.local_tax_total))}
-                    </span>
-                  </div>
-                )}
-                {Number(booking.discount_amount) > 0 && (
-                  <div className="flex justify-between text-emerald-600">
-                    <span>
-                      Rabatt{" "}
-                      {booking.discount_code && `(${booking.discount_code})`}
-                    </span>
-                    <span>
-                      -{formatCurrency(Number(booking.discount_amount))}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between pt-3 border-t border-stone-200 font-bold text-base">
-                  <span className="text-stone-900">Gesamt</span>
-                  <span className="text-stone-900">
-                    {formatCurrency(Number(booking.total_price))}
-                  </span>
-                </div>
-              </div>
+              <BookingPriceEditor
+                bookingId={booking.id}
+                nights={booking.nights}
+                pricePerNight={Number(booking.price_per_night)}
+                extraGuestsTotal={Number(booking.extra_guests_total || 0)}
+                dogsTotal={Number(booking.dogs_total || 0)}
+                cleaningFee={Number(booking.cleaning_fee)}
+                localTaxTotal={Number(booking.local_tax_total || 0)}
+                discountAmount={Number(booking.discount_amount || 0)}
+                totalPrice={Number(booking.total_price)}
+                lineItems={lineItems.map((li: { id: string; label: string; amount: number }) => ({
+                  id: li.id,
+                  label: li.label,
+                  amount: Number(li.amount),
+                }))}
+              />
 
               {/* Invoice number + download */}
               <div className="pt-4 mt-4 border-t border-stone-100 space-y-3">
@@ -415,6 +368,63 @@ export default async function BookingDetailPage({
                 <p className="text-xs text-stone-400">
                   Noch nicht ausgefüllt
                 </p>
+              )}
+            </div>
+          </div>
+
+          {/* AGB & Zustimmung */}
+          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+            <div className="px-5 py-4 border-b border-stone-100">
+              <h2 className="font-semibold text-stone-900 text-sm">AGB & Zustimmung</h2>
+            </div>
+            <div className="p-5 space-y-3 text-xs text-stone-600">
+              {booking.consent_accepted_at ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <svg className="w-4 h-4 text-emerald-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    <span>
+                      Akzeptiert am{" "}
+                      <span className="font-medium text-stone-900">
+                        {new Date(booking.consent_accepted_at).toLocaleString("de-AT", {
+                          day: "2-digit", month: "2-digit", year: "numeric",
+                          hour: "2-digit", minute: "2-digit",
+                        })}
+                      </span>
+                    </span>
+                  </div>
+                  {booking.consent_ip && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-stone-400">IP:</span>
+                      <span className="font-mono text-stone-700">{booking.consent_ip}</span>
+                    </div>
+                  )}
+                  {booking.terms_version && (
+                    <div className="flex items-center gap-2">
+                      <span className="text-stone-400">AGB-Version:</span>
+                      <span className="font-medium">{booking.terms_version}</span>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <p className="text-stone-400">Keine Zustimmung erfasst</p>
+              )}
+              {booking.terms_sent_at && (
+                <div className="flex items-center gap-2 pt-2 border-t border-stone-100">
+                  <svg className="w-4 h-4 text-blue-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                  <span>
+                    AGB zugestellt am{" "}
+                    <span className="font-medium text-stone-900">
+                      {new Date(booking.terms_sent_at).toLocaleString("de-AT", {
+                        day: "2-digit", month: "2-digit", year: "numeric",
+                        hour: "2-digit", minute: "2-digit",
+                      })}
+                    </span>
+                  </span>
+                </div>
               )}
             </div>
           </div>

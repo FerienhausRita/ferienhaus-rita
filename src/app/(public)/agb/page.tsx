@@ -64,10 +64,10 @@ export default function AGBPage() {
               </p>
               <p>
                 <strong>Restzahlung:</strong> Der Restbetrag ist spätestens{" "}
-                <strong>14 Tage vor Anreise</strong> zu begleichen.
+                <strong>30 Tage vor Anreise</strong> zu begleichen.
               </p>
               <p>
-                Bei Buchungen innerhalb von 14 Tagen vor Anreise ist der
+                Bei Buchungen innerhalb von 30 Tagen vor Anreise ist der
                 Gesamtbetrag sofort fällig.
               </p>
             </div>
