@@ -51,7 +51,7 @@ const externalLinks = [
   },
   {
     title: "GG Resort Kals-Matrei",
-    url: "https://www.ggresort.at/",
+    url: "https://www.gg-resort.at/",
     description: "Offizielle Website des Skigebiets mit Pistenplan",
     icon: (
       <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -210,12 +210,12 @@ export default function WinterPage() {
               <p className="text-xs text-stone-400 mt-4 text-center">
                 Preise können abweichen. Aktuelle Preise auf{" "}
                 <a
-                  href="https://www.ggresort.at/"
+                  href="https://www.gg-resort.at/"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-alpine-600 hover:underline"
                 >
-                  ggresort.at
+                  gg-resort.at
                 </a>
               </p>
             </div>

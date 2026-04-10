@@ -7,7 +7,7 @@ export interface SkipassPrice {
 export const skipassData = {
   season: "2025/26",
   lastUpdated: "2025-12-01",
-  source: "https://www.ggresort.at/",
+  source: "https://www.gg-resort.at/",
   prices: [
     { label: "Erwachsene", duration: "Tageskarte", price: "€ 62,50" },
     { label: "Jugend (16–18 J.)", duration: "Tageskarte", price: "€ 56,00" },
