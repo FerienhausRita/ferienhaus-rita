@@ -135,19 +135,6 @@ export default async function BookingOverviewPage({
   );
   const isPaid = booking.payment_status === "paid";
 
-  // Debug: log booking fields to find undefined values
-  console.log("GUEST PORTAL DEBUG:", JSON.stringify({
-    status: booking.status,
-    total_price: booking.total_price,
-    price_per_night: booking.price_per_night,
-    cleaning_fee: booking.cleaning_fee,
-    deposit_amount: booking.deposit_amount,
-    remainder_amount: booking.remainder_amount,
-    deposit_due_date: booking.deposit_due_date,
-    remainder_due_date: booking.remainder_due_date,
-    payment_status: booking.payment_status,
-    invoice_number: booking.invoice_number,
-  }));
 
   return (
     <div className="pt-28 pb-24">
