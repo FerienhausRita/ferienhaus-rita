@@ -71,8 +71,10 @@ export default function Hero() {
         </div>
       </div>
 
-      {/* Scroll Indicator */}
-      <ScrollDownIndicator />
+      {/* Scroll Indicator – only on mobile */}
+      <div className="md:hidden">
+        <ScrollDownIndicator />
+      </div>
     </section>
   );
 }
