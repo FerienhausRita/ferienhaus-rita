@@ -4,6 +4,7 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 import AnimateIn from "@/components/ui/AnimateIn";
 import ContwiseMaps from "@/components/ui/ContwiseMaps";
+import ScrollDownIndicator from "@/components/ui/ScrollDownIndicator";
 
 export const metadata: Metadata = {
   title: "Sommer in Kals am Großglockner",
@@ -128,7 +129,7 @@ export default function SommerPage() {
   return (
     <div>
       {/* Hero – Full Screen */}
-      <div className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
+      <div data-hero className="relative h-screen min-h-[600px] flex items-center justify-center overflow-hidden">
         <Image
           src="/images/region/summer-split.jpg"
           alt="Sommer in Kals – grüne Almwiesen und Bergpanorama"
@@ -157,12 +158,7 @@ export default function SommerPage() {
         </div>
 
         {/* Scroll-down arrow */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-          <span className="text-white/30 text-[10px] tracking-[0.3em] uppercase">Entdecken</span>
-          <svg className="w-5 h-5 text-white/40 animate-bounce" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
-          </svg>
-        </div>
+        <ScrollDownIndicator />
       </div>
 
       {/* Intro */}

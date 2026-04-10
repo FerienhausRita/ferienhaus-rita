@@ -1,9 +1,10 @@
 import Image from "next/image";
 import BookingWidget from "@/components/booking/BookingWidget";
+import ScrollDownIndicator from "@/components/ui/ScrollDownIndicator";
 
 export default function Hero() {
   return (
-    <section className="relative h-[100svh] md:h-screen min-h-[500px] md:min-h-[700px] flex items-center justify-center overflow-hidden">
+    <section data-hero className="relative h-[100svh] md:h-screen min-h-[500px] md:min-h-[700px] flex items-center justify-center overflow-hidden">
       {/* Background Image with Ken Burns */}
       <div className="absolute inset-0">
         <div className="ken-burns absolute inset-0">
@@ -71,10 +72,7 @@ export default function Hero() {
       </div>
 
       {/* Scroll Indicator */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2">
-        <span className="text-white/30 text-[10px] tracking-[0.3em] uppercase">Entdecken</span>
-        <div className="w-px h-12 bg-gradient-to-b from-white/30 to-transparent animate-pulse" />
-      </div>
+      <ScrollDownIndicator />
     </section>
   );
 }
