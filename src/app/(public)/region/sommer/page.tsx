@@ -281,12 +281,8 @@ export default function SommerPage() {
               <h2 className="font-serif text-3xl sm:text-4xl font-bold text-white tracking-tight">
                 Kalser Glocknerstraße
               </h2>
-              <p className="text-white/80 text-lg leading-relaxed font-light mt-4">
-                Die Kalser Glocknerstraße führt direkt von Kals zum Lucknerhaus auf
-                1.920 Meter – dem Ausgangspunkt für Wanderungen ins Ködnitztal, zur
-                Lucknerhütte und zur Besteigung des Großglockners. Die berühmte
-                Großglockner Hochalpenstraße liegt auf der anderen Seite des Glockners
-                und ist über Heiligenblut erreichbar (ca. 85 km).
+              <p className="text-white/80 text-base sm:text-lg leading-relaxed font-light mt-4">
+                Die Kalser Glocknerstraße führt von Kals zum Lucknerhaus auf 1.920&nbsp;m – Ausgangspunkt für Wanderungen ins Ködnitztal, zur Lucknerhütte und zur Besteigung des Großglockners. Die Großglockner Hochalpenstraße liegt auf der anderen Seite und ist über Heiligenblut erreichbar (ca.&nbsp;85&nbsp;km).
               </p>
               <a
                 href="https://www.grossglockner.at/"

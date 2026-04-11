@@ -23,7 +23,7 @@ export default function HighlightsSection() {
   ];
 
   const features = [
-    "Direkte Pistennähe",
+    "Ski-in / Ski-out",
     "Hunde willkommen",
     "Bestpreis-Garantie",
     "Voll ausgestattete Küchen",

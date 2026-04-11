@@ -2,8 +2,8 @@ import Container from "@/components/ui/Container";
 
 const highlights = [
   {
-    title: "Direkte Pistenanbindung",
-    text: "Nur wenige Gehminuten zum Skigebiet GG Resort Kals-Matrei. Nach einem Tag auf der Piste sind Sie in kürzester Zeit zurück in Ihrer warmen Wohnung.",
+    title: "Ski-in / Ski-out",
+    text: "Direkt an der Piste des GG Resorts Kals-Matrei: Skier anschnallen vor der Haustür, zur Talstation gleiten und nach dem Skitag direkt zurück zum Haus.",
     icon: (
       <svg className="w-8 h-8 text-[var(--color-gold)]" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 3L8 10l-6 1 4 4.5L5 22l7-3.5L19 22l-1-6.5 4-4.5-6-1L12 3z" />

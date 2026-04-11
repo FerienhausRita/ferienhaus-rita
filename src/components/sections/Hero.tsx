@@ -45,8 +45,8 @@ export default function Hero() {
 
         {/* Description */}
         <p className="hero-reveal-3 text-base sm:text-lg text-white/60 max-w-xl mx-auto mb-8 md:mb-16 leading-relaxed font-light">
-          Vier liebevoll eingerichtete Ferienwohnungen am Fuße des Großglockners.
-          Alpiner Charme, moderne Ausstattung und unvergessliche Bergpanoramen.
+          Vier Ferienwohnungen direkt an der Piste in Kals am Großglockner.
+          Ski-in / Ski-out, alpiner Charme und unvergessliche Bergpanoramen.
         </p>
 
         {/* Booking Widget – hidden on mobile, shown below fold instead */}
@@ -62,7 +62,7 @@ export default function Hero() {
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1 h-1 rounded-full bg-[var(--color-gold)]" />
-            Pistennähe
+            Ski-in / Ski-out
           </div>
           <div className="flex items-center gap-2">
             <div className="w-1 h-1 rounded-full bg-[var(--color-gold)]" />

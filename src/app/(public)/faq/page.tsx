@@ -30,7 +30,7 @@ const faqGroups = [
       {
         question: "Wann kann ich anreisen und abreisen?",
         answer:
-          "Die Anreise ist ab 16:00 Uhr möglich, die Abreise bitten wir bis 10:00 Uhr. Abweichende Zeiten können in manchen Fällen nach Absprache arrangiert werden.",
+          "Die Anreise ist ab 16:00 Uhr möglich. Am Abreisetag bitten wir Sie, die Wohnung bis 10:00 Uhr freizugeben. Abweichende Zeiten sind in manchen Fällen nach Absprache möglich.",
       },
       {
         question: "Gibt es einen Mindestaufenthalt?",
@@ -53,7 +53,7 @@ const faqGroups = [
     category: "Wohnungen & Ausstattung",
     items: [
       {
-        question: "Ist Bettwäsche und Handtücher inklusive?",
+        question: "Sind Bettwäsche und Handtücher inklusive?",
         answer:
           "Ja, Bettwäsche und Handtücher sind in allen Wohnungen inklusive und werden frisch bezogen bereitgestellt.",
       },
@@ -100,7 +100,7 @@ const faqGroups = [
       {
         question: "Wie weit ist das Skigebiet entfernt?",
         answer:
-          "Ski in / Ski out – die Piste des GG Resorts Kals-Matrei liegt direkt neben dem Haus. Sie können vom Haus aus mit den Ski losfahren und direkt wieder zurückkehren.",
+          "Ski-in / Ski-out – das Ferienhaus Rita liegt direkt an der Piste des Großglockner Resorts Kals-Matrei. Sie schnallen Ihre Skier vor der Haustür an, gleiten zur Figol-Talstation und kehren nach dem Skitag direkt zum Haus zurück.",
       },
       {
         question: "Gibt es Einkaufsmöglichkeiten in der Nähe?",

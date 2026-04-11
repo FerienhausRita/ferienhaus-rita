@@ -21,13 +21,15 @@ export const metadata: Metadata = {
     template: "%s | Ferienhaus Rita",
   },
   description:
-    "Vier liebevoll eingerichtete Ferienwohnungen in Kals am Großglockner. Alpiner Charme, moderne Ausstattung und atemberaubende Bergpanoramen. Jetzt direkt buchen.",
+    "Ski-in / Ski-out: Vier Ferienwohnungen direkt an der Piste in Kals am Großglockner. Alpiner Charme, moderne Ausstattung und Bergpanorama. Jetzt direkt buchen.",
   keywords: [
     "Ferienhaus",
     "Kals am Großglockner",
     "Ferienwohnung",
     "Osttirol",
+    "Ski-in Ski-out",
     "Skiurlaub",
+    "direkt an der Piste",
     "Wanderurlaub",
     "Alpen",
     "Österreich",
