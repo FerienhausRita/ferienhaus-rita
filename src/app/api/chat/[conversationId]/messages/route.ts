@@ -33,6 +33,15 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
+  // Admin reading messages → reset unread counter
+  if (user) {
+    await supabase
+      .from("chat_conversations")
+      .update({ unread_admin: 0 })
+      .eq("id", params.conversationId)
+      .gt("unread_admin", 0);
+  }
+
   return NextResponse.json(messages);
 }
 

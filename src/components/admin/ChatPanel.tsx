@@ -99,6 +99,14 @@ export default function ChatPanel({
     setSending(false);
   };
 
+  const selectConversation = (id: string) => {
+    setSelectedId(id);
+    // Immediately clear unread badge locally
+    setConversations((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, unread_admin: 0 } : c))
+    );
+  };
+
   const selected = conversations.find((c) => c.id === selectedId);
 
   return (
@@ -115,7 +123,7 @@ export default function ChatPanel({
           {conversations.map((conv) => (
             <button
               key={conv.id}
-              onClick={() => setSelectedId(conv.id)}
+              onClick={() => selectConversation(conv.id)}
               className={`w-full text-left p-4 border-b border-stone-50 hover:bg-stone-50 transition-colors ${
                 selectedId === conv.id ? "bg-stone-50" : ""
               }`}

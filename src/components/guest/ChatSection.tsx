@@ -24,6 +24,7 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<NodeJS.Timeout | null>(null);
   const lastSeenCountRef = useRef(0);
+  const isOpenRef = useRef(false);
 
   // Initialize conversation
   useEffect(() => {
@@ -50,16 +51,16 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
         const data: Message[] = await res.json();
         setMessages(data);
 
-        // Count admin messages for unread badge
+        // Count admin messages for unread badge (use ref to avoid stale closure)
         const adminMsgCount = data.filter((m) => m.sender_type === "admin").length;
-        if (!isOpen && adminMsgCount > lastSeenCountRef.current) {
+        if (!isOpenRef.current && adminMsgCount > lastSeenCountRef.current) {
           setUnreadCount(adminMsgCount - lastSeenCountRef.current);
         }
       }
     } catch (err) {
       console.error("Fetch messages error:", err);
     }
-  }, [conversationId, isOpen]);
+  }, [conversationId]);
 
   // Poll for messages (always, not just when open)
   useEffect(() => {
@@ -73,8 +74,9 @@ export default function ChatSection({ bookingId }: ChatSectionProps) {
     };
   }, [conversationId, fetchMessages]);
 
-  // Mark as read when opening
+  // Sync isOpen ref and mark as read when opening
   useEffect(() => {
+    isOpenRef.current = isOpen;
     if (isOpen) {
       const adminMsgCount = messages.filter((m) => m.sender_type === "admin").length;
       lastSeenCountRef.current = adminMsgCount;
