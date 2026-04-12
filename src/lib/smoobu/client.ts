@@ -49,9 +49,13 @@ class SmoobuClient {
     });
 
     if (!res.ok) {
-      this.failCount++;
-      this.circuitOpenUntil = Date.now() + 60_000; // 60s cooldown
       const text = await res.text().catch(() => "");
+      // Only trigger circuit breaker on server errors (5xx), not client errors (4xx)
+      // 400 validation errors should not block subsequent requests
+      if (res.status >= 500) {
+        this.failCount++;
+        this.circuitOpenUntil = Date.now() + 60_000; // 60s cooldown
+      }
       throw new SmoobuApiError(res.status, text || res.statusText);
     }
 
