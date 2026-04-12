@@ -68,12 +68,12 @@ export async function getDashboardStats() {
       .neq("status", "cancelled")
       .order("check_out", { ascending: true })
       .limit(10),
-    // Month revenue
+    // Month revenue – Aufenthalte die in diesen Monat fallen (Check-in vor Monatsende UND Check-out nach Monatsstart)
     supabase
       .from("bookings")
       .select("total_price")
-      .gte("check_in", monthStart)
       .lte("check_in", monthEnd)
+      .gte("check_out", monthStart)
       .in("status", ["confirmed", "completed"]),
     // Recent bookings
     supabase

@@ -1,8 +1,27 @@
 import { createServerClient } from "@/lib/supabase/server";
 
 /**
+ * Get the max booking date from site_settings.
+ * Returns null if no limit is set.
+ */
+export async function getMaxBookingDate(): Promise<string | null> {
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "max_booking_date")
+    .single();
+
+  if (!data?.value) return null;
+  // Value is stored as string "YYYY-MM-DD"
+  const dateStr = typeof data.value === "string" ? data.value : data.value?.date;
+  return dateStr || null;
+}
+
+/**
  * Check if an apartment is available for the given date range.
  * Queries both bookings (non-cancelled) and blocked_dates.
+ * Also respects the max_booking_date setting.
  * Used in API routes only (server-side).
  */
 export async function isAvailableDB(
@@ -11,6 +30,10 @@ export async function isAvailableDB(
   checkOut: string
 ): Promise<boolean> {
   const supabase = createServerClient();
+
+  // Check max booking date limit
+  const maxDate = await getMaxBookingDate();
+  if (maxDate && checkOut > maxDate) return false;
 
   // Check for conflicting bookings
   const { data: bookings } = await supabase
@@ -83,6 +106,22 @@ export async function getUnavailableDatesDB(
 
   bookings?.forEach((b) => addRange(b.check_in, b.check_out));
   blocked?.forEach((b) => addRange(b.start_date, b.end_date));
+
+  // Block all dates after max_booking_date
+  const maxDate = await getMaxBookingDate();
+  if (maxDate) {
+    const maxD = new Date(maxDate + "T00:00:00");
+    const endD = new Date(endStr + "T00:00:00");
+    // If max date falls within or before this month, block from day after max to end of month
+    if (maxD <= endD) {
+      const blockStart = new Date(Math.max(maxD.getTime(), new Date(startOfMonth + "T00:00:00").getTime()));
+      const cursor = new Date(blockStart);
+      while (cursor <= endD) {
+        unavailable.add(cursor.toISOString().split("T")[0]);
+        cursor.setDate(cursor.getDate() + 1);
+      }
+    }
+  }
 
   return Array.from(unavailable).sort();
 }

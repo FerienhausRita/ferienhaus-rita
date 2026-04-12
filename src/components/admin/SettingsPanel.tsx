@@ -115,6 +115,11 @@ export default function SettingsPanel({
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewMessage, setReviewMessage] = useState<string | null>(null);
 
+  // Max Buchungsdatum
+  const [maxBookingDate, setMaxBookingDate] = useState(siteSettings.max_booking_date ?? "");
+  const [maxDateLoading, setMaxDateLoading] = useState(false);
+  const [maxDateMessage, setMaxDateMessage] = useState<string | null>(null);
+
   const handleNameSave = async () => {
     if (!displayName.trim() || displayName.trim() === currentName) return;
     setNameLoading(true);
@@ -487,6 +492,68 @@ export default function SettingsPanel({
               )}
             </div>
           ))}
+        </div>
+      </div>
+
+      {/* Maximales Buchungsdatum */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Buchungszeitraum begrenzen</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Buchungen sind nur bis zu diesem Datum m&ouml;glich. Danach wird alles als &bdquo;nicht verf&uuml;gbar&ldquo; angezeigt &ndash; auch im iCal-Export f&uuml;r Airbnb/Booking.com.
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-center gap-3">
+            <input
+              type="date"
+              value={maxBookingDate}
+              onChange={(e) => setMaxBookingDate(e.target.value)}
+              min={new Date().toISOString().split("T")[0]}
+              className="border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#c8a96e]/30 focus:border-[#c8a96e] outline-none"
+            />
+            <button
+              onClick={async () => {
+                setMaxDateLoading(true);
+                setMaxDateMessage(null);
+                const result = await updateSiteSetting("max_booking_date", maxBookingDate || null);
+                setMaxDateLoading(false);
+                setMaxDateMessage(result.success ? (maxBookingDate ? `Buchungen bis ${new Date(maxBookingDate + "T00:00:00").toLocaleDateString("de-AT")} m\u00f6glich` : "Begrenzung entfernt") : result.error || "Fehler");
+              }}
+              disabled={maxDateLoading}
+              className="px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+            >
+              {maxDateLoading ? "..." : "Speichern"}
+            </button>
+            {maxBookingDate && (
+              <button
+                onClick={async () => {
+                  setMaxDateLoading(true);
+                  setMaxBookingDate("");
+                  const result = await updateSiteSetting("max_booking_date", null);
+                  setMaxDateLoading(false);
+                  setMaxDateMessage(result.success ? "Begrenzung entfernt" : result.error || "Fehler");
+                }}
+                disabled={maxDateLoading}
+                className="px-3 py-2 text-sm text-red-600 hover:text-red-700 font-medium"
+              >
+                Entfernen
+              </button>
+            )}
+          </div>
+          {maxBookingDate && (
+            <p className="text-xs text-amber-600">
+              Buchungen sind nur bis {new Date(maxBookingDate + "T00:00:00").toLocaleDateString("de-AT", { day: "2-digit", month: "long", year: "numeric" })} m&ouml;glich. Alle sp&auml;teren Daten sind gesperrt.
+            </p>
+          )}
+          {!maxBookingDate && (
+            <p className="text-xs text-stone-400">
+              Kein Limit gesetzt &ndash; Buchungen sind unbegrenzt m&ouml;glich.
+            </p>
+          )}
+          {maxDateMessage && (
+            <p className="text-xs text-emerald-600">{maxDateMessage}</p>
+          )}
         </div>
       </div>
 

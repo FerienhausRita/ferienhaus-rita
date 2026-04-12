@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentBySlug } from "@/data/apartments";
 import { generateICal } from "@/lib/ical";
+import { getMaxBookingDate } from "@/lib/availability-server";
 
 /**
  * GET /api/ical/[apartment]
@@ -75,6 +76,20 @@ export async function GET(
         summary: b.reason || "Blockiert",
       });
     });
+
+    // Block everything after max_booking_date
+    const maxDate = await getMaxBookingDate();
+    if (maxDate && maxDate < futureLimitStr) {
+      // Add one large block from max_booking_date to future limit
+      const nextDay = new Date(maxDate + "T00:00:00");
+      nextDay.setDate(nextDay.getDate() + 1);
+      events.push({
+        uid: `max-booking-limit@ferienhaus-rita-kals.at`,
+        start: nextDay.toISOString().split("T")[0],
+        end: futureLimitStr,
+        summary: "Nicht buchbar",
+      });
+    }
 
     const ical = generateICal(apartment.name, events);
 
