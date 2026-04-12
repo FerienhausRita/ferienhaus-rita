@@ -347,6 +347,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           </Text>
           <Text style={styles.headerDetail}>
             Tel: {contact.phone} | E-Mail: {contact.email}
+            {contact.taxNumber ? ` | StNr: ${contact.taxNumber}` : ""}
             {contact.uid ? ` | UID: ${contact.uid}` : ""}
           </Text>
         </View>

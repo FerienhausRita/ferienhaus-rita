@@ -239,16 +239,29 @@ export async function getAnalyticsData() {
 /**
  * Get all bookings with optional filtering
  */
-export async function getBookings(filter?: string, search?: string) {
+export async function getBookings(filter?: string, search?: string, sortBy?: string, sortDir?: string) {
   const supabase = createServerClient();
   const today = new Date().toISOString().split("T")[0];
+
+  // Allowed sort columns (whitelist to prevent injection)
+  const allowedSortColumns: Record<string, string> = {
+    last_name: "last_name",
+    apartment_id: "apartment_id",
+    check_in: "check_in",
+    total_price: "total_price",
+    status: "status",
+    created_at: "created_at",
+  };
+
+  const orderColumn = allowedSortColumns[sortBy ?? ""] ?? "created_at";
+  const ascending = sortDir === "asc";
 
   let query = supabase
     .from("bookings")
     .select(
       "id, apartment_id, first_name, last_name, email, phone, check_in, check_out, adults, children, dogs, total_price, status, payment_status, created_at, notes, source_channel"
     )
-    .order("created_at", { ascending: false });
+    .order(orderColumn, { ascending: orderColumn === "created_at" && !sortBy ? false : ascending });
 
   // Apply filter
   switch (filter) {
@@ -769,9 +782,21 @@ export async function markRemainderPaid(bookingId: string) {
 /**
  * Get payment overview for dashboard and payments page
  */
-export async function getPaymentOverview() {
+export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
   const supabase = createServerClient();
   const today = new Date().toISOString().split("T")[0];
+
+  // Allowed sort columns for payments
+  const allowedSortColumns: Record<string, string> = {
+    last_name: "last_name",
+    deposit_due_date: "deposit_due_date",
+    deposit_amount: "deposit_amount",
+    remainder_amount: "remainder_amount",
+    payment_status: "payment_status",
+  };
+
+  const orderColumn = allowedSortColumns[sortBy ?? ""] ?? "deposit_due_date";
+  const ascending = sortDir === "desc" ? false : true;
 
   const { data: bookings } = await supabase
     .from("bookings")
@@ -779,7 +804,7 @@ export async function getPaymentOverview() {
     .in("status", ["confirmed", "pending"])
     .neq("payment_status", "paid")
     .neq("payment_status", "refunded")
-    .order("deposit_due_date", { ascending: true, nullsFirst: false });
+    .order(orderColumn, { ascending, nullsFirst: false });
 
   const all = bookings ?? [];
 

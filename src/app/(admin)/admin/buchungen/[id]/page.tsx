@@ -114,22 +114,24 @@ export default async function BookingDetailPage({
         Zurück zu Buchungen
       </Link>
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-        <div>
-          <h1 className="text-2xl font-bold text-stone-900">
-            {booking.first_name} {booking.last_name}
-          </h1>
-          <p className="text-stone-500 text-sm mt-1">
-            Buchung #{booking.id.substring(0, 8)} &middot; Erstellt am{" "}
-            {formatDateTime(booking.created_at)}
-          </p>
+      {/* Header – sticky beim Scrollen */}
+      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-sm pb-4 mb-2 -mx-4 px-4 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8 border-b border-stone-100">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2">
+          <div>
+            <h1 className="text-2xl font-bold text-stone-900">
+              {booking.first_name} {booking.last_name}
+            </h1>
+            <p className="text-stone-500 text-sm mt-0.5">
+              Buchung #{booking.id.substring(0, 8)} &middot; Erstellt am{" "}
+              {formatDateTime(booking.created_at)}
+            </p>
+          </div>
+          <span
+            className={`self-start px-3 py-1.5 rounded-full text-sm font-medium ${status.className}`}
+          >
+            {status.label}
+          </span>
         </div>
-        <span
-          className={`self-start px-3 py-1.5 rounded-full text-sm font-medium ${status.className}`}
-        >
-          {status.label}
-        </span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

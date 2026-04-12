@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { getPaymentOverview } from "../actions";
 import { getApartmentById } from "@/data/apartments";
+import SortHeader from "@/components/admin/SortHeader";
 
 export const metadata: Metadata = {
   title: "Zahlungen",
@@ -24,8 +25,13 @@ function formatDate(dateStr: string) {
   });
 }
 
-export default async function ZahlungenPage() {
-  const { bookings, overdueCount, totalOutstanding } = await getPaymentOverview();
+export default async function ZahlungenPage({
+  searchParams,
+}: {
+  searchParams: { sort?: string; dir?: string };
+}) {
+  const { bookings, overdueCount, totalOutstanding } = await getPaymentOverview(searchParams.sort, searchParams.dir);
+  const sp = searchParams as Record<string, string | undefined>;
   const today = new Date().toISOString().split("T")[0];
 
   return (
@@ -58,13 +64,13 @@ export default async function ZahlungenPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-stone-100">
-                  <th className="text-left py-3 px-4 text-xs font-medium text-stone-500 uppercase tracking-wider">Gast</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-stone-500 uppercase tracking-wider">Wohnung</th>
-                  <th className="text-left py-3 px-4 text-xs font-medium text-stone-500 uppercase tracking-wider">Zeitraum</th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-stone-500 uppercase tracking-wider">Anzahlung</th>
-                  <th className="text-right py-3 px-4 text-xs font-medium text-stone-500 uppercase tracking-wider">Restbetrag</th>
-                  <th className="text-center py-3 px-4 text-xs font-medium text-stone-500 uppercase tracking-wider">Status</th>
+                <tr className="border-b border-stone-100 text-left text-xs text-stone-500 uppercase tracking-wider">
+                  <SortHeader column="last_name" label="Gast" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
+                  <th className="py-3 px-4 font-medium">Wohnung</th>
+                  <th className="py-3 px-4 font-medium">Zeitraum</th>
+                  <SortHeader column="deposit_amount" label="Anzahlung" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="right" />
+                  <SortHeader column="remainder_amount" label="Restbetrag" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="right" />
+                  <SortHeader column="payment_status" label="Status" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="center" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">

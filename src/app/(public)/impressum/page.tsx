@@ -43,19 +43,17 @@ export default function ImpressumPage() {
             </p>
           </section>
 
-          {contact.uid && (
-            <section>
-              <h2 className="text-xl font-semibold text-stone-900">
-                Umsatzsteuer-Identifikationsnummer
-              </h2>
-              <p>
-                Umsatzsteuer-Identifikationsnummer gemäß § 27a
-                Umsatzsteuergesetz:
-                <br />
-                {contact.uid}
-              </p>
-            </section>
-          )}
+          <section>
+            <h2 className="text-xl font-semibold text-stone-900">
+              Steuernummern
+            </h2>
+            <p>
+              Steuernummer: {contact.taxNumber}
+              <br />
+              Umsatzsteuer-Identifikationsnummer gemäß § 27a
+              Umsatzsteuergesetz: {contact.uid}
+            </p>
+          </section>
 
           <section>
             <h2 className="text-xl font-semibold text-stone-900">

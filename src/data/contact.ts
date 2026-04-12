@@ -23,7 +23,8 @@ export const contact = {
   emailHref: "mailto:info@ferienhaus-rita-kals.at",
 
   // Rechtliches
-  uid: "",
+  taxNumber: "83 381/5913",
+  uid: "ATU83130504",
   authority: "Bezirkshauptmannschaft Lienz",
 } as const;
 

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getBookings } from "../actions";
 import { apartments } from "@/data/apartments";
 import BookingFilters from "@/components/admin/BookingFilters";
+import SortHeader from "@/components/admin/SortHeader";
 
 export const metadata: Metadata = {
   title: "Buchungen",
@@ -46,9 +47,10 @@ const paymentLabels: Record<string, { label: string; className: string }> = {
 export default async function BookingsPage({
   searchParams,
 }: {
-  searchParams: { filter?: string; search?: string };
+  searchParams: { filter?: string; search?: string; sort?: string; dir?: string };
 }) {
-  const bookings = await getBookings(searchParams.filter, searchParams.search);
+  const bookings = await getBookings(searchParams.filter, searchParams.search, searchParams.sort, searchParams.dir);
+  const sp = searchParams as Record<string, string | undefined>;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
@@ -86,12 +88,12 @@ export default async function BookingsPage({
           <table className="w-full">
             <thead>
               <tr className="text-left text-xs text-stone-500 uppercase tracking-wider border-b border-stone-100">
-                <th className="px-5 py-3 font-medium">Gast</th>
-                <th className="px-5 py-3 font-medium">Wohnung</th>
-                <th className="px-5 py-3 font-medium">Zeitraum</th>
+                <SortHeader column="last_name" label="Gast" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
+                <SortHeader column="apartment_id" label="Wohnung" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
+                <SortHeader column="check_in" label="Zeitraum" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
                 <th className="px-5 py-3 font-medium">Gäste</th>
-                <th className="px-5 py-3 font-medium">Betrag</th>
-                <th className="px-5 py-3 font-medium">Status</th>
+                <SortHeader column="total_price" label="Betrag" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
+                <SortHeader column="status" label="Status" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
                 <th className="px-5 py-3 font-medium">Zahlung</th>
               </tr>
             </thead>
