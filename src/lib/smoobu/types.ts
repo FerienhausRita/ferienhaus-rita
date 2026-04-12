@@ -91,7 +91,7 @@ export interface CreateReservationPayload {
   lastName: string;
   email?: string;
   phone?: string;
-  address?: string;
+  address?: { street: string; postalCode: string; location: string; country: string };
   country?: string;
   adults?: number;
   children?: number;
