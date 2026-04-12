@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ReactNode } from "react";
 import {
   updateDisplayName,
   inviteAdmin,
@@ -9,6 +9,48 @@ import {
   triggerIcalSync,
   updateSiteSetting,
 } from "@/app/(admin)/admin/actions";
+
+/** Klappbare Sektion */
+function Section({
+  id,
+  title,
+  subtitle,
+  open,
+  onToggle,
+  children,
+}: {
+  id: string;
+  title: string;
+  subtitle?: string;
+  open: boolean;
+  onToggle: (id: string) => void;
+  children: ReactNode;
+}) {
+  return (
+    <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+      <button
+        type="button"
+        onClick={() => onToggle(id)}
+        className="w-full px-5 py-4 flex items-center justify-between text-left hover:bg-stone-50 transition-colors"
+      >
+        <div>
+          <h2 className="font-semibold text-stone-900">{title}</h2>
+          {subtitle && <p className="text-xs text-stone-500 mt-0.5">{subtitle}</p>}
+        </div>
+        <svg
+          className={`w-5 h-5 text-stone-400 transition-transform ${open ? "rotate-180" : ""}`}
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={1.5}
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+        </svg>
+      </button>
+      {open && <div className="p-5 border-t border-stone-100">{children}</div>}
+    </div>
+  );
+}
 
 interface AdminProfile {
   id: string;
@@ -119,6 +161,17 @@ export default function SettingsPanel({
   const [maxBookingDate, setMaxBookingDate] = useState(siteSettings.max_booking_date ?? "");
   const [maxDateLoading, setMaxDateLoading] = useState(false);
   const [maxDateMessage, setMaxDateMessage] = useState<string | null>(null);
+
+  // Accordion: welche Sektionen sind offen
+  const [openSections, setOpenSections] = useState<Set<string>>(new Set(["account"]));
+  const toggleSection = (id: string) => {
+    setOpenSections((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   const handleNameSave = async () => {
     if (!displayName.trim() || displayName.trim() === currentName) return;
@@ -311,11 +364,8 @@ export default function SettingsPanel({
   return (
     <div className="space-y-6">
       {/* Account */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Mein Konto</h2>
-        </div>
-        <div className="p-5 space-y-3">
+      <Section id="account" title="Mein Konto" open={openSections.has("account")} onToggle={toggleSection}>
+        <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-stone-500 mb-1">
               Anzeigename
@@ -348,21 +398,20 @@ export default function SettingsPanel({
             </p>
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* User Management */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
-          <h2 className="font-semibold text-stone-900">Benutzer</h2>
-          {currentRole === "admin" && (
+      <Section id="users" title="Benutzer" open={openSections.has("users")} onToggle={toggleSection}>
+        {currentRole === "admin" && (
+          <div className="mb-4">
             <button
               onClick={() => setShowInvite(!showInvite)}
               className="px-3 py-1.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors"
             >
               + Einladen
             </button>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Invite form */}
         {showInvite && (
@@ -493,17 +542,11 @@ export default function SettingsPanel({
             </div>
           ))}
         </div>
-      </div>
+      </Section>
 
       {/* Maximales Buchungsdatum */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Buchungszeitraum begrenzen</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Buchungen sind nur bis zu diesem Datum m&ouml;glich. Danach wird alles als &bdquo;nicht verf&uuml;gbar&ldquo; angezeigt &ndash; auch im iCal-Export f&uuml;r Airbnb/Booking.com.
-          </p>
-        </div>
-        <div className="p-5 space-y-4">
+      <Section id="max-date" title="Buchungszeitraum begrenzen" subtitle="Buchungen nur bis zu einem bestimmten Datum zulassen" open={openSections.has("max-date")} onToggle={toggleSection}>
+        <div className="space-y-4">
           <div className="flex items-center gap-3">
             <input
               type="date"
@@ -555,17 +598,11 @@ export default function SettingsPanel({
             <p className="text-xs text-emerald-600">{maxDateMessage}</p>
           )}
         </div>
-      </div>
+      </Section>
 
       {/* Bankdaten */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Bankdaten</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Werden in Buchungsbestätigungen und Zahlungserinnerungen angezeigt
-          </p>
-        </div>
-        <div className="p-5 space-y-3">
+      <Section id="bank" title="Bankdaten" subtitle="Werden in Buchungsbestätigungen und Zahlungserinnerungen angezeigt" open={openSections.has("bank")} onToggle={toggleSection}>
+        <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-stone-500 mb-1">IBAN</label>
@@ -591,17 +628,11 @@ export default function SettingsPanel({
             {bankMessage && <p className={successClass}>{bankMessage}</p>}
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* Check-in Informationen */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Check-in Informationen</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Werden automatisch vor dem Check-in an Gäste gesendet
-          </p>
-        </div>
-        <div className="p-5 space-y-3">
+      <Section id="checkin" title="Check-in Informationen" subtitle="Werden automatisch vor dem Check-in an Gäste gesendet" open={openSections.has("checkin")} onToggle={toggleSection}>
+        <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-stone-500 mb-1">Schlüsselübergabe</label>
             <textarea value={checkinKey} onChange={(e) => setCheckinKey(e.target.value)} className={textareaClass} placeholder="z.B. Schlüsselbox am Eingang, Code: 1234" rows={2} />
@@ -629,17 +660,11 @@ export default function SettingsPanel({
             {checkinMessage && <p className={successClass}>{checkinMessage}</p>}
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* E-Mail-Zeitplan */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">E-Mail-Zeitplan</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Automatischer Versand von E-Mails an Gäste
-          </p>
-        </div>
-        <div className="p-5 space-y-3">
+      <Section id="email-timing" title="E-Mail-Zeitplan" subtitle="Automatischer Versand von E-Mails an Gäste" open={openSections.has("email-timing")} onToggle={toggleSection}>
+        <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-stone-500 mb-1">
@@ -697,17 +722,11 @@ export default function SettingsPanel({
             {timingMessage && <p className={successClass}>{timingMessage}</p>}
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* Bewertungslink */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Bewertungslink</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Google-Bewertungslink in Danke-Mails einbinden
-          </p>
-        </div>
-        <div className="p-5 space-y-3">
+      <Section id="review" title="Bewertungslink" subtitle="Google-Bewertungslink in Danke-Mails einbinden" open={openSections.has("review")} onToggle={toggleSection}>
+        <div className="space-y-3">
           <div>
             <label className="block text-xs font-medium text-stone-500 mb-1">Google Bewertungs-URL</label>
             <input type="url" value={reviewUrl} onChange={(e) => setReviewUrl(e.target.value)} className={inputClass} placeholder="https://g.page/r/..." />
@@ -730,17 +749,11 @@ export default function SettingsPanel({
             {reviewMessage && <p className={successClass}>{reviewMessage}</p>}
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* Smoobu API */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Smoobu API</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Bidirektionale Synchronisation mit Smoobu Channel Manager
-          </p>
-        </div>
-        <div className="p-5 space-y-4">
+      <Section id="smoobu" title="Smoobu API" subtitle="Bidirektionale Synchronisation mit Smoobu Channel Manager" open={openSections.has("smoobu")} onToggle={toggleSection}>
+        <div className="space-y-4">
           {/* Enable toggle */}
           <div className="flex items-center justify-between">
             <div>
@@ -860,17 +873,11 @@ export default function SettingsPanel({
             </div>
           </div>
         </div>
-      </div>
+      </Section>
 
       {/* Backup */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Datenbank-Backup</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Tägliches automatisches Backup um 3 Uhr per E-Mail
-          </p>
-        </div>
-        <div className="p-5 space-y-4">
+      <Section id="backup" title="Datenbank-Backup" subtitle="T&auml;gliches automatisches Backup um 3 Uhr per E-Mail" open={openSections.has("backup")} onToggle={toggleSection}>
+        <div className="space-y-4">
           <p className="text-xs text-stone-400">
             Jeden Tag wird ein vollständiges Backup aller Buchungen, Gästedaten, Einstellungen und Nachrichten als JSON-Datei an {process.env.NEXT_PUBLIC_NOTIFICATION_EMAIL || "deine E-Mail"} gesendet.
           </p>
@@ -894,24 +901,21 @@ export default function SettingsPanel({
             </div>
           )}
         </div>
-      </div>
+      </Section>
 
       {/* iCal Sync */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">iCal-Sync</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Automatischer Import alle 15 Minuten via Vercel Cron
-          </p>
-        </div>
-        <div className="p-5 space-y-4">
-          <button
-            onClick={handleSync}
-            disabled={syncLoading}
-            className={btnClass}
-          >
-            {syncLoading ? "Sync läuft..." : "Jetzt synchronisieren"}
-          </button>
+      <Section id="ical" title="iCal-Synchronisation" subtitle="Kalender-Abgleich mit Airbnb, Booking.com und anderen Plattformen" open={openSections.has("ical")} onToggle={toggleSection}>
+        <div className="space-y-5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleSync}
+              disabled={syncLoading}
+              className={btnClass}
+            >
+              {syncLoading ? "Sync l\u00e4uft..." : "Jetzt synchronisieren"}
+            </button>
+            <p className="text-xs text-stone-400">T\u00e4glich automatisch um 6 Uhr</p>
+          </div>
 
           {/* Sync results */}
           {syncResult && (
@@ -923,7 +927,7 @@ export default function SettingsPanel({
                 <div key={apt} className="flex items-center gap-2 text-xs text-emerald-600">
                   <span className="font-medium">{apt}:</span>
                   <span>
-                    {res.imported} importiert, {res.deleted} gelöscht
+                    {res.imported} importiert, {res.deleted} gel\u00f6scht
                     {res.error && (
                       <span className="text-red-500 ml-1">({res.error})</span>
                     )}
@@ -933,66 +937,79 @@ export default function SettingsPanel({
             </div>
           )}
 
-          {/* Import URLs (from Smoobu) */}
+          {/* Import: Externe Plattformen → Rita */}
           <div>
-            <h3 className="text-sm font-medium text-stone-700 mb-2">
-              Import-Feeds (Smoobu → Rita)
+            <h3 className="text-sm font-medium text-stone-700 mb-1">
+              Import-Feeds (Plattformen &rarr; Rita)
             </h3>
-            <div className="space-y-2">
+            <p className="text-xs text-stone-400 mb-3">
+              Buchungen von externen Plattformen werden automatisch importiert und blockieren den Kalender.
+            </p>
+            <div className="space-y-3">
               {icalFeeds.map((feed) => (
-                <div key={feed.apartmentId} className="text-xs">
-                  <span className="font-medium text-stone-700">
-                    {feed.apartmentName}:
-                  </span>
-                  {feed.urls.map((url, i) => (
-                    <div key={i} className="flex items-center gap-1 mt-0.5">
-                      <code className="flex-1 bg-stone-50 rounded px-2 py-1 text-stone-500 truncate">
-                        {url}
-                      </code>
-                    </div>
-                  ))}
+                <div key={feed.apartmentId} className="bg-stone-50 rounded-xl p-3">
+                  <p className="text-sm font-medium text-stone-800 mb-2">
+                    {feed.apartmentName}
+                  </p>
+                  <div className="space-y-1.5">
+                    {feed.urls.map((url, i) => {
+                      const source = url.includes("airbnb") ? "Airbnb" : url.includes("smoobu") ? "Smoobu" : url.includes("booking") ? "Booking.com" : "Extern";
+                      const badgeColor = source === "Airbnb" ? "bg-rose-100 text-rose-700" : source === "Smoobu" ? "bg-blue-100 text-blue-700" : source === "Booking.com" ? "bg-indigo-100 text-indigo-700" : "bg-stone-100 text-stone-600";
+                      return (
+                        <div key={i} className="flex items-center gap-2">
+                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badgeColor}`}>
+                            {source}
+                          </span>
+                          <code className="flex-1 text-[11px] text-stone-400 truncate">
+                            {url}
+                          </code>
+                        </div>
+                      );
+                    })}
+                    {feed.urls.length === 0 && (
+                      <p className="text-xs text-stone-400 italic">Keine Import-Feeds konfiguriert</p>
+                    )}
+                  </div>
                 </div>
               ))}
             </div>
           </div>
 
-          {/* Export URLs (Rita → Smoobu) */}
+          {/* Export: Rita → Externe Plattformen */}
           <div>
-            <h3 className="text-sm font-medium text-stone-700 mb-2">
-              Export-Feeds (Rita → Smoobu)
+            <h3 className="text-sm font-medium text-stone-700 mb-1">
+              Export-Feeds (Rita &rarr; Plattformen)
             </h3>
-            <p className="text-xs text-stone-500 mb-2">
-              Diese URLs in Smoobu als iCal-Import eintragen:
+            <p className="text-xs text-stone-400 mb-3">
+              Diese URLs bei Airbnb, Booking.com oder anderen Plattformen als iCal-Import eintragen, damit dort Website-Buchungen als blockiert erscheinen.
             </p>
             <div className="space-y-2">
               {icalFeeds.map((feed) => {
                 const exportUrl = `${exportBaseUrl}/api/ical/${feed.apartmentId}`;
                 return (
-                  <div key={feed.apartmentId} className="text-xs">
-                    <span className="font-medium text-stone-700">
+                  <div key={feed.apartmentId} className="flex items-center gap-2 text-xs">
+                    <span className="font-medium text-stone-700 w-36 shrink-0 truncate">
                       {feed.apartmentName}:
                     </span>
-                    <div className="flex items-center gap-1 mt-0.5">
-                      <code className="flex-1 bg-stone-50 rounded px-2 py-1 text-stone-500 truncate">
-                        {exportUrl}
-                      </code>
-                      <button
-                        onClick={() => handleCopyUrl(exportUrl)}
-                        className="shrink-0 px-2 py-1 text-[#c8a96e] hover:text-[#b89555] transition-colors"
-                        title="Kopieren"
-                      >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                        </svg>
-                      </button>
-                    </div>
+                    <code className="flex-1 bg-stone-50 rounded px-2 py-1.5 text-stone-500 truncate">
+                      {exportUrl}
+                    </code>
+                    <button
+                      onClick={() => handleCopyUrl(exportUrl)}
+                      className="shrink-0 px-2 py-1 text-[#c8a96e] hover:text-[#b89555] transition-colors"
+                      title="Kopieren"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
+                      </svg>
+                    </button>
                   </div>
                 );
               })}
             </div>
           </div>
         </div>
-      </div>
+      </Section>
     </div>
   );
 }
