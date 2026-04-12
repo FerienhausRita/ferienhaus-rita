@@ -1,10 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   updateBookingStatus,
   updatePaymentStatus,
   resendConfirmation,
+  deleteBooking,
 } from "@/app/(admin)/admin/actions";
 
 const statusTransitions: Record<string, { label: string; next: string; className: string }[]> = {
@@ -46,6 +48,7 @@ export default function BookingActions({
   guestEmail,
   guestPhone,
 }: BookingActionsProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{
     type: "success" | "error";
@@ -103,6 +106,23 @@ export default function BookingActions({
       setMessage({ type: "success", text: "Bestätigung erneut gesendet" });
     } else {
       setMessage({ type: "error", text: result.error || "Fehler" });
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!confirm("Buchung endgültig löschen? Diese Aktion kann nicht rückgängig gemacht werden.")) return;
+    if (!confirm("Wirklich löschen? Alle zugehörigen Daten (Meldeschein, E-Mails, Zahlungen) werden ebenfalls entfernt.")) return;
+
+    setLoading("delete");
+    setMessage(null);
+
+    const result = await deleteBooking(bookingId);
+
+    if (result.success) {
+      router.push("/admin/buchungen");
+    } else {
+      setLoading(null);
+      setMessage({ type: "error", text: result.error || "Fehler beim Löschen" });
     }
   };
 
@@ -229,6 +249,24 @@ export default function BookingActions({
           </button>
         </div>
       </div>
+
+      {/* Delete Booking */}
+      {(currentStatus === "cancelled" || currentStatus === "completed") && (
+        <div className="bg-white rounded-2xl border border-red-200 overflow-hidden">
+          <div className="p-5">
+            <button
+              onClick={handleDelete}
+              disabled={loading !== null}
+              className="w-full py-2.5 px-4 rounded-xl text-sm font-medium text-red-600 border border-red-200 hover:bg-red-50 transition-colors disabled:opacity-50"
+            >
+              {loading === "delete" ? "Wird gelöscht..." : "Buchung endgültig löschen"}
+            </button>
+            <p className="text-[11px] text-stone-400 mt-2 text-center">
+              Entfernt die Buchung und alle zugehörigen Daten unwiderruflich
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Message */}
       {message && (

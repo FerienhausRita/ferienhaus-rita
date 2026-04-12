@@ -598,6 +598,76 @@ export async function updateBookingStatus(
 }
 
 /**
+ * Permanently delete a booking
+ */
+export async function deleteBooking(bookingId: string) {
+  const supabase = createServerClient();
+
+  // Get booking to check for Smoobu reservation
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("id, smoobu_reservation_id, email")
+    .eq("id", bookingId)
+    .single();
+
+  if (!booking) {
+    return { success: false, error: "Buchung nicht gefunden" };
+  }
+
+  // Cancel in Smoobu if linked
+  if (booking.smoobu_reservation_id) {
+    try {
+      const { cancelBookingInSmoobu } = await import("@/lib/smoobu/sync");
+      await cancelBookingInSmoobu(bookingId);
+    } catch {
+      // Non-critical
+    }
+  }
+
+  // Delete related records first
+  await supabase.from("email_schedule").delete().eq("booking_id", bookingId);
+  await supabase.from("booking_line_items").delete().eq("booking_id", bookingId);
+  await supabase.from("meldeschein").delete().eq("booking_id", bookingId);
+  await supabase.from("smoobu_sync_log").delete().eq("booking_id", bookingId);
+
+  // Delete the booking
+  const { error } = await supabase
+    .from("bookings")
+    .delete()
+    .eq("id", bookingId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  // Recalculate guest stats
+  if (booking.email) {
+    try {
+      const { data: guestBookings } = await supabase
+        .from("bookings")
+        .select("total_price")
+        .eq("email", booking.email)
+        .neq("status", "cancelled");
+
+      const totalRevenue = guestBookings?.reduce((sum, b) => sum + Number(b.total_price || 0), 0) ?? 0;
+      const totalStays = guestBookings?.length ?? 0;
+
+      await supabase
+        .from("guests")
+        .update({ total_revenue: totalRevenue, total_stays: totalStays })
+        .eq("email", booking.email);
+    } catch {
+      // Non-critical
+    }
+  }
+
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin");
+  revalidatePath("/admin/gaeste");
+  return { success: true };
+}
+
+/**
  * Update payment status (legacy – kept for backward compat)
  */
 export async function updatePaymentStatus(
