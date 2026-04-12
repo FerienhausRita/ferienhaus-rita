@@ -70,6 +70,8 @@ export default function SettingsPanel({
   const [smoobuResult, setSmoobuResult] = useState<{ success: boolean; stats?: Record<string, number>; error?: string } | null>(null);
   const [smoobuTesting, setSmoobuTesting] = useState(false);
   const [smoobuTestResult, setSmoobuTestResult] = useState<{ success: boolean; apartments?: { id: number; name: string }[]; error?: string } | null>(null);
+  const [smoobuPushingAll, setSmoobuPushingAll] = useState(false);
+  const [smoobuPushAllResult, setSmoobuPushAllResult] = useState<{ success: boolean; stats?: Record<string, number>; message?: string; error?: string } | null>(null);
 
   // Admin list
   const [adminList, setAdminList] = useState(admins);
@@ -206,6 +208,20 @@ export default function SettingsPanel({
       setSmoobuResult({ success: false, error: "Sync fehlgeschlagen" });
     }
     setSmoobuSyncing(false);
+  };
+
+  const handleSmoobuPushAll = async () => {
+    if (!confirm("Alle bestehenden Buchungen an Smoobu übertragen? Bestehende Datumsblockierungen werden durch vollständige Buchungen mit Gästedaten ersetzt.")) return;
+    setSmoobuPushingAll(true);
+    setSmoobuPushAllResult(null);
+    try {
+      const res = await fetch("/api/admin/smoobu/push-all", { method: "POST" });
+      const data = await res.json();
+      setSmoobuPushAllResult(data);
+    } catch {
+      setSmoobuPushAllResult({ success: false, error: "Übertragung fehlgeschlagen" });
+    }
+    setSmoobuPushingAll(false);
   };
 
   const handleBankSave = async () => {
@@ -698,6 +714,35 @@ export default function SettingsPanel({
                 </div>
               ) : (
                 <p className="text-sm text-red-600">{smoobuResult.error || "Sync fehlgeschlagen"}</p>
+              )}
+            </div>
+          )}
+
+          {/* Push all existing bookings */}
+          <div className="border-t border-stone-100 pt-4">
+            <p className="text-sm font-medium text-stone-700 mb-1">Bestehende Buchungen übertragen</p>
+            <p className="text-xs text-stone-400 mb-2">
+              Überträgt alle lokalen Buchungen mit vollständigen Gästedaten (Name, E-Mail, Preis) an Smoobu. Ersetzt leere Datumsblockierungen durch echte Reservierungen.
+            </p>
+            <button onClick={handleSmoobuPushAll} disabled={smoobuPushingAll} className={btnClass}>
+              {smoobuPushingAll ? "Übertrage..." : "Alle Buchungen an Smoobu senden"}
+            </button>
+          </div>
+
+          {smoobuPushAllResult && (
+            <div className={`rounded-xl p-4 ${smoobuPushAllResult.success ? "bg-emerald-50" : "bg-red-50"}`}>
+              {smoobuPushAllResult.success && smoobuPushAllResult.stats ? (
+                <div>
+                  <p className="text-sm font-medium text-emerald-700 mb-1">Übertragung abgeschlossen</p>
+                  <div className="grid grid-cols-2 gap-1 text-xs text-emerald-600">
+                    <span>Gesamt: {smoobuPushAllResult.stats.total}</span>
+                    <span>Übertragen: {smoobuPushAllResult.stats.pushed}</span>
+                    <span>Übersprungen: {smoobuPushAllResult.stats.skipped}</span>
+                    <span>Fehler: {smoobuPushAllResult.stats.failed}</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-red-600">{smoobuPushAllResult.error || "Übertragung fehlgeschlagen"}</p>
               )}
             </div>
           )}
