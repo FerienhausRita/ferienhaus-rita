@@ -121,6 +121,7 @@ export interface UpdateReservationPayload {
 export interface SmoobuConfig {
   enabled: boolean;
   apartment_mapping: Record<string, number>; // local slug → Smoobu ID
+  website_channel_id?: number; // Smoobu channel ID for "Website" / direct bookings
   pricing_source: "local" | "smoobu";
   last_sync_at: string | null;
 }

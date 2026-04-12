@@ -215,15 +215,13 @@ export async function pushBookingToSmoobu(bookingId: string): Promise<boolean> {
     }
 
     // Create new reservation in Smoobu
-    // channelId: use the "Direct booking" channel from Smoobu settings
-    const settingsChannelId = config.apartment_mapping
-      ? 0 // Will use default channel
-      : 0;
+    // channelId: "Website" channel from Smoobu account
+    const websiteChannelId = config.website_channel_id ?? 6337157;
 
     const result = await smoobu.createReservation({
       arrivalDate: booking.check_in,
       departureDate: booking.check_out,
-      channelId: settingsChannelId,
+      channelId: websiteChannelId,
       apartmentId: smoobuApartmentId,
       firstName: booking.first_name,
       lastName: booking.last_name,
