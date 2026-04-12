@@ -73,6 +73,10 @@ export default function SettingsPanel({
   const [smoobuPushingAll, setSmoobuPushingAll] = useState(false);
   const [smoobuPushAllResult, setSmoobuPushAllResult] = useState<{ success: boolean; stats?: Record<string, number>; message?: string; error?: string } | null>(null);
 
+  // Backup
+  const [backupRunning, setBackupRunning] = useState(false);
+  const [backupResult, setBackupResult] = useState<{ success: boolean; stats?: Record<string, number>; error?: string } | null>(null);
+
   // Admin list
   const [adminList, setAdminList] = useState(admins);
   const [loading, setLoading] = useState<string | null>(null);
@@ -222,6 +226,19 @@ export default function SettingsPanel({
       setSmoobuPushAllResult({ success: false, error: "Übertragung fehlgeschlagen" });
     }
     setSmoobuPushingAll(false);
+  };
+
+  const handleBackupNow = async () => {
+    setBackupRunning(true);
+    setBackupResult(null);
+    try {
+      const res = await fetch("/api/cron/backup");
+      const data = await res.json();
+      setBackupResult(data);
+    } catch {
+      setBackupResult({ success: false, error: "Backup fehlgeschlagen" });
+    }
+    setBackupRunning(false);
   };
 
   const handleBankSave = async () => {
@@ -775,6 +792,40 @@ export default function SettingsPanel({
               </button>
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Backup */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Datenbank-Backup</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Tägliches automatisches Backup um 3 Uhr per E-Mail
+          </p>
+        </div>
+        <div className="p-5 space-y-4">
+          <p className="text-xs text-stone-400">
+            Jeden Tag wird ein vollständiges Backup aller Buchungen, Gästedaten, Einstellungen und Nachrichten als JSON-Datei an {process.env.NEXT_PUBLIC_NOTIFICATION_EMAIL || "deine E-Mail"} gesendet.
+          </p>
+          <button onClick={handleBackupNow} disabled={backupRunning} className={btnClass}>
+            {backupRunning ? "Backup läuft..." : "Jetzt Backup erstellen"}
+          </button>
+          {backupResult && (
+            <div className={`rounded-xl p-4 ${backupResult.success ? "bg-emerald-50" : "bg-red-50"}`}>
+              {backupResult.success && backupResult.stats ? (
+                <div>
+                  <p className="text-sm font-medium text-emerald-700 mb-1">Backup erstellt und versendet</p>
+                  <div className="grid grid-cols-2 gap-1 text-xs text-emerald-600">
+                    <span>Tabellen: {backupResult.stats.tables}</span>
+                    <span>Datensätze: {backupResult.stats.rows}</span>
+                    <span>Größe: {backupResult.stats.sizeKB} KB</span>
+                  </div>
+                </div>
+              ) : (
+                <p className="text-sm text-red-600">{backupResult.error || "Backup fehlgeschlagen"}</p>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
