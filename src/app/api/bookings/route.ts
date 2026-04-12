@@ -316,6 +316,16 @@ export async function POST(request: NextRequest) {
     // Note: Automated emails (payment reminder, check-in info, thank you)
     // are now scheduled when admin confirms the booking (status → confirmed)
 
+    // Push to Smoobu (non-blocking — don't fail the booking if sync fails)
+    try {
+      const { pushBookingToSmoobu } = await import("@/lib/smoobu/sync");
+      pushBookingToSmoobu(booking.id).catch((err: unknown) =>
+        console.error("Smoobu push error:", err),
+      );
+    } catch {
+      // Smoobu module not available — ignore
+    }
+
     return NextResponse.json({
       success: true,
       bookingId: booking.id,

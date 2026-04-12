@@ -104,6 +104,11 @@ export default async function BookingsPage({
                       className="font-medium text-stone-900 text-sm hover:text-[#c8a96e] transition-colors"
                     >
                       {booking.first_name} {booking.last_name}
+                      {booking.source_channel && booking.source_channel !== "Website" && (
+                        <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">
+                          {booking.source_channel}
+                        </span>
+                      )}
                     </Link>
                     <p className="text-xs text-stone-400 mt-0.5">
                       {booking.email}
@@ -170,6 +175,11 @@ export default async function BookingsPage({
               <div>
                 <p className="font-medium text-stone-900 text-sm">
                   {booking.first_name} {booking.last_name}
+                  {booking.source_channel && booking.source_channel !== "Website" && (
+                    <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded bg-blue-50 text-blue-600 font-medium">
+                      {booking.source_channel}
+                    </span>
+                  )}
                 </p>
                 <p className="text-xs text-stone-500">
                   {getApartmentName(booking.apartment_id)}

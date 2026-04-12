@@ -246,7 +246,7 @@ export async function getBookings(filter?: string, search?: string) {
   let query = supabase
     .from("bookings")
     .select(
-      "id, apartment_id, first_name, last_name, email, phone, check_in, check_out, adults, children, dogs, total_price, status, payment_status, created_at, notes"
+      "id, apartment_id, first_name, last_name, email, phone, check_in, check_out, adults, children, dogs, total_price, status, payment_status, created_at, notes, source_channel"
     )
     .order("created_at", { ascending: false });
 
@@ -571,6 +571,23 @@ export async function updateBookingStatus(
       .eq("email", booking.email);
   } catch (e) {
     console.error("Error recalculating guest stats:", e);
+  }
+
+  // Sync with Smoobu (non-blocking)
+  try {
+    if (status === "confirmed") {
+      const { pushBookingToSmoobu } = await import("@/lib/smoobu/sync");
+      pushBookingToSmoobu(bookingId).catch((err: unknown) =>
+        console.error("Smoobu push error:", err),
+      );
+    } else if (status === "cancelled") {
+      const { cancelBookingInSmoobu } = await import("@/lib/smoobu/sync");
+      cancelBookingInSmoobu(bookingId).catch((err: unknown) =>
+        console.error("Smoobu cancel error:", err),
+      );
+    }
+  } catch {
+    // Smoobu module not available — ignore
   }
 
   revalidatePath("/admin/buchungen");
