@@ -5,11 +5,14 @@ import { createHmac } from "crypto";
 // ---------------------------------------------------------------------------
 
 function getSecret(): string {
-  return (
-    process.env.GUEST_AUTH_SECRET ||
-    process.env.CRON_SECRET ||
-    "dev-guest-auth-secret-change-me"
-  );
+  const secret = process.env.GUEST_AUTH_SECRET || process.env.CRON_SECRET;
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      throw new Error("GUEST_AUTH_SECRET or CRON_SECRET must be set in production");
+    }
+    return "dev-guest-auth-secret-change-me";
+  }
+  return secret;
 }
 
 // ---------------------------------------------------------------------------

@@ -30,17 +30,16 @@ function verifyAuth(request: NextRequest): boolean {
   const authHeader = request.headers.get("authorization");
   const vercelCron = request.headers.get("x-vercel-cron");
 
+  // Vercel Cron header (set automatically by Vercel)
+  if (vercelCron) return true;
+
+  // Bearer token matching CRON_SECRET
   if (process.env.CRON_SECRET) {
     if (authHeader === `Bearer ${process.env.CRON_SECRET}`) return true;
   }
-  if (vercelCron) return true;
 
-  // Allow admin triggers (via referer from admin panel)
-  const referer = request.headers.get("referer");
-  if (referer?.includes("/admin/")) return true;
-
-  // If no CRON_SECRET set, allow all (for development)
-  if (!process.env.CRON_SECRET) return true;
+  // Development mode only
+  if (!process.env.CRON_SECRET && process.env.NODE_ENV !== "production") return true;
 
   return false;
 }

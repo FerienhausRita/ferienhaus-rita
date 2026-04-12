@@ -19,23 +19,17 @@ import { createLoyaltyCode } from "@/lib/loyalty";
 // ---------------------------------------------------------------------------
 
 function verifyAuth(request: NextRequest): boolean {
-  const cronSecret = request.headers.get("authorization");
+  const authHeader = request.headers.get("authorization");
   const vercelCron = request.headers.get("x-vercel-cron");
 
-  if (process.env.CRON_SECRET) {
-    if (cronSecret === `Bearer ${process.env.CRON_SECRET}`) return true;
-  }
-
+  // Vercel Cron header
   if (vercelCron) return true;
 
-  if (
-    cronSecret &&
-    cronSecret === `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
-  ) {
-    return true;
-  }
+  // Bearer token matching CRON_SECRET
+  if (process.env.CRON_SECRET && authHeader === `Bearer ${process.env.CRON_SECRET}`) return true;
 
-  if (process.env.NODE_ENV === "development") return true;
+  // Development mode only
+  if (!process.env.CRON_SECRET && process.env.NODE_ENV !== "production") return true;
 
   return false;
 }

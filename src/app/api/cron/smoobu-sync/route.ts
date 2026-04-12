@@ -13,14 +13,14 @@ export async function GET(request: NextRequest) {
   const vercelCron = request.headers.get("x-vercel-cron");
   const cronSecret = process.env.CRON_SECRET;
 
-  if (cronSecret) {
-    const isVercelCron = !!vercelCron;
-    const hasValidSecret = authHeader === `Bearer ${cronSecret}`;
-    // Allow: Vercel cron, valid secret, or requests from admin (via referer)
-    const isAdminTrigger = request.headers.get("referer")?.includes("/admin/");
-    if (!isVercelCron && !hasValidSecret && !isAdminTrigger) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (vercelCron) {
+    // Vercel Cron – OK
+  } else if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    // Bearer token – OK
+  } else if (!cronSecret && process.env.NODE_ENV !== "production") {
+    // Development mode – OK
+  } else {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const enabled = await isSmoobuEnabled();
