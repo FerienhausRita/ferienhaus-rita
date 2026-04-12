@@ -8,12 +8,19 @@ export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow up to 60s for full sync
 
 export async function GET(request: NextRequest) {
-  // Verify cron secret (Vercel cron) or allow manual trigger from admin
+  // Verify cron secret or Vercel cron header
   const authHeader = request.headers.get("authorization");
+  const vercelCron = request.headers.get("x-vercel-cron");
   const cronSecret = process.env.CRON_SECRET;
-  if (cronSecret && authHeader !== `Bearer ${cronSecret}`) {
-    // Also allow without secret for manual admin triggers
-    // (admin auth is checked separately if needed)
+
+  if (cronSecret) {
+    const isVercelCron = !!vercelCron;
+    const hasValidSecret = authHeader === `Bearer ${cronSecret}`;
+    // Allow: Vercel cron, valid secret, or requests from admin (via referer)
+    const isAdminTrigger = request.headers.get("referer")?.includes("/admin/");
+    if (!isVercelCron && !hasValidSecret && !isAdminTrigger) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
   }
 
   const enabled = await isSmoobuEnabled();
