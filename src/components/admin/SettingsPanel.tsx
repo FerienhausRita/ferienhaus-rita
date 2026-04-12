@@ -661,7 +661,7 @@ export default function SettingsPanel({
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-stone-700">Integration aktiv</p>
-              <p className="text-xs text-stone-400">Aktiviert den automatischen Sync alle 15 Minuten</p>
+              <p className="text-xs text-stone-400">Aktiviert Webhook-Empfang und täglichen Sync um 7 Uhr</p>
             </div>
             <button
               onClick={handleSmoobuToggle}

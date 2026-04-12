@@ -36,6 +36,10 @@ class SmoobuClient {
     if (this.failCount >= 5 && Date.now() < this.circuitOpenUntil) {
       throw new SmoobuApiError(503, "Circuit breaker open – Smoobu temporarily unavailable");
     }
+    // Reset fail count once cooldown has expired
+    if (this.failCount >= 5 && Date.now() >= this.circuitOpenUntil) {
+      this.failCount = 0;
+    }
 
     const url = `${BASE_URL}${path}`;
     const res = await fetch(url, {

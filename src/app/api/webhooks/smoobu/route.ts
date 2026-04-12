@@ -6,6 +6,17 @@ import type { SmoobuReservation } from "@/lib/smoobu/types";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
+  // Verify webhook secret (optional but recommended)
+  // Set SMOOBU_WEBHOOK_SECRET in Vercel env vars, then use URL:
+  // https://www.ferienhaus-rita-kals.at/api/webhooks/smoobu?secret=YOUR_SECRET
+  const webhookSecret = process.env.SMOOBU_WEBHOOK_SECRET;
+  if (webhookSecret) {
+    const providedSecret = request.nextUrl.searchParams.get("secret");
+    if (providedSecret !== webhookSecret) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  }
+
   const enabled = await isSmoobuEnabled();
   if (!enabled) {
     return NextResponse.json({ error: "Smoobu integration disabled" }, { status: 503 });

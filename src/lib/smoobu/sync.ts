@@ -105,10 +105,10 @@ export async function syncReservationFromSmoobu(
     return { action: "skipped" };
   }
 
-  // Calculate nights
-  const arrival = new Date(reservation.arrival);
-  const departure = new Date(reservation.departure);
-  const nights = Math.round((departure.getTime() - arrival.getTime()) / 86400000);
+  // Calculate nights (use UTC to avoid timezone drift)
+  const arrival = new Date(reservation.arrival + "T00:00:00Z");
+  const departure = new Date(reservation.departure + "T00:00:00Z");
+  const nights = Math.max(1, Math.round((departure.getTime() - arrival.getTime()) / 86400000));
 
   // Create new booking from external source
   const { data: booking, error } = await supabase

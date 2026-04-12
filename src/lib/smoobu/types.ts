@@ -5,22 +5,6 @@ export interface SmoobuApartment {
   name: string;
 }
 
-export interface SmoobuApartmentDetail extends SmoobuApartment {
-  location?: {
-    street?: string;
-    postalCode?: string;
-    city?: string;
-    country?: string;
-    latitude?: number;
-    longitude?: number;
-  };
-  timeZone?: string;
-  currency?: string;
-  rooms?: { maxOccupancy?: number };
-  price?: { minimal?: number; maximal?: number };
-  type?: { id: number; name: string };
-}
-
 export interface SmoobuChannel {
   id: number;
   channel_id: number;
@@ -67,20 +51,6 @@ export interface SmoobuReservationsResponse {
   bookings: SmoobuReservation[];
 }
 
-export interface SmoobuGuest {
-  id: number;
-  firstName: string;
-  lastName: string;
-  companyName?: string;
-  emails?: string[];
-  telephoneNumbers?: string[];
-  address?: {
-    street?: string;
-    postalCode?: string;
-    city?: string;
-    country?: string;
-  };
-}
 
 export interface CreateReservationPayload {
   arrivalDate: string;

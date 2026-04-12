@@ -34,9 +34,14 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect admin routes
-  if (request.nextUrl.pathname.startsWith("/admin")) {
+  // Protect admin routes (pages and API endpoints)
+  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname.startsWith("/api/admin");
+  if (isAdminRoute) {
     if (!user) {
+      // API routes get JSON 401, pages get redirected to login
+      if (request.nextUrl.pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
       const loginUrl = new URL("/auth/login", request.url);
       loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
       return NextResponse.redirect(loginUrl);
@@ -51,6 +56,9 @@ export async function middleware(request: NextRequest) {
 
     if (!profile) {
       // User is authenticated but not an admin
+      if (request.nextUrl.pathname.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
       await supabase.auth.signOut();
       const loginUrl = new URL("/auth/login", request.url);
       loginUrl.searchParams.set("error", "unauthorized");
@@ -75,5 +83,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/auth/login"],
+  matcher: ["/admin/:path*", "/api/admin/:path*", "/auth/login"],
 };
