@@ -1009,3 +1009,112 @@ export async function sendLoyaltyEmail(
     html,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Task notifications
+// ---------------------------------------------------------------------------
+
+const categoryLabels: Record<string, string> = {
+  anreise: "Anreise",
+  abreise: "Abreise",
+  reinigung: "Reinigung",
+  wartung: "Wartung",
+  allgemein: "Allgemein",
+};
+
+export async function sendTaskNotification(
+  task: {
+    title: string;
+    description?: string;
+    dueDate?: string;
+    category: string;
+    assignedTo?: string;
+  },
+  recipientEmail: string
+): Promise<void> {
+  const transporter = createTransporter();
+
+  const dueDateStr = task.dueDate
+    ? new Date(task.dueDate + "T00:00:00").toLocaleDateString("de-AT", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+      })
+    : "Kein Datum";
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Hallo${task.assignedTo ? ` ${escapeHtml(task.assignedTo)}` : ""},
+    </p>
+
+    <h2 style="margin:0 0 12px;font-size:20px;color:${DARK};">Neue Aufgabe</h2>
+
+    <div style="background:${CARD_BG};border-radius:12px;padding:20px;margin:0 0 20px;">
+      <p style="font-size:16px;font-weight:600;color:${DARK};margin:0 0 8px;">
+        ${escapeHtml(task.title)}
+      </p>
+      ${task.description ? `<p style="font-size:13px;color:${GRAY};margin:0 0 12px;line-height:1.6;">${escapeHtml(task.description)}</p>` : ""}
+      <table style="font-size:13px;color:${GRAY};" cellpadding="0" cellspacing="0">
+        <tr>
+          <td style="padding:2px 12px 2px 0;font-weight:600;">Kategorie:</td>
+          <td>${categoryLabels[task.category] || task.category}</td>
+        </tr>
+        <tr>
+          <td style="padding:2px 12px 2px 0;font-weight:600;">F\u00e4llig:</td>
+          <td>${dueDateStr}</td>
+        </tr>
+      </table>
+    </div>
+
+    ${ctaButton("Aufgaben ansehen", `${BASE_URL}/admin/aufgaben`)}
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(content, `Neue Aufgabe: ${task.title}`);
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: recipientEmail,
+    subject: `Neue Aufgabe: ${task.title} \u2013 Ferienhaus Rita`,
+    html,
+  });
+}
+
+export async function sendTaskReminder(
+  task: { title: string; dueDate: string },
+  recipientEmail: string
+): Promise<void> {
+  const transporter = createTransporter();
+
+  const dueDateStr = new Date(task.dueDate + "T00:00:00").toLocaleDateString("de-AT", {
+    day: "2-digit",
+    month: "long",
+    year: "numeric",
+  });
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Hallo,
+    </p>
+
+    <div style="background:#fef3c7;border:1px solid #f59e0b;border-radius:12px;padding:16px;margin:0 0 20px;">
+      <p style="font-size:14px;color:#92400e;margin:0;">
+        <strong>Erinnerung:</strong> Die Aufgabe &bdquo;${escapeHtml(task.title)}&ldquo; ist morgen f\u00e4llig (${dueDateStr}).
+      </p>
+    </div>
+
+    ${ctaButton("Aufgaben ansehen", `${BASE_URL}/admin/aufgaben`)}
+
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(content, `Erinnerung: ${task.title} f\u00e4llig`);
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: recipientEmail,
+    subject: `Erinnerung: ${task.title} morgen f\u00e4llig \u2013 Ferienhaus Rita`,
+    html,
+  });
+}

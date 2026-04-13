@@ -402,6 +402,15 @@ export async function updateBookingStatus(
     return { success: false, error: error.message };
   }
 
+  // When confirming: auto-assign invoice number if not yet assigned
+  if (status === "confirmed" && booking.status !== "confirmed" && !booking.invoice_number) {
+    try {
+      await assignInvoiceNumber(bookingId);
+    } catch (invoiceError) {
+      console.error("Error auto-assigning invoice number:", invoiceError);
+    }
+  }
+
   // When confirming: send confirmation email + schedule automated emails
   if (status === "confirmed" && booking.status !== "confirmed") {
     try {
@@ -1369,6 +1378,7 @@ export async function createTask(task: {
   category: string;
   apartment_id?: string;
   booking_id?: string;
+  assigned_to?: string;
 }) {
   const supabase = createServerClient();
   const authClient = createAuthServerClient();
@@ -1385,9 +1395,54 @@ export async function createTask(task: {
     return { success: false, error: error.message };
   }
 
+  // E-Mail-Benachrichtigung an zugewiesenen Admin oder alle Admins
+  try {
+    const { sendTaskNotification } = await import("@/lib/email");
+    const { data: adminList } = await supabase
+      .from("admin_profiles")
+      .select("id, display_name, email");
+
+    if (adminList && adminList.length > 0) {
+      const recipients = task.assigned_to
+        ? adminList.filter((a) => a.id === task.assigned_to)
+        : adminList;
+
+      for (const admin of recipients) {
+        if (admin.email && admin.id !== user.id) {
+          await sendTaskNotification({
+            title: task.title,
+            description: task.description,
+            dueDate: task.due_date,
+            category: task.category,
+            assignedTo: admin.display_name,
+          }, admin.email);
+        }
+      }
+    }
+  } catch (emailError) {
+    console.error("Error sending task notification:", emailError);
+  }
+
   revalidatePath("/admin/aufgaben");
   revalidatePath("/admin");
   return { success: true };
+}
+
+/**
+ * Get list of admin users (for task assignment etc.)
+ */
+export async function getAdminList() {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("admin_profiles")
+    .select("id, display_name, email")
+    .order("display_name");
+
+  if (error) {
+    console.error("Error fetching admin list:", error);
+    return [];
+  }
+  return data ?? [];
 }
 
 /**
@@ -1877,24 +1932,30 @@ export async function createManualBooking(data: {
     },
   });
 
-  // Upsert guest
-  const { data: guestData } = await supabase
-    .from("guests")
-    .upsert(
-      {
-        email: data.email.toLowerCase().trim(),
-        first_name: data.first_name,
-        last_name: data.last_name,
-        phone: data.phone,
-        street: data.street,
-        zip: data.zip,
-        city: data.city,
-        country: data.country,
-      },
-      { onConflict: "email" }
-    )
-    .select("id, total_stays, total_revenue")
-    .single();
+  // Upsert guest (only if email provided)
+  let guestData: { id: string; total_stays: number | null; total_revenue: number | null } | null = null;
+  const emailTrimmed = data.email?.trim().toLowerCase() || "";
+
+  if (emailTrimmed) {
+    const { data: guestRow } = await supabase
+      .from("guests")
+      .upsert(
+        {
+          email: emailTrimmed,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone,
+          street: data.street,
+          zip: data.zip,
+          city: data.city,
+          country: data.country,
+        },
+        { onConflict: "email" }
+      )
+      .select("id, total_stays, total_revenue")
+      .single();
+    guestData = guestRow;
+  }
 
   // Insert booking
   const { data: booking, error } = await supabase
@@ -1909,7 +1970,7 @@ export async function createManualBooking(data: {
       dogs: data.dogs,
       first_name: data.first_name,
       last_name: data.last_name,
-      email: data.email.toLowerCase().trim(),
+      email: emailTrimmed || null,
       phone: data.phone,
       street: data.street,
       zip: data.zip,
@@ -1945,8 +2006,8 @@ export async function createManualBooking(data: {
       .eq("id", guestData.id);
   }
 
-  // Schedule automated emails (payment reminder, check-in info, thank you)
-  if (booking) {
+  // Schedule automated emails (only if guest has email)
+  if (booking && emailTrimmed) {
     try {
       await scheduleBookingEmails(booking.id, data.check_in, data.check_out);
     } catch (scheduleError) {
@@ -1955,8 +2016,8 @@ export async function createManualBooking(data: {
     }
   }
 
-  // Optionally send confirmation
-  if (data.send_confirmation && booking) {
+  // Optionally send confirmation (only if guest has email)
+  if (data.send_confirmation && booking && emailTrimmed) {
     try {
       const { sendBookingConfirmed } = await import("@/lib/email");
       const { data: bankRow } = await supabase
@@ -2315,6 +2376,26 @@ export async function updateInvoiceNumber(
 }
 
 /**
+ * Get all bookings with invoice numbers for the invoice overview page
+ */
+export async function getInvoices() {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id, invoice_number, first_name, last_name, apartment_id, check_in, check_out, total_price, status, created_at")
+    .not("invoice_number", "is", null)
+    .order("invoice_number", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching invoices:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
  * Trigger a manual iCal sync – returns structured summary for UI
  */
 export async function triggerICalSync() {
@@ -2631,4 +2712,65 @@ export async function updateBookingPrices(
   revalidatePath("/admin/buchungen");
   revalidatePath("/admin");
   return { success: true, totalPrice };
+}
+
+/**
+ * Update guest data on a booking (and sync to guests table if email exists)
+ */
+export async function updateBookingGuestData(
+  bookingId: string,
+  data: {
+    first_name: string;
+    last_name: string;
+    email: string;
+    phone: string;
+    street: string;
+    zip: string;
+    city: string;
+    country: string;
+  }
+) {
+  const supabase = createServerClient();
+
+  // Update the booking record
+  const { error: bookingError } = await supabase
+    .from("bookings")
+    .update({
+      first_name: data.first_name,
+      last_name: data.last_name,
+      email: data.email,
+      phone: data.phone,
+      street: data.street,
+      zip: data.zip,
+      city: data.city,
+      country: data.country,
+    })
+    .eq("id", bookingId);
+
+  if (bookingError) {
+    return { success: false, error: bookingError.message };
+  }
+
+  // If email is provided, upsert the guest record
+  if (data.email) {
+    await supabase
+      .from("guests")
+      .upsert(
+        {
+          email: data.email,
+          first_name: data.first_name,
+          last_name: data.last_name,
+          phone: data.phone,
+          street: data.street,
+          zip: data.zip,
+          city: data.city,
+          country: data.country,
+        },
+        { onConflict: "email" }
+      );
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  return { success: true };
 }

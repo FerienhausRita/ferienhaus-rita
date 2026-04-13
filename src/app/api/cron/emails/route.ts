@@ -376,6 +376,58 @@ async function markSkipped(
 }
 
 // ---------------------------------------------------------------------------
+// Task reminders: Aufgaben die morgen fällig sind
+// ---------------------------------------------------------------------------
+
+async function processTaskReminders(): Promise<number> {
+  const supabase = createServerClient();
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+
+  // Offene Aufgaben die morgen fällig sind
+  const { data: tasks } = await supabase
+    .from("tasks")
+    .select("id, title, due_date, assigned_to")
+    .eq("status", "offen")
+    .eq("due_date", tomorrowStr);
+
+  if (!tasks || tasks.length === 0) return 0;
+
+  // Alle Admins laden
+  const { data: admins } = await supabase
+    .from("admin_profiles")
+    .select("id, display_name, email");
+
+  if (!admins || admins.length === 0) return 0;
+
+  let sent = 0;
+  const { sendTaskReminder } = await import("@/lib/email");
+
+  for (const task of tasks) {
+    const recipients = task.assigned_to
+      ? admins.filter((a) => a.id === task.assigned_to)
+      : admins;
+
+    for (const admin of recipients) {
+      if (admin.email) {
+        try {
+          await sendTaskReminder(
+            { title: task.title, dueDate: task.due_date! },
+            admin.email
+          );
+          sent++;
+        } catch (err) {
+          console.error(`Task reminder failed for ${admin.email}:`, err);
+        }
+      }
+    }
+  }
+
+  return sent;
+}
+
+// ---------------------------------------------------------------------------
 // Route handler
 // ---------------------------------------------------------------------------
 
@@ -386,10 +438,12 @@ export async function GET(request: NextRequest) {
 
   try {
     const results = await processScheduledEmails();
+    const taskReminders = await processTaskReminders();
     return NextResponse.json({
       success: true,
       timestamp: new Date().toISOString(),
       ...results,
+      taskReminders,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

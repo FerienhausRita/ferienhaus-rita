@@ -10,6 +10,7 @@ import EmailTimeline from "@/components/admin/EmailTimeline";
 import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
 import DepositTracker from "@/components/admin/DepositTracker";
 import BookingPriceEditor from "@/components/admin/BookingPriceEditor";
+import GuestDataEditor from "@/components/admin/GuestDataEditor";
 import { getMeldeschein } from "../../actions";
 
 export const metadata: Metadata = {
@@ -211,56 +212,18 @@ export default async function BookingDetailPage({
             </div>
           </div>
 
-          {/* Guest Contact */}
-          <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-stone-100">
-              <h2 className="font-semibold text-stone-900">Gästedaten</h2>
-            </div>
-            <div className="p-5 space-y-3">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Name
-                  </p>
-                  <p className="font-medium text-stone-900">
-                    {booking.first_name} {booking.last_name}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    E-Mail
-                  </p>
-                  <a
-                    href={`mailto:${booking.email}`}
-                    className="font-medium text-[#c8a96e] hover:text-[#b89555] text-sm"
-                  >
-                    {booking.email}
-                  </a>
-                </div>
-                <div>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Telefon
-                  </p>
-                  <a
-                    href={`tel:${booking.phone}`}
-                    className="font-medium text-[#c8a96e] hover:text-[#b89555] text-sm"
-                  >
-                    {booking.phone}
-                  </a>
-                </div>
-                <div>
-                  <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Adresse
-                  </p>
-                  <p className="text-stone-900 text-sm">
-                    {booking.street}
-                    <br />
-                    {booking.zip} {booking.city}, {booking.country}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          {/* Guest Contact – inline editable */}
+          <GuestDataEditor
+            bookingId={booking.id}
+            firstName={booking.first_name}
+            lastName={booking.last_name}
+            email={booking.email || ""}
+            phone={booking.phone || ""}
+            street={booking.street || ""}
+            zip={booking.zip || ""}
+            city={booking.city || ""}
+            country={booking.country || ""}
+          />
 
           {/* Price Breakdown */}
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">

@@ -19,8 +19,21 @@ interface Task {
   created_at: string;
 }
 
+interface Admin {
+  id: string;
+  display_name: string;
+  email: string;
+}
+
+interface Apartment {
+  id: string;
+  name: string;
+}
+
 interface TaskListProps {
   initialTasks: Task[];
+  apartments: Apartment[];
+  admins: Admin[];
 }
 
 const categoryConfig: Record<string, { label: string; color: string }> = {
@@ -31,14 +44,9 @@ const categoryConfig: Record<string, { label: string; color: string }> = {
   allgemein: { label: "Allgemein", color: "bg-stone-100 text-stone-600" },
 };
 
-const apartments = [
-  { id: "edelweiss", name: "Edelweiss" },
-  { id: "alpenrose", name: "Alpenrose" },
-  { id: "bergkristall", name: "Bergkristall" },
-  { id: "sonnblick", name: "Sonnblick" },
-];
+// Wird als Prop übergeben – keine hardcodierte Liste mehr
 
-export default function TaskList({ initialTasks }: TaskListProps) {
+export default function TaskList({ initialTasks, apartments, admins }: TaskListProps) {
   const [tasks, setTasks] = useState(initialTasks);
   const [filter, setFilter] = useState<"alle" | "offen" | "erledigt">("offen");
   const [showForm, setShowForm] = useState(false);
@@ -50,6 +58,7 @@ export default function TaskList({ initialTasks }: TaskListProps) {
   const [dueDate, setDueDate] = useState("");
   const [category, setCategory] = useState("allgemein");
   const [apartmentId, setApartmentId] = useState("");
+  const [assignedTo, setAssignedTo] = useState("");
 
   const filteredTasks = tasks.filter((t) => {
     if (filter === "offen") return t.status === "offen";
@@ -71,6 +80,7 @@ export default function TaskList({ initialTasks }: TaskListProps) {
       due_date: dueDate || undefined,
       category,
       apartment_id: apartmentId || undefined,
+      assigned_to: assignedTo || undefined,
     });
 
     if (result.success) {
@@ -94,6 +104,7 @@ export default function TaskList({ initialTasks }: TaskListProps) {
       setDueDate("");
       setCategory("allgemein");
       setApartmentId("");
+      setAssignedTo("");
       setShowForm(false);
     }
     setLoading(null);
@@ -199,7 +210,7 @@ export default function TaskList({ initialTasks }: TaskListProps) {
             rows={2}
             className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 placeholder:text-stone-400 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 resize-none"
           />
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             <div>
               <label className="block text-xs font-medium text-stone-500 mb-1">
                 Fällig am
@@ -240,6 +251,23 @@ export default function TaskList({ initialTasks }: TaskListProps) {
                 {apartments.map((a) => (
                   <option key={a.id} value={a.id}>
                     {a.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Zugewiesen an
+              </label>
+              <select
+                value={assignedTo}
+                onChange={(e) => setAssignedTo(e.target.value)}
+                className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+              >
+                <option value="">Alle</option>
+                {admins.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.display_name}
                   </option>
                 ))}
               </select>

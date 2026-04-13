@@ -111,8 +111,7 @@ export default function ManualBookingForm({
     if (checkIn && checkOut && checkIn >= checkOut) errs.checkOut = "Abreise muss nach Anreise liegen";
     if (!firstName.trim()) errs.firstName = "Pflichtfeld";
     if (!lastName.trim()) errs.lastName = "Pflichtfeld";
-    if (!email.trim()) errs.email = "Pflichtfeld";
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
+    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
     if (!phone.trim()) errs.phone = "Pflichtfeld";
     if (!street.trim()) errs.street = "Pflichtfeld";
     if (!zip.trim()) errs.zip = "Pflichtfeld";
@@ -296,7 +295,7 @@ export default function ManualBookingForm({
             value={email}
             onChange={setEmail}
             error={errors.email}
-            required
+            placeholder="Optional"
           />
           <Field
             label="Telefon"
@@ -389,17 +388,19 @@ export default function ManualBookingForm({
           </div>
         </div>
 
-        <label className="flex items-center gap-2.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={sendConfirmation}
-            onChange={(e) => setSendConfirmation(e.target.checked)}
-            className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]"
-          />
-          <span className="text-sm text-stone-700">
-            Bestätigungsmail an Gast senden
-          </span>
-        </label>
+        {email.trim() && (
+          <label className="flex items-center gap-2.5 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={sendConfirmation}
+              onChange={(e) => setSendConfirmation(e.target.checked)}
+              className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]"
+            />
+            <span className="text-sm text-stone-700">
+              Bestätigungsmail an Gast senden
+            </span>
+          </label>
+        )}
       </div>
 
       {/* Price Preview */}
@@ -520,6 +521,7 @@ function Field({
   error,
   type = "text",
   required = false,
+  placeholder,
 }: {
   label: string;
   value: string;
@@ -527,6 +529,7 @@ function Field({
   error?: string;
   type?: string;
   required?: boolean;
+  placeholder?: string;
 }) {
   return (
     <div>
@@ -538,6 +541,7 @@ function Field({
         type={type}
         value={value}
         onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
         className={`${inputClasses} ${error ? "border-red-300 bg-red-50" : ""}`}
       />
       {error && <p className="text-red-500 text-xs mt-1">{error}</p>}
