@@ -66,7 +66,7 @@ export default async function AdminDashboard() {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <Link
           href="/admin/buchungen?filter=pending"
           className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
@@ -97,6 +97,23 @@ export default async function AdminDashboard() {
           </p>
           <p className="text-sm text-stone-500">Umsatz diesen Monat</p>
         </div>
+
+        <Link
+          href="/admin/buchungen?filter=pending"
+          className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
+        >
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
+              <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+          </div>
+          <p className="text-2xl font-bold text-amber-600">
+            {formatCurrency(stats.pendingRevenue)}
+          </p>
+          <p className="text-sm text-stone-500">Offene Anfragen ({stats.pendingCount})</p>
+        </Link>
 
         <Link
           href="/admin/nachrichten"

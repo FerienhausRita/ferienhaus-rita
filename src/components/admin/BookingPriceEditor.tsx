@@ -30,6 +30,10 @@ function formatCurrency(amount: number): string {
   }).format(amount);
 }
 
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
 export default function BookingPriceEditor({
   bookingId,
   nights,
@@ -46,7 +50,10 @@ export default function BookingPriceEditor({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  const [ppn, setPpn] = useState(initialPPN);
+  // Work with total accommodation cost to avoid rounding errors
+  const initialAccommodationTotal = round2(initialPPN * nights);
+
+  const [accommodationTotal, setAccommodationTotal] = useState(initialAccommodationTotal);
   const [eg, setEg] = useState(initialEG);
   const [dogs, setDogs] = useState(initialDogs);
   const [cf, setCf] = useState(initialCF);
@@ -57,9 +64,12 @@ export default function BookingPriceEditor({
   const [newAmount, setNewAmount] = useState("");
   const [message, setMessage] = useState("");
 
-  const baseTotal = ppn * nights + eg + dogs + cf + lt - discount;
+  // Derived per-night for storage (back-calculate)
+  const derivedPPN = nights > 0 ? round2(accommodationTotal / nights) : 0;
+
+  const baseTotal = accommodationTotal + eg + dogs + cf + lt - discount;
   const lineItemsTotal = items.reduce((sum, li) => sum + li.amount, 0);
-  const calculatedTotal = Math.round((baseTotal + lineItemsTotal) * 100) / 100;
+  const calculatedTotal = round2(baseTotal + lineItemsTotal);
 
   function addLineItem() {
     if (!newLabel.trim() || !newAmount) return;
@@ -77,7 +87,7 @@ export default function BookingPriceEditor({
       const result = await updateBookingPrices(
         bookingId,
         {
-          price_per_night: ppn,
+          price_per_night: derivedPPN,
           extra_guests_total: eg,
           dogs_total: dogs,
           cleaning_fee: cf,
@@ -99,7 +109,7 @@ export default function BookingPriceEditor({
   }
 
   function handleCancel() {
-    setPpn(initialPPN);
+    setAccommodationTotal(initialAccommodationTotal);
     setEg(initialEG);
     setDogs(initialDogs);
     setCf(initialCF);
@@ -126,9 +136,11 @@ export default function BookingPriceEditor({
         <table className="w-full text-sm">
           <tbody className="divide-y divide-stone-100">
             <tr>
-              <td className="py-2 text-stone-500">{nights} x Übernachtung</td>
+              <td className="py-2 text-stone-500">
+                {nights} {nights === 1 ? "Nacht" : "Nächte"} x {formatCurrency(initialPPN)}
+              </td>
               <td className="py-2 text-right font-medium text-stone-900">
-                {formatCurrency(initialPPN * nights)}
+                {formatCurrency(initialAccommodationTotal)}
               </td>
             </tr>
             {initialEG > 0 && (
@@ -188,6 +200,16 @@ export default function BookingPriceEditor({
           </tfoot>
         </table>
 
+        {/* Plausibility check: show warning if stored total doesn't match computed */}
+        {Math.abs(initialTotal - round2(initialAccommodationTotal + initialEG + initialDogs + initialCF + initialLT - initialDiscount + initialLineItems.reduce((s, l) => s + l.amount, 0))) > 0.02 && (
+          <div className="mt-2 p-2 rounded-lg bg-amber-50 border border-amber-200">
+            <p className="text-xs text-amber-700">
+              Hinweis: Der gespeicherte Gesamtpreis weicht von der berechneten Summe ab.
+              Bitte Preise prüfen und neu speichern.
+            </p>
+          </div>
+        )}
+
         {message && (
           <p className="text-xs text-emerald-600 mt-2">{message}</p>
         )}
@@ -203,15 +225,20 @@ export default function BookingPriceEditor({
 
       <div className="space-y-3">
         <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">Preis/Nacht</label>
+          <label className="text-sm text-stone-500 flex-1">
+            Übernachtungen ({nights} {nights === 1 ? "Nacht" : "Nächte"})
+          </label>
           <input
             type="number"
             step="0.01"
-            value={ppn}
-            onChange={(e) => setPpn(parseFloat(e.target.value) || 0)}
+            value={accommodationTotal}
+            onChange={(e) => setAccommodationTotal(parseFloat(e.target.value) || 0)}
             className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
           />
         </div>
+        <p className="text-xs text-stone-400 -mt-1 text-right">
+          = {formatCurrency(derivedPPN)}/Nacht
+        </p>
 
         <div className="flex items-center justify-between gap-3">
           <label className="text-sm text-stone-500 flex-1">Zusatzgäste</label>

@@ -28,6 +28,7 @@ export async function getDashboardStats() {
     upcomingArrivals,
     upcomingDepartures,
     monthBookings,
+    pendingBookings,
     recentBookings,
   ] = await Promise.all([
     // Pending bookings count
@@ -75,6 +76,11 @@ export async function getDashboardStats() {
       .lte("check_in", monthEnd)
       .gte("check_out", monthStart)
       .in("status", ["confirmed", "completed"]),
+    // Pending (unconfirmed) bookings revenue
+    supabase
+      .from("bookings")
+      .select("total_price")
+      .eq("status", "pending"),
     // Recent bookings
     supabase
       .from("bookings")
@@ -89,10 +95,17 @@ export async function getDashboardStats() {
       0
     ) ?? 0;
 
+  const pendingRevenue =
+    pendingBookings.data?.reduce(
+      (sum, b) => sum + Number(b.total_price || 0),
+      0
+    ) ?? 0;
+
   return {
     pendingCount: pendingResult.count ?? 0,
     unreadMessages: unreadResult.count ?? 0,
     monthRevenue,
+    pendingRevenue,
     upcomingArrivals: upcomingArrivals.data ?? [],
     upcomingDepartures: upcomingDepartures.data ?? [],
     recentBookings: recentBookings.data ?? [],
@@ -747,6 +760,118 @@ export async function markDepositPaid(bookingId: string) {
     .eq("booking_id", bookingId)
     .eq("email_type", "deposit_reminder")
     .eq("status", "pending");
+
+  revalidatePath("/admin/buchungen");
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Record a manual payment for a booking
+ */
+export async function recordManualPayment(
+  bookingId: string,
+  data: {
+    amount: number;
+    paid_at: string; // YYYY-MM-DD
+    method: string; // "bank_transfer" | "cash" | "card" | "paypal" | "other"
+    note?: string;
+  }
+) {
+  const supabase = createServerClient();
+
+  // Get current booking payment state
+  const { data: booking, error: fetchErr } = await supabase
+    .from("bookings")
+    .select("deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status, total_price")
+    .eq("id", bookingId)
+    .single();
+
+  if (fetchErr || !booking) {
+    return { success: false, error: "Buchung nicht gefunden" };
+  }
+
+  const depositAmount = Number(booking.deposit_amount || 0);
+  const remainderAmount = Number(booking.remainder_amount || 0);
+  const totalPrice = Number(booking.total_price || 0);
+  const paidAt = new Date(data.paid_at + "T12:00:00Z").toISOString();
+
+  // Insert into booking_payments table
+  const { error: insertErr } = await supabase
+    .from("booking_payments")
+    .insert({
+      booking_id: bookingId,
+      amount: data.amount,
+      paid_at: paidAt,
+      method: data.method,
+      note: data.note || null,
+    });
+
+  if (insertErr) {
+    // Table might not exist yet, fall back to direct update
+    console.error("booking_payments insert error (table may not exist):", insertErr);
+  }
+
+  // Smart payment status update based on amount
+  const updateData: Record<string, unknown> = {};
+
+  if (!booking.deposit_paid_at && depositAmount > 0 && data.amount >= depositAmount - 0.01) {
+    // Covers deposit
+    updateData.deposit_paid_at = paidAt;
+    if (data.amount >= totalPrice - 0.01) {
+      // Covers full amount
+      updateData.remainder_paid_at = paidAt;
+      updateData.payment_status = "paid";
+    } else if (remainderAmount > 0 && data.amount >= depositAmount + remainderAmount - 0.01) {
+      // Covers deposit + remainder
+      updateData.remainder_paid_at = paidAt;
+      updateData.payment_status = "paid";
+    } else {
+      updateData.payment_status = remainderAmount > 0 ? "deposit_paid" : "paid";
+    }
+  } else if (booking.deposit_paid_at && !booking.remainder_paid_at && data.amount >= remainderAmount - 0.01) {
+    // Deposit already paid, this covers remainder
+    updateData.remainder_paid_at = paidAt;
+    updateData.payment_status = "paid";
+  } else if (!booking.deposit_paid_at && depositAmount === 0 && data.amount >= totalPrice - 0.01) {
+    // No split payment, covers full amount
+    updateData.deposit_paid_at = paidAt;
+    updateData.payment_status = "paid";
+  } else {
+    // Partial payment – just record it, update note
+    updateData.payment_note = `Teilzahlung: ${data.amount.toFixed(2)} EUR am ${data.paid_at}${data.method ? ` (${data.method})` : ""}`;
+  }
+
+  if (Object.keys(updateData).length > 0) {
+    const { error: updateErr } = await supabase
+      .from("bookings")
+      .update(updateData)
+      .eq("id", bookingId);
+
+    if (updateErr) {
+      return { success: false, error: updateErr.message };
+    }
+  }
+
+  // Skip relevant reminder emails
+  if (updateData.deposit_paid_at) {
+    await supabase
+      .from("email_schedule")
+      .update({ status: "skipped" })
+      .eq("booking_id", bookingId)
+      .eq("email_type", "deposit_reminder")
+      .eq("status", "pending");
+  }
+  if (updateData.remainder_paid_at) {
+    await supabase
+      .from("email_schedule")
+      .update({ status: "skipped" })
+      .eq("booking_id", bookingId)
+      .eq("email_type", "remainder_reminder")
+      .eq("status", "pending");
+  }
 
   revalidatePath("/admin/buchungen");
   revalidatePath(`/admin/buchungen/${bookingId}`);

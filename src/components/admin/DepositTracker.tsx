@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { markDepositPaid, markRemainderPaid } from "@/app/(admin)/admin/actions";
+import { markDepositPaid, markRemainderPaid, recordManualPayment } from "@/app/(admin)/admin/actions";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("de-AT", {
@@ -17,6 +17,14 @@ function formatDate(dateStr: string) {
     year: "numeric",
   });
 }
+
+const paymentMethods: Record<string, string> = {
+  bank_transfer: "Überweisung",
+  cash: "Bar",
+  card: "Karte",
+  paypal: "PayPal",
+  other: "Sonstige",
+};
 
 interface DepositTrackerProps {
   bookingId: string;
@@ -43,6 +51,11 @@ export default function DepositTracker({
 }: DepositTrackerProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualAmount, setManualAmount] = useState("");
+  const [manualDate, setManualDate] = useState(new Date().toISOString().split("T")[0]);
+  const [manualMethod, setManualMethod] = useState("bank_transfer");
+  const [manualNote, setManualNote] = useState("");
 
   const today = new Date().toISOString().split("T")[0];
   const depositOverdue = depositDueDate && depositDueDate < today && !depositPaidAt;
@@ -61,12 +74,49 @@ export default function DepositTracker({
         </div>
         <div className="p-5">
           <p className="text-sm text-stone-500">
-            Noch keine Zahlungsbetr&auml;ge berechnet. Buchung best&auml;tigen um Anzahlung/Rest zu berechnen.
+            Noch keine Zahlungsbeträge berechnet. Buchung bestätigen um Anzahlung/Rest zu berechnen.
           </p>
           <div className="mt-3 flex items-center justify-between text-sm">
             <span className="text-stone-600">Gesamtbetrag</span>
             <span className="font-semibold text-stone-900">{formatCurrency(totalPrice)}</span>
           </div>
+
+          {/* Manual payment even without deposit setup */}
+          <button
+            onClick={() => {
+              setManualAmount(totalPrice.toFixed(2));
+              setShowManualForm(true);
+            }}
+            className="mt-3 w-full py-1.5 px-3 rounded-lg text-xs font-medium bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors"
+          >
+            Zahlung manuell verbuchen
+          </button>
+
+          {showManualForm && (
+            <ManualPaymentForm
+              bookingId={bookingId}
+              amount={manualAmount}
+              setAmount={setManualAmount}
+              date={manualDate}
+              setDate={setManualDate}
+              method={manualMethod}
+              setMethod={setManualMethod}
+              note={manualNote}
+              setNote={setManualNote}
+              loading={loading}
+              setLoading={setLoading}
+              setMessage={setMessage}
+              onClose={() => setShowManualForm(false)}
+            />
+          )}
+
+          {message && (
+            <div className={`mt-2 rounded-lg p-2 text-xs font-medium ${
+              message.type === "success" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-700"
+            }`}>
+              {message.text}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -101,6 +151,13 @@ export default function DepositTracker({
   // Progress calculation
   const paidAmount = (depositPaidAt ? depositAmount : 0) + (remainderPaidAt ? remainderAmount : 0);
   const progressPercent = totalPrice > 0 ? Math.round((paidAmount / totalPrice) * 100) : 0;
+
+  // Suggest remaining amount for manual payment
+  const suggestedAmount = !depositPaidAt
+    ? depositAmount
+    : !remainderPaidAt
+    ? remainderAmount
+    : 0;
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
@@ -155,9 +212,7 @@ export default function DepositTracker({
                 </svg>
               )}
               {depositOverdue && (
-                <span className="text-xs font-medium text-red-600">
-                  &Uuml;berf&auml;llig
-                </span>
+                <span className="text-xs font-medium text-red-600">Überfällig</span>
               )}
             </div>
             <p className="text-lg font-bold text-stone-900">{formatCurrency(depositAmount)}</p>
@@ -165,7 +220,7 @@ export default function DepositTracker({
               <p className="text-xs text-stone-500 mt-0.5">
                 {depositPaidAt
                   ? `Bezahlt am ${formatDate(depositPaidAt.split("T")[0])}`
-                  : `F\u00e4llig bis ${formatDate(depositDueDate)}`
+                  : `Fällig bis ${formatDate(depositDueDate)}`
                 }
               </p>
             )}
@@ -200,9 +255,7 @@ export default function DepositTracker({
                 </svg>
               )}
               {remainderOverdue && (
-                <span className="text-xs font-medium text-red-600">
-                  &Uuml;berf&auml;llig
-                </span>
+                <span className="text-xs font-medium text-red-600">Überfällig</span>
               )}
             </div>
             <p className="text-lg font-bold text-stone-900">{formatCurrency(remainderAmount)}</p>
@@ -210,7 +263,7 @@ export default function DepositTracker({
               <p className="text-xs text-stone-500 mt-0.5">
                 {remainderPaidAt
                   ? `Bezahlt am ${formatDate(remainderPaidAt.split("T")[0])}`
-                  : `F\u00e4llig bis ${formatDate(remainderDueDate)}`
+                  : `Fällig bis ${formatDate(remainderDueDate)}`
                 }
               </p>
             )}
@@ -229,6 +282,42 @@ export default function DepositTracker({
           </div>
         )}
 
+        {/* Manual payment button */}
+        {!isFullyPaid && (
+          <>
+            <button
+              onClick={() => {
+                setManualAmount(suggestedAmount.toFixed(2));
+                setShowManualForm(!showManualForm);
+              }}
+              className="w-full py-2 px-3 rounded-lg text-xs font-medium bg-stone-100 hover:bg-stone-200 text-stone-700 transition-colors flex items-center justify-center gap-1.5"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+              </svg>
+              Zahlung manuell verbuchen
+            </button>
+
+            {showManualForm && (
+              <ManualPaymentForm
+                bookingId={bookingId}
+                amount={manualAmount}
+                setAmount={setManualAmount}
+                date={manualDate}
+                setDate={setManualDate}
+                method={manualMethod}
+                setMethod={setManualMethod}
+                note={manualNote}
+                setNote={setManualNote}
+                loading={loading}
+                setLoading={setLoading}
+                setMessage={setMessage}
+                onClose={() => setShowManualForm(false)}
+              />
+            )}
+          </>
+        )}
+
         {/* Message */}
         {message && (
           <div className={`rounded-lg p-2 text-xs font-medium ${
@@ -237,6 +326,132 @@ export default function DepositTracker({
             {message.text}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+// Separate manual payment form component
+function ManualPaymentForm({
+  bookingId,
+  amount,
+  setAmount,
+  date,
+  setDate,
+  method,
+  setMethod,
+  note,
+  setNote,
+  loading,
+  setLoading,
+  setMessage,
+  onClose,
+}: {
+  bookingId: string;
+  amount: string;
+  setAmount: (v: string) => void;
+  date: string;
+  setDate: (v: string) => void;
+  method: string;
+  setMethod: (v: string) => void;
+  note: string;
+  setNote: (v: string) => void;
+  loading: string | null;
+  setLoading: (v: string | null) => void;
+  setMessage: (v: { type: "success" | "error"; text: string } | null) => void;
+  onClose: () => void;
+}) {
+  const handleSubmit = async () => {
+    const parsedAmount = parseFloat(amount);
+    if (!parsedAmount || parsedAmount <= 0) {
+      setMessage({ type: "error", text: "Bitte gültigen Betrag eingeben" });
+      return;
+    }
+    if (!date) {
+      setMessage({ type: "error", text: "Bitte Datum wählen" });
+      return;
+    }
+
+    setLoading("manual");
+    setMessage(null);
+
+    const result = await recordManualPayment(bookingId, {
+      amount: parsedAmount,
+      paid_at: date,
+      method,
+      note: note.trim() || undefined,
+    });
+
+    setLoading(null);
+    if (result.success) {
+      setMessage({ type: "success", text: `Zahlung über ${formatCurrency(parsedAmount)} verbucht` });
+      setNote("");
+      onClose();
+    } else {
+      setMessage({ type: "error", text: result.error || "Fehler beim Verbuchen" });
+    }
+  };
+
+  return (
+    <div className="mt-3 p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Betrag</label>
+          <input
+            type="number"
+            step="0.01"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+          />
+        </div>
+        <div className="flex-1">
+          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Datum</label>
+          <input
+            type="date"
+            value={date}
+            onChange={(e) => setDate(e.target.value)}
+            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Zahlungsart</label>
+        <select
+          value={method}
+          onChange={(e) => setMethod(e.target.value)}
+          className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 bg-white"
+        >
+          {Object.entries(paymentMethods).map(([k, v]) => (
+            <option key={k} value={k}>{v}</option>
+          ))}
+        </select>
+      </div>
+      <div>
+        <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Notiz (optional)</label>
+        <input
+          type="text"
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="z.B. Referenznr., Verwendungszweck..."
+          className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+        />
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button
+          onClick={handleSubmit}
+          disabled={loading !== null}
+          className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium bg-[#c8a96e] hover:bg-[#b89555] text-white transition-colors disabled:opacity-50"
+        >
+          {loading === "manual" ? "Verbuche..." : "Zahlung verbuchen"}
+        </button>
+        <button
+          onClick={onClose}
+          disabled={loading !== null}
+          className="py-1.5 px-3 rounded-lg text-xs font-medium bg-stone-200 hover:bg-stone-300 text-stone-700 transition-colors"
+        >
+          Abbrechen
+        </button>
       </div>
     </div>
   );
