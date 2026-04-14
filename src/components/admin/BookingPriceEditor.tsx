@@ -13,6 +13,10 @@ interface LineItem {
 interface BookingPriceEditorProps {
   bookingId: string;
   nights: number;
+  adults: number;
+  children: number;
+  dogs: number;
+  baseGuests: number;
   pricePerNight: number;
   extraGuestsTotal: number;
   dogsTotal: number;
@@ -21,6 +25,10 @@ interface BookingPriceEditorProps {
   discountAmount: number;
   totalPrice: number;
   lineItems: LineItem[];
+  // Unit prices for breakdown display
+  dogFeePerNight: number;
+  extraPersonPrice: number;
+  localTaxPerNight: number;
 }
 
 function formatCurrency(amount: number): string {
@@ -37,6 +45,10 @@ function round2(n: number): number {
 export default function BookingPriceEditor({
   bookingId,
   nights,
+  adults,
+  children,
+  dogs: dogsCount,
+  baseGuests,
   pricePerNight: initialPPN,
   extraGuestsTotal: initialEG,
   dogsTotal: initialDogs,
@@ -45,6 +57,9 @@ export default function BookingPriceEditor({
   discountAmount: initialDiscount,
   totalPrice: initialTotal,
   lineItems: initialLineItems,
+  dogFeePerNight,
+  extraPersonPrice,
+  localTaxPerNight,
 }: BookingPriceEditorProps) {
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
@@ -193,55 +208,99 @@ export default function BookingPriceEditor({
 
         <table className="w-full text-sm">
           <tbody className="divide-y divide-stone-100">
+            {/* Übernachtungen */}
             <tr>
-              <td className="py-2 text-stone-500">
-                {nights} {nights === 1 ? "Nacht" : "Nächte"} x {formatCurrency(initialPPN)}
+              <td className="py-2">
+                <span className="text-stone-900">Übernachtungen</span>
+                <span className="block text-xs text-stone-400">
+                  {nights} {nights === 1 ? "Nacht" : "Nächte"} × {formatCurrency(initialPPN)}/Nacht
+                </span>
               </td>
               <td className="py-2 text-right font-medium text-stone-900">
                 {formatCurrency(initialAccommodationTotal)}
               </td>
             </tr>
-            {initialEG > 0 && (
+
+            {/* Zusatzgäste */}
+            {(() => {
+              const totalGuests = adults + children;
+              const extraGuests = Math.max(0, totalGuests - baseGuests);
+              if (extraGuests > 0 || initialEG > 0) {
+                return (
+                  <tr>
+                    <td className="py-2">
+                      <span className="text-stone-900">Zusatzgäste</span>
+                      <span className="block text-xs text-stone-400">
+                        {extraGuests > 0
+                          ? `${extraGuests} Zusatzgast${extraGuests > 1 ? "\u00e4ste" : ""} × ${formatCurrency(extraPersonPrice)}/Nacht × ${nights} Nächte`
+                          : `Keine (${totalGuests} Gäste, ${baseGuests} inkl.)`
+                        }
+                      </span>
+                    </td>
+                    <td className="py-2 text-right font-medium text-stone-900">
+                      {formatCurrency(initialEG)}
+                    </td>
+                  </tr>
+                );
+              }
+              return null;
+            })()}
+
+            {/* Hunde */}
+            {(dogsCount > 0 || initialDogs > 0) && (
               <tr>
-                <td className="py-2 text-stone-500">Zusatzgäste</td>
-                <td className="py-2 text-right font-medium text-stone-900">
-                  {formatCurrency(initialEG)}
+                <td className="py-2">
+                  <span className="text-stone-900">{dogsCount === 1 ? "Hund" : "Hunde"}</span>
+                  <span className="block text-xs text-stone-400">
+                    {dogsCount} × {formatCurrency(dogFeePerNight)}/Nacht × {nights} Nächte
+                  </span>
                 </td>
-              </tr>
-            )}
-            {initialDogs > 0 && (
-              <tr>
-                <td className="py-2 text-stone-500">Hund(e)</td>
                 <td className="py-2 text-right font-medium text-stone-900">
                   {formatCurrency(initialDogs)}
                 </td>
               </tr>
             )}
+
+            {/* Endreinigung */}
             <tr>
-              <td className="py-2 text-stone-500">Endreinigung</td>
+              <td className="py-2">
+                <span className="text-stone-900">Endreinigung</span>
+                <span className="block text-xs text-stone-400">1× pauschal</span>
+              </td>
               <td className="py-2 text-right font-medium text-stone-900">
                 {formatCurrency(initialCF)}
               </td>
             </tr>
+
+            {/* Ortstaxe */}
             {initialLT > 0 && (
               <tr>
-                <td className="py-2 text-stone-500">Ortstaxe</td>
+                <td className="py-2">
+                  <span className="text-stone-900">Ortstaxe</span>
+                  <span className="block text-xs text-stone-400">
+                    {adults} Erw. × {formatCurrency(localTaxPerNight)}/Nacht × {nights} Nächte
+                  </span>
+                </td>
                 <td className="py-2 text-right font-medium text-stone-900">
                   {formatCurrency(initialLT)}
                 </td>
               </tr>
             )}
+
+            {/* Rabatt */}
             {initialDiscount > 0 && (
               <tr>
-                <td className="py-2 text-stone-500">Rabatt</td>
+                <td className="py-2 text-stone-900">Rabatt</td>
                 <td className="py-2 text-right font-medium text-red-600">
                   -{formatCurrency(initialDiscount)}
                 </td>
               </tr>
             )}
+
+            {/* Zusätzliche Positionen */}
             {initialLineItems.map((li, i) => (
               <tr key={i}>
-                <td className="py-2 text-stone-500">{li.label}</td>
+                <td className="py-2 text-stone-900">{li.label}</td>
                 <td className="py-2 text-right font-medium text-stone-900">
                   {formatCurrency(li.amount)}
                 </td>

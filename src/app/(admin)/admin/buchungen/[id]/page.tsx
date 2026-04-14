@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting } from "../../actions";
 import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
 import EmailCompose from "@/components/admin/EmailCompose";
@@ -76,13 +77,14 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails] = await Promise.all([
+  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails, taxConfig] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
     getEmailSchedule(params.id),
     getMeldeschein(params.id),
     getBookingLineItems(params.id),
     getSiteSetting("bank_details"),
+    getTaxConfigFromDB(),
   ]);
 
   if (!booking) {
@@ -90,6 +92,8 @@ export default async function BookingDetailPage({
   }
 
   const apartment = getApartmentById(booking.apartment_id);
+  // Load apartment with DB pricing overrides for accurate unit prices
+  const apartmentPricing = await getApartmentWithPricing(booking.apartment_id);
   const status = statusConfig[booking.status] ?? statusConfig.pending;
 
   return (
@@ -231,6 +235,10 @@ export default async function BookingDetailPage({
               <BookingPriceEditor
                 bookingId={booking.id}
                 nights={booking.nights}
+                adults={booking.adults}
+                children={booking.children || 0}
+                dogs={booking.dogs || 0}
+                baseGuests={apartmentPricing?.baseGuests ?? 2}
                 pricePerNight={Number(booking.price_per_night)}
                 extraGuestsTotal={Number(booking.extra_guests_total || 0)}
                 dogsTotal={Number(booking.dogs_total || 0)}
@@ -243,6 +251,9 @@ export default async function BookingDetailPage({
                   label: li.label,
                   amount: Number(li.amount),
                 }))}
+                dogFeePerNight={apartmentPricing?.dogFee ?? 15}
+                extraPersonPrice={apartmentPricing?.extraPersonPrice ?? 20}
+                localTaxPerNight={taxConfig.localTaxPerNight}
               />
 
               {/* Invoice number + download */}
