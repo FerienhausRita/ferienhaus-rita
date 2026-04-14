@@ -58,10 +58,11 @@ export default function ApartmentCard({ apartment }: ApartmentCardProps) {
         {/* Price */}
         <div className="flex items-end justify-between">
           <div>
+            <span className="text-white/50 text-sm mr-1">ab</span>
             <span className="text-2xl font-bold text-white">
-              {formatCurrency(apartment.basePrice)}
+              {formatCurrency(Math.min(apartment.summerPrice || apartment.basePrice, apartment.winterPrice || apartment.basePrice))}
             </span>
-            <span className="text-white/50 text-sm ml-1">/ Nacht *</span>
+            <span className="text-white/50 text-sm ml-1">/ Nacht</span>
           </div>
           <span className="text-[var(--color-gold)] text-xs font-semibold tracking-wider uppercase flex items-center gap-2 translate-x-0 group-hover:translate-x-1 transition-transform duration-300">
             Entdecken

@@ -3,34 +3,37 @@
 import { useState } from "react";
 import {
   updateApartmentPricing,
-  updateSeasonConfig,
-  createSeasonPeriod,
-  deleteSeasonPeriod,
+  createSpecialPeriod,
+  updateSpecialPeriod,
+  deleteSpecialPeriod,
   updateTaxConfig,
 } from "@/app/(admin)/admin/actions";
 
+interface ApartmentPricingData {
+  id: string;
+  name: string;
+  summer_price: number;
+  winter_price: number;
+  extra_person_price: number;
+  cleaning_fee: number;
+  dog_fee: number;
+  min_nights_summer: number;
+  min_nights_winter: number;
+}
+
+interface SpecialPeriodData {
+  id: string;
+  label: string;
+  start_mmdd: string;
+  end_mmdd: string;
+  surcharge_percent: number;
+  min_nights: number | null;
+  active: boolean;
+}
+
 interface PricingEditorProps {
-  apartments: {
-    id: string;
-    name: string;
-    base_price: number;
-    extra_person_price: number;
-    cleaning_fee: number;
-    dog_fee: number;
-  }[];
-  seasonConfigs: {
-    type: string;
-    label: string;
-    multiplier: number;
-    min_nights: number;
-  }[];
-  seasonPeriods: {
-    id: string;
-    type: string;
-    start_mmdd: string;
-    end_mmdd: string;
-    label: string;
-  }[];
+  apartments: ApartmentPricingData[];
+  specialPeriods: SpecialPeriodData[];
   taxConfig: { localTaxPerNight: number; vatRate: number };
 }
 
@@ -63,14 +66,15 @@ function StatusMessage({
 function ApartmentPricingCard({
   apt,
 }: {
-  apt: PricingEditorProps["apartments"][number];
+  apt: ApartmentPricingData;
 }) {
-  const [basePrice, setBasePrice] = useState(apt.base_price);
-  const [extraPersonPrice, setExtraPersonPrice] = useState(
-    apt.extra_person_price
-  );
+  const [summerPrice, setSummerPrice] = useState(apt.summer_price);
+  const [winterPrice, setWinterPrice] = useState(apt.winter_price);
+  const [extraPersonPrice, setExtraPersonPrice] = useState(apt.extra_person_price);
   const [cleaningFee, setCleaningFee] = useState(apt.cleaning_fee);
   const [dogFee, setDogFee] = useState(apt.dog_fee);
+  const [minNightsSummer, setMinNightsSummer] = useState(apt.min_nights_summer);
+  const [minNightsWinter, setMinNightsWinter] = useState(apt.min_nights_winter);
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{
     type: "success" | "error";
@@ -81,10 +85,14 @@ function ApartmentPricingCard({
     setSaving(true);
     setStatus(null);
     const result = await updateApartmentPricing(apt.id, {
-      base_price: basePrice,
+      summer_price: summerPrice,
+      winter_price: winterPrice,
+      base_price: summerPrice, // Keep base_price synced for legacy compatibility
       extra_person_price: extraPersonPrice,
       cleaning_fee: cleaningFee,
       dog_fee: dogFee,
+      min_nights_summer: minNightsSummer,
+      min_nights_winter: minNightsWinter,
     });
     if (result.success) {
       setStatus({ type: "success", message: "Gespeichert" });
@@ -98,23 +106,75 @@ function ApartmentPricingCard({
     setTimeout(() => setStatus(null), 3000);
   };
 
+  const inputClass =
+    "w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50";
+
   return (
     <div className="p-4 border border-stone-100 rounded-xl">
       <h3 className="font-medium text-stone-900 mb-3">{apt.name}</h3>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+
+      {/* Season prices */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-1">
-            Basispreis/Nacht
+            Sommerpreis/Nacht
+          </label>
+          <div className="relative">
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={summerPrice}
+              onChange={(e) => setSummerPrice(Number(e.target.value))}
+              className={inputClass}
+            />
+          </div>
+          <p className="text-[10px] text-stone-400 mt-0.5">01.05. – 30.11.</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-stone-500 mb-1">
+            Winterpreis/Nacht
           </label>
           <input
             type="number"
             step="0.01"
             min="0"
-            value={basePrice}
-            onChange={(e) => setBasePrice(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+            value={winterPrice}
+            onChange={(e) => setWinterPrice(Number(e.target.value))}
+            className={inputClass}
+          />
+          <p className="text-[10px] text-stone-400 mt-0.5">01.12. – 30.04.</p>
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-stone-500 mb-1">
+            Min. Nächte Sommer
+          </label>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            value={minNightsSummer}
+            onChange={(e) => setMinNightsSummer(Number(e.target.value))}
+            className={inputClass}
           />
         </div>
+        <div>
+          <label className="block text-xs font-medium text-stone-500 mb-1">
+            Min. Nächte Winter
+          </label>
+          <input
+            type="number"
+            step="1"
+            min="1"
+            value={minNightsWinter}
+            onChange={(e) => setMinNightsWinter(Number(e.target.value))}
+            className={inputClass}
+          />
+        </div>
+      </div>
+
+      {/* Fixed fees */}
+      <div className="grid grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-1">
             Zusatzperson/Nacht
@@ -125,7 +185,7 @@ function ApartmentPricingCard({
             min="0"
             value={extraPersonPrice}
             onChange={(e) => setExtraPersonPrice(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+            className={inputClass}
           />
         </div>
         <div>
@@ -138,7 +198,7 @@ function ApartmentPricingCard({
             min="0"
             value={cleaningFee}
             onChange={(e) => setCleaningFee(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+            className={inputClass}
           />
         </div>
         <div>
@@ -151,7 +211,7 @@ function ApartmentPricingCard({
             min="0"
             value={dogFee}
             onChange={(e) => setDogFee(Number(e.target.value))}
-            className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+            className={inputClass}
           />
         </div>
       </div>
@@ -169,112 +229,12 @@ function ApartmentPricingCard({
   );
 }
 
-// ─── Season Config Section ────────────────────────────────────
+// ─── Special Periods Section ─────────────────────────────────
 
-function SeasonConfigCard({
-  config,
-}: {
-  config: PricingEditorProps["seasonConfigs"][number];
-}) {
-  const [multiplier, setMultiplier] = useState(config.multiplier);
-  const [minNights, setMinNights] = useState(config.min_nights);
-  const [label, setLabel] = useState(config.label);
-  const [saving, setSaving] = useState(false);
-  const [status, setStatus] = useState<{
-    type: "success" | "error";
-    message: string;
-  } | null>(null);
-
-  const colorClass =
-    config.type === "high"
-      ? "bg-amber-50 border-amber-200"
-      : config.type === "mid"
-      ? "bg-blue-50 border-blue-200"
-      : "bg-stone-50 border-stone-200";
-
-  const handleSave = async () => {
-    setSaving(true);
-    setStatus(null);
-    const result = await updateSeasonConfig(config.type, {
-      multiplier,
-      min_nights: minNights,
-      label,
-    });
-    if (result.success) {
-      setStatus({ type: "success", message: "Gespeichert" });
-    } else {
-      setStatus({
-        type: "error",
-        message: result.error ?? "Fehler beim Speichern",
-      });
-    }
-    setSaving(false);
-    setTimeout(() => setStatus(null), 3000);
-  };
-
-  return (
-    <div className={`rounded-xl p-4 border ${colorClass}`}>
-      <div className="space-y-3">
-        <div>
-          <label className="block text-xs font-medium text-stone-500 mb-1">
-            Bezeichnung
-          </label>
-          <input
-            type="text"
-            value={label}
-            onChange={(e) => setLabel(e.target.value)}
-            className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-stone-500 mb-1">
-              Faktor
-            </label>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={multiplier}
-              onChange={(e) => setMultiplier(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-stone-500 mb-1">
-              Min. Nächte
-            </label>
-            <input
-              type="number"
-              step="1"
-              min="1"
-              value={minNights}
-              onChange={(e) => setMinNights(Number(e.target.value))}
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-            />
-          </div>
-        </div>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
-          >
-            {saving ? "Speichern..." : "Speichern"}
-          </button>
-          <StatusMessage status={status} />
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── Season Periods Section ───────────────────────────────────
-
-function SeasonPeriodsSection({
+function SpecialPeriodsSection({
   periods: initialPeriods,
 }: {
-  periods: PricingEditorProps["seasonPeriods"];
+  periods: SpecialPeriodData[];
 }) {
   const [periods, setPeriods] = useState(initialPeriods);
   const [loading, setLoading] = useState<string | null>(null);
@@ -284,16 +244,17 @@ function SeasonPeriodsSection({
   } | null>(null);
 
   // New period form
-  const [newType, setNewType] = useState<string>("high");
+  const [newLabel, setNewLabel] = useState("");
   const [newStart, setNewStart] = useState("");
   const [newEnd, setNewEnd] = useState("");
-  const [newLabel, setNewLabel] = useState("");
+  const [newSurcharge, setNewSurcharge] = useState(10);
+  const [newMinNights, setNewMinNights] = useState<number | "">(5);
 
   const handleDelete = async (id: string) => {
-    if (!confirm("Zeitraum wirklich löschen?")) return;
+    if (!confirm("Sonderzeitraum wirklich löschen?")) return;
     setLoading(`delete-${id}`);
     setStatus(null);
-    const result = await deleteSeasonPeriod(id);
+    const result = await deleteSpecialPeriod(id);
     if (result.success) {
       setPeriods((prev) => prev.filter((p) => p.id !== id));
       setStatus({ type: "success", message: "Gelöscht" });
@@ -307,34 +268,49 @@ function SeasonPeriodsSection({
     setTimeout(() => setStatus(null), 3000);
   };
 
+  const handleToggle = async (id: string, currentActive: boolean) => {
+    setLoading(`toggle-${id}`);
+    const result = await updateSpecialPeriod(id, { active: !currentActive });
+    if (result.success) {
+      setPeriods((prev) =>
+        prev.map((p) => (p.id === id ? { ...p, active: !currentActive } : p))
+      );
+    }
+    setLoading(null);
+  };
+
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newStart || !newEnd || !newLabel.trim()) return;
 
     setLoading("create");
     setStatus(null);
-    const result = await createSeasonPeriod({
-      type: newType,
+    const result = await createSpecialPeriod({
+      label: newLabel.trim(),
       start_mmdd: newStart,
       end_mmdd: newEnd,
-      label: newLabel.trim(),
+      surcharge_percent: newSurcharge,
+      min_nights: newMinNights === "" ? null : newMinNights,
     });
     if (result.success) {
       setPeriods((prev) => [
         ...prev,
         {
           id: crypto.randomUUID(),
-          type: newType,
+          label: newLabel.trim(),
           start_mmdd: newStart,
           end_mmdd: newEnd,
-          label: newLabel.trim(),
+          surcharge_percent: newSurcharge,
+          min_nights: newMinNights === "" ? null : newMinNights,
+          active: true,
         },
       ]);
-      setNewType("high");
+      setNewLabel("");
       setNewStart("");
       setNewEnd("");
-      setNewLabel("");
-      setStatus({ type: "success", message: "Zeitraum erstellt" });
+      setNewSurcharge(10);
+      setNewMinNights(5);
+      setStatus({ type: "success", message: "Sonderzeitraum erstellt" });
     } else {
       setStatus({
         type: "error",
@@ -345,29 +321,48 @@ function SeasonPeriodsSection({
     setTimeout(() => setStatus(null), 3000);
   };
 
-  const dotColor = (type: string) =>
-    type === "high"
-      ? "bg-amber-400"
-      : type === "mid"
-      ? "bg-blue-400"
-      : "bg-stone-300";
+  const inputClass =
+    "w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50";
 
   return (
     <div>
       {/* Existing periods */}
-      <div className="space-y-1.5 mb-4">
+      <div className="space-y-2 mb-4">
         {periods.map((p) => (
           <div
             key={p.id}
-            className="flex items-center gap-3 text-sm py-1.5 group"
+            className={`flex items-center gap-3 text-sm py-2.5 px-3 rounded-xl border group ${
+              p.active
+                ? "bg-amber-50/50 border-amber-200"
+                : "bg-stone-50 border-stone-200 opacity-60"
+            }`}
           >
-            <span
-              className={`w-2 h-2 rounded-full shrink-0 ${dotColor(p.type)}`}
-            />
+            <button
+              onClick={() => handleToggle(p.id, p.active)}
+              disabled={loading !== null}
+              className="shrink-0"
+              title={p.active ? "Deaktivieren" : "Aktivieren"}
+            >
+              <span
+                className={`block w-4 h-4 rounded border-2 ${
+                  p.active
+                    ? "bg-amber-400 border-amber-500"
+                    : "bg-white border-stone-300"
+                }`}
+              />
+            </button>
             <span className="text-stone-500 w-28 shrink-0 font-mono text-xs">
               {p.start_mmdd} – {p.end_mmdd}
             </span>
-            <span className="text-stone-700 flex-1">{p.label}</span>
+            <span className="text-stone-700 flex-1 font-medium">{p.label}</span>
+            <span className="text-amber-700 font-semibold text-xs bg-amber-100 px-2 py-0.5 rounded-full">
+              +{p.surcharge_percent}%
+            </span>
+            {p.min_nights !== null && (
+              <span className="text-stone-500 text-xs">
+                min. {p.min_nights}N
+              </span>
+            )}
             <button
               onClick={() => handleDelete(p.id)}
               disabled={loading !== null}
@@ -391,7 +386,7 @@ function SeasonPeriodsSection({
           </div>
         ))}
         {periods.length === 0 && (
-          <p className="text-sm text-stone-400">Keine Zeiträume definiert</p>
+          <p className="text-sm text-stone-400">Keine Sonderzeiträume definiert</p>
         )}
       </div>
 
@@ -401,22 +396,21 @@ function SeasonPeriodsSection({
         className="p-4 bg-stone-50 rounded-xl space-y-3"
       >
         <h4 className="text-xs font-semibold text-stone-500 uppercase tracking-wider">
-          Neuer Zeitraum
+          Neuer Sonderzeitraum
         </h4>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+          <div className="col-span-2 sm:col-span-1">
             <label className="block text-xs font-medium text-stone-500 mb-1">
-              Saison
+              Bezeichnung
             </label>
-            <select
-              value={newType}
-              onChange={(e) => setNewType(e.target.value)}
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-            >
-              <option value="high">Hochsaison</option>
-              <option value="mid">Zwischensaison</option>
-              <option value="low">Nebensaison</option>
-            </select>
+            <input
+              type="text"
+              value={newLabel}
+              onChange={(e) => setNewLabel(e.target.value)}
+              placeholder="z.B. Weihnachten"
+              className={inputClass}
+              required
+            />
           </div>
           <div>
             <label className="block text-xs font-medium text-stone-500 mb-1">
@@ -426,9 +420,9 @@ function SeasonPeriodsSection({
               type="text"
               value={newStart}
               onChange={(e) => setNewStart(e.target.value)}
-              placeholder="z.B. 07-01"
+              placeholder="z.B. 12-20"
               pattern="\d{2}-\d{2}"
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+              className={inputClass}
               required
             />
           </div>
@@ -440,23 +434,40 @@ function SeasonPeriodsSection({
               type="text"
               value={newEnd}
               onChange={(e) => setNewEnd(e.target.value)}
-              placeholder="z.B. 08-31"
+              placeholder="z.B. 01-06"
               pattern="\d{2}-\d{2}"
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+              className={inputClass}
               required
             />
           </div>
           <div>
             <label className="block text-xs font-medium text-stone-500 mb-1">
-              Bezeichnung
+              Aufschlag %
             </label>
             <input
-              type="text"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="z.B. Sommerhochsaison"
-              className="w-full px-3 py-2 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-              required
+              type="number"
+              step="1"
+              min="0"
+              max="100"
+              value={newSurcharge}
+              onChange={(e) => setNewSurcharge(Number(e.target.value))}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">
+              Min. Nächte
+            </label>
+            <input
+              type="number"
+              step="1"
+              min="1"
+              value={newMinNights}
+              onChange={(e) =>
+                setNewMinNights(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              placeholder="optional"
+              className={inputClass}
             />
           </div>
         </div>
@@ -466,7 +477,7 @@ function SeasonPeriodsSection({
             disabled={loading === "create"}
             className="px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
           >
-            {loading === "create" ? "Erstellen..." : "+ Zeitraum hinzufügen"}
+            {loading === "create" ? "Erstellen..." : "+ Sonderzeitraum hinzufügen"}
           </button>
           <StatusMessage status={status} />
         </div>
@@ -563,8 +574,7 @@ function TaxConfigSection({
 
 export default function PricingEditor({
   apartments,
-  seasonConfigs,
-  seasonPeriods,
+  specialPeriods,
   taxConfig,
 }: PricingEditorProps) {
   return (
@@ -574,7 +584,7 @@ export default function PricingEditor({
         <div className="px-5 py-4 border-b border-stone-100">
           <h2 className="font-semibold text-stone-900">Wohnungspreise</h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            Basispreise, Zusatzgebühren und Reinigung pro Wohnung
+            Sommer- und Winterpreise, Mindestaufenthalt und Zusatzgebühren pro Wohnung
           </p>
         </div>
         <div className="p-5 space-y-4">
@@ -584,31 +594,44 @@ export default function PricingEditor({
         </div>
       </div>
 
-      {/* Season Configs */}
-      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-        <div className="px-5 py-4 border-b border-stone-100">
-          <h2 className="font-semibold text-stone-900">Saisonkonfiguration</h2>
-          <p className="text-xs text-stone-500 mt-0.5">
-            Preisfaktoren und Mindestaufenthalt pro Saisontyp
-          </p>
-        </div>
-        <div className="p-5 grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {seasonConfigs.map((config) => (
-            <SeasonConfigCard key={config.type} config={config} />
-          ))}
-        </div>
-      </div>
-
-      {/* Season Periods */}
+      {/* Season Info */}
       <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
         <div className="px-5 py-4 border-b border-stone-100">
           <h2 className="font-semibold text-stone-900">Saisonzeiträume</h2>
           <p className="text-xs text-stone-500 mt-0.5">
-            Welcher Zeitraum gehört zu welcher Saison (MM-DD Format)
+            Feste Saisongrenzen für die Preisberechnung
           </p>
         </div>
         <div className="p-5">
-          <SeasonPeriodsSection periods={seasonPeriods} />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div className="flex items-center gap-3 p-3 bg-amber-50 border border-amber-200 rounded-xl">
+              <span className="text-2xl">&#9728;</span>
+              <div>
+                <p className="font-medium text-stone-900">Sommer</p>
+                <p className="text-sm text-stone-600">01. Mai – 30. November</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+              <span className="text-2xl">&#10052;</span>
+              <div>
+                <p className="font-medium text-stone-900">Winter</p>
+                <p className="text-sm text-stone-600">01. Dezember – 30. April</p>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Special Periods */}
+      <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
+        <div className="px-5 py-4 border-b border-stone-100">
+          <h2 className="font-semibold text-stone-900">Sonderzeiträume</h2>
+          <p className="text-xs text-stone-500 mt-0.5">
+            Prozentualer Aufschlag auf den jeweiligen Saisonpreis (Sommer/Winter)
+          </p>
+        </div>
+        <div className="p-5">
+          <SpecialPeriodsSection periods={specialPeriods} />
         </div>
       </div>
 

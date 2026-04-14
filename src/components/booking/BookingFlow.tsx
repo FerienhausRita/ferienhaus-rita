@@ -3,9 +3,9 @@
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSearchParams } from "next/navigation";
 import { apartments as staticApartments, Apartment } from "@/data/apartments";
-import { calculatePrice, formatCurrency, PriceBreakdown, PricingOverrides, getMinNightsWithOverrides } from "@/lib/pricing";
+import { calculatePrice, formatCurrency, PriceBreakdown, PricingOverrides, getMinNightsWithOverrides, getMinNightsForRange } from "@/lib/pricing";
 import { isAvailable } from "@/lib/availability";
-import { getMinNights } from "@/data/seasons";
+import { getMinNights, SpecialPeriod } from "@/data/seasons";
 import { validateDiscountCode, DiscountCode } from "@/data/discounts";
 import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
 import Image from "next/image";
@@ -21,6 +21,7 @@ interface BookingFlowProps {
   apartmentsData?: Apartment[];
   seasonConfigsData?: Record<string, SeasonConfig>;
   seasonPeriodsData?: SeasonPeriod[];
+  specialPeriodsData?: SpecialPeriod[];
   taxConfigData?: { localTaxPerNight: number; vatRate: number };
 }
 
@@ -52,6 +53,7 @@ export default function BookingFlow({
   apartmentsData,
   seasonConfigsData,
   seasonPeriodsData,
+  specialPeriodsData,
   taxConfigData,
 }: BookingFlowProps = {}) {
   const searchParams = useSearchParams();
@@ -61,10 +63,11 @@ export default function BookingFlow({
 
   // Build pricing overrides from DB data
   const pricingOverrides: PricingOverrides | undefined =
-    seasonConfigsData || seasonPeriodsData || taxConfigData
+    seasonConfigsData || seasonPeriodsData || specialPeriodsData || taxConfigData
       ? {
           seasonConfigs: seasonConfigsData,
           seasonPeriods: seasonPeriodsData,
+          specialPeriods: specialPeriodsData,
           localTaxPerNight: taxConfigData?.localTaxPerNight,
           vatRate: taxConfigData?.vatRate,
         }
@@ -173,16 +176,22 @@ export default function BookingFlow({
 
   const minNights = useMemo(() => {
     if (!search.checkIn || !search.checkOut) return 1;
-    if (pricingOverrides?.seasonPeriods || pricingOverrides?.seasonConfigs) {
-      return getMinNightsWithOverrides(
-        new Date(search.checkIn),
-        new Date(search.checkOut),
-        pricingOverrides.seasonPeriods,
-        pricingOverrides.seasonConfigs
+    const ci = new Date(search.checkIn);
+    const co = new Date(search.checkOut);
+    // Use new model if apartment has summer/winter prices
+    if (selectedApartment && (selectedApartment.summerPrice > 0 || selectedApartment.winterPrice > 0)) {
+      return getMinNightsForRange(
+        ci, co,
+        selectedApartment,
+        pricingOverrides?.specialPeriods ?? [],
       );
     }
-    return getMinNights(new Date(search.checkIn), new Date(search.checkOut));
-  }, [search.checkIn, search.checkOut, pricingOverrides]);
+    // Legacy fallback
+    if (pricingOverrides?.seasonPeriods || pricingOverrides?.seasonConfigs) {
+      return getMinNightsWithOverrides(ci, co, pricingOverrides.seasonPeriods, pricingOverrides.seasonConfigs);
+    }
+    return getMinNights(ci, co);
+  }, [search.checkIn, search.checkOut, selectedApartment, pricingOverrides]);
 
   const nightsCount = useMemo(() => {
     if (!search.checkIn || !search.checkOut) return 0;
@@ -436,7 +445,7 @@ export default function BookingFlow({
                               <div className="text-2xl font-bold text-stone-900">{formatCurrency(price.total)}</div>
                               <div className="text-sm text-stone-500">{price.nights} {price.nights === 1 ? "Nacht" : "Nächte"}</div>
                             </div>
-                            <div className="text-xs text-stone-400 mt-1">{formatCurrency(apt.basePrice)} / Nacht *</div>
+                            <div className="text-xs text-stone-400 mt-1">ab {formatCurrency(Math.min(apt.summerPrice || apt.basePrice, apt.winterPrice || apt.basePrice))} / Nacht</div>
                           </div>
                         </div>
                       </div>

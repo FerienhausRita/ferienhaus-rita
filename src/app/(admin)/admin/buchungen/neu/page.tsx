@@ -26,9 +26,13 @@ export default async function NeueBuchungPage() {
     maxGuests: a.maxGuests,
     baseGuests: a.baseGuests,
     basePrice: a.basePrice,
+    summerPrice: a.summerPrice,
+    winterPrice: a.winterPrice,
     extraPersonPrice: a.extraPersonPrice,
     cleaningFee: a.cleaningFee,
     dogFee: a.dogFee,
+    minNightsSummer: a.minNightsSummer,
+    minNightsWinter: a.minNightsWinter,
   }));
 
   return (

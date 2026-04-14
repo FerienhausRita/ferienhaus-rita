@@ -29,9 +29,13 @@ export default async function BuchenPage() {
     bathrooms: a.bathrooms,
     floor: a.floor,
     basePrice: a.basePrice,
+    summerPrice: a.summerPrice,
+    winterPrice: a.winterPrice,
     extraPersonPrice: a.extraPersonPrice,
     cleaningFee: a.cleaningFee,
     dogFee: a.dogFee,
+    minNightsSummer: a.minNightsSummer,
+    minNightsWinter: a.minNightsWinter,
     features: a.features,
     highlights: a.highlights,
     amenities: a.amenities,
@@ -46,6 +50,15 @@ export default async function BuchenPage() {
     label: p.label,
   }));
 
+  const serializedSpecialPeriods = pricingData.specialPeriods.map((sp) => ({
+    label: sp.label,
+    startMmdd: sp.startMmdd,
+    endMmdd: sp.endMmdd,
+    surchargePercent: sp.surchargePercent,
+    minNights: sp.minNights,
+    active: sp.active,
+  }));
+
   return (
     <Suspense
       fallback={
@@ -58,6 +71,7 @@ export default async function BuchenPage() {
         apartmentsData={serializedApartments}
         seasonConfigsData={pricingData.seasonConfigs}
         seasonPeriodsData={serializedSeasonPeriods}
+        specialPeriodsData={serializedSpecialPeriods}
         taxConfigData={pricingData.taxConfig}
       />
     </Suspense>

@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { isWinterDate, getSpecialPeriodForDate, SpecialPeriod } from "@/data/seasons";
 
 interface Apartment {
   id: string;
   name: string;
+  summerPrice: number;
+  winterPrice: number;
   basePrice: number;
   extraPersonPrice: number;
   cleaningFee: number;
@@ -13,31 +16,15 @@ interface Apartment {
   maxGuests: number;
 }
 
-interface SeasonConfig {
-  type: string;
-  label: string;
-  multiplier: number;
-  minNights: number;
-}
-
-interface SeasonPeriod {
-  start: string;
-  end: string;
-  type: string;
-  label: string;
-}
-
 interface PriceSimulatorProps {
   apartments: Apartment[];
-  seasons: SeasonConfig[];
-  seasonPeriods: SeasonPeriod[];
+  specialPeriods: SpecialPeriod[];
   localTaxPerNight: number;
 }
 
 export default function PriceSimulator({
   apartments,
-  seasons,
-  seasonPeriods,
+  specialPeriods,
   localTaxPerNight,
 }: PriceSimulatorProps) {
   const [apartmentId, setApartmentId] = useState(apartments[0]?.id ?? "");
@@ -48,50 +35,6 @@ export default function PriceSimulator({
   const [dogs, setDogs] = useState(0);
 
   const apartment = apartments.find((a) => a.id === apartmentId);
-
-  // Build a lookup from season type to config
-  const seasonConfigMap = new Map(seasons.map((s) => [s.type, s]));
-
-  // Low season fallback
-  const lowSeason = seasonConfigMap.get("low") ?? {
-    type: "low",
-    label: "Nebensaison",
-    multiplier: 0.85,
-    minNights: 2,
-  };
-
-  const getSeasonForDate = (
-    date: Date
-  ): { multiplier: number; label: string } => {
-    const mm = String(date.getMonth() + 1).padStart(2, "0");
-    const dd = String(date.getDate()).padStart(2, "0");
-    const mmdd = `${mm}-${dd}`;
-
-    for (const period of seasonPeriods) {
-      if (period.start <= period.end) {
-        // Normal range (e.g. 07-01 to 08-31)
-        if (mmdd >= period.start && mmdd <= period.end) {
-          const config = seasonConfigMap.get(period.type);
-          return {
-            multiplier: config?.multiplier ?? 1.0,
-            label: config?.label ?? period.label,
-          };
-        }
-      } else {
-        // Wrapping range (e.g. 12-20 to 01-06)
-        if (mmdd >= period.start || mmdd <= period.end) {
-          const config = seasonConfigMap.get(period.type);
-          return {
-            multiplier: config?.multiplier ?? 1.0,
-            label: config?.label ?? period.label,
-          };
-        }
-      }
-    }
-
-    // Default: low season
-    return { multiplier: lowSeason.multiplier, label: lowSeason.label };
-  };
 
   const calculateResult = () => {
     if (!apartment || !checkIn || !checkOut) return null;
@@ -113,9 +56,27 @@ export default function PriceSimulator({
     >();
 
     for (let i = 0; i < nights; i++) {
-      const { multiplier, label } = getSeasonForDate(current);
-      const nightPrice =
-        Math.round(apartment.basePrice * multiplier * 100) / 100;
+      const mm = String(current.getMonth() + 1).padStart(2, "0");
+      const dd = String(current.getDate()).padStart(2, "0");
+      const mmdd = `${mm}-${dd}`;
+
+      // Determine base season
+      const winter = isWinterDate(mmdd);
+      const baseSeasonPrice = winter ? apartment.winterPrice : apartment.summerPrice;
+      const baseLabel = winter ? "Winter" : "Sommer";
+
+      // Check for special period
+      const special = getSpecialPeriodForDate(mmdd, specialPeriods);
+      let nightPrice: number;
+      let label: string;
+
+      if (special) {
+        nightPrice = Math.round(baseSeasonPrice * (1 + special.surchargePercent / 100) * 100) / 100;
+        label = `${special.label} (+${special.surchargePercent}%)`;
+      } else {
+        nightPrice = baseSeasonPrice;
+        label = baseLabel;
+      }
 
       const existing = seasonBreakdown.get(label);
       if (existing) {
@@ -168,12 +129,20 @@ export default function PriceSimulator({
       currency: "EUR",
     }).format(n);
 
+  // Show price range in dropdown
+  const priceLabel = (a: Apartment) => {
+    if (a.summerPrice === a.winterPrice) {
+      return `${fmt(a.summerPrice)}/Nacht`;
+    }
+    return `${fmt(Math.min(a.summerPrice, a.winterPrice))}–${fmt(Math.max(a.summerPrice, a.winterPrice))}/Nacht`;
+  };
+
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
       <div className="px-5 py-4 border-b border-stone-100">
         <h2 className="font-semibold text-stone-900">Preissimulator</h2>
         <p className="text-xs text-stone-500 mt-0.5">
-          Berechne den Preis für eine Buchung
+          Berechne den Preis für eine Buchung (Sommer/Winter + Sonderzeiträume)
         </p>
       </div>
       <div className="p-5 space-y-4">
@@ -189,7 +158,7 @@ export default function PriceSimulator({
             >
               {apartments.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.name} ({fmt(a.basePrice)}/Nacht)
+                  {a.name} ({priceLabel(a)})
                 </option>
               ))}
             </select>
@@ -270,15 +239,18 @@ export default function PriceSimulator({
                   {s.nights} Nacht{s.nights > 1 ? "e" : ""} {s.label} &times;{" "}
                   {fmt(s.pricePerNight)}
                 </span>
-                <span className="text-stone-900">{fmt(s.total)}</span>
+                <span className="text-stone-900">
+                  {fmt(Math.round(s.total * 100) / 100)}
+                </span>
               </div>
             ))}
             {result.extraGuests > 0 && (
               <div className="flex justify-between">
                 <span className="text-stone-600">
                   {result.extraGuests} Zusatzgast
-                  {result.extraGuests > 1 ? "e" : ""} &times; {result.nights}{" "}
-                  Nächte
+                  {result.extraGuests > 1 ? "e" : ""} &times;{" "}
+                  {apartment && fmt(apartment.extraPersonPrice)}/Nacht &times;{" "}
+                  {result.nights} Nächte
                 </span>
                 <span className="text-stone-900">
                   {fmt(result.extraGuestsTotal)}
@@ -288,8 +260,9 @@ export default function PriceSimulator({
             {result.dogsTotal > 0 && (
               <div className="flex justify-between">
                 <span className="text-stone-600">
-                  {dogs} Hund{dogs > 1 ? "e" : ""} &times; {result.nights}{" "}
-                  Nächte
+                  {dogs} Hund{dogs > 1 ? "e" : ""} &times;{" "}
+                  {apartment && fmt(apartment.dogFee)}/Nacht &times;{" "}
+                  {result.nights} Nächte
                 </span>
                 <span className="text-stone-900">{fmt(result.dogsTotal)}</span>
               </div>

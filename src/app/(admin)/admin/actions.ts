@@ -1872,10 +1872,14 @@ export async function removeAdmin(userId: string) {
 export async function updateApartmentPricing(
   apartmentId: string,
   pricing: {
-    base_price: number;
+    summer_price?: number;
+    winter_price?: number;
+    base_price?: number;
     extra_person_price: number;
     cleaning_fee: number;
     dog_fee: number;
+    min_nights_summer?: number;
+    min_nights_winter?: number;
   }
 ) {
   const supabase = createServerClient();
@@ -1986,6 +1990,99 @@ export async function updateTaxConfig(key: string, rate: number) {
     .from("tax_config")
     .update({ rate })
     .eq("key", key);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+// ============================================
+// SPECIAL PERIODS (Sonderzeiträume)
+// ============================================
+
+/**
+ * Get special periods from DB (for admin editor)
+ */
+export async function getSpecialPeriods() {
+  const supabase = createServerClient();
+
+  const { data, error } = await supabase
+    .from("special_periods")
+    .select("id, label, start_mmdd, end_mmdd, surcharge_percent, min_nights, active")
+    .order("start_mmdd", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching special periods:", error);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+/**
+ * Create a special period
+ */
+export async function createSpecialPeriod(period: {
+  label: string;
+  start_mmdd: string;
+  end_mmdd: string;
+  surcharge_percent: number;
+  min_nights: number | null;
+}) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("special_periods").insert(period);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+/**
+ * Update a special period
+ */
+export async function updateSpecialPeriod(
+  id: string,
+  updates: Partial<{
+    label: string;
+    start_mmdd: string;
+    end_mmdd: string;
+    surcharge_percent: number;
+    min_nights: number | null;
+    active: boolean;
+  }>
+) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase
+    .from("special_periods")
+    .update({ ...updates, updated_at: new Date().toISOString() })
+    .eq("id", id);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin/preise");
+  revalidatePath("/buchen");
+  return { success: true };
+}
+
+/**
+ * Delete a special period
+ */
+export async function deleteSpecialPeriod(id: string) {
+  const supabase = createServerClient();
+
+  const { error } = await supabase.from("special_periods").delete().eq("id", id);
 
   if (error) {
     return { success: false, error: error.message };

@@ -8,12 +8,12 @@
 
 import { createServerClient } from "@/lib/supabase/server";
 import { apartments, Apartment, getApartmentById as getStaticApartment, getApartmentBySlug as getStaticApartmentBySlug } from "@/data/apartments";
-import { seasonConfigs as staticSeasonConfigs, seasonPeriods as staticSeasonPeriods, SeasonConfig, SeasonPeriod } from "@/data/seasons";
+import { seasonConfigs as staticSeasonConfigs, seasonPeriods as staticSeasonPeriods, SeasonConfig, SeasonPeriod, SpecialPeriod, defaultSpecialPeriods } from "@/data/seasons";
 import { localTax as staticLocalTax, vat as staticVat } from "@/data/taxes";
 
 // Re-export types
 export type { Apartment } from "@/data/apartments";
-export type { SeasonConfig, SeasonPeriod } from "@/data/seasons";
+export type { SeasonConfig, SeasonPeriod, SpecialPeriod } from "@/data/seasons";
 
 export interface TaxConfig {
   localTaxPerNight: number;
@@ -29,7 +29,7 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
     const supabase = createServerClient();
     const { data: pricing } = await supabase
       .from("apartment_pricing")
-      .select("apartment_id, base_price, extra_person_price, cleaning_fee, dog_fee");
+      .select("apartment_id, base_price, summer_price, winter_price, extra_person_price, cleaning_fee, dog_fee, min_nights_summer, min_nights_winter");
 
     if (!pricing || pricing.length === 0) {
       return apartments;
@@ -43,9 +43,13 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
       return {
         ...apt,
         basePrice: Number(dbPrice.base_price),
+        summerPrice: Number(dbPrice.summer_price ?? dbPrice.base_price),
+        winterPrice: Number(dbPrice.winter_price ?? dbPrice.base_price),
         extraPersonPrice: Number(dbPrice.extra_person_price),
         cleaningFee: Number(dbPrice.cleaning_fee),
         dogFee: Number(dbPrice.dog_fee),
+        minNightsSummer: Number(dbPrice.min_nights_summer ?? apt.minNightsSummer),
+        minNightsWinter: Number(dbPrice.min_nights_winter ?? apt.minNightsWinter),
       };
     });
   } catch {
@@ -70,7 +74,36 @@ export async function getApartmentBySlugWithPricing(slug: string): Promise<Apart
 }
 
 /**
- * Get season configs from DB.
+ * Get special periods from DB.
+ */
+export async function getSpecialPeriodsFromDB(): Promise<SpecialPeriod[]> {
+  try {
+    const supabase = createServerClient();
+    const { data } = await supabase
+      .from("special_periods")
+      .select("id, label, start_mmdd, end_mmdd, surcharge_percent, min_nights, active")
+      .order("start_mmdd", { ascending: true });
+
+    if (!data || data.length === 0) {
+      return defaultSpecialPeriods;
+    }
+
+    return data.map((row) => ({
+      id: row.id,
+      label: row.label,
+      startMmdd: row.start_mmdd,
+      endMmdd: row.end_mmdd,
+      surchargePercent: Number(row.surcharge_percent),
+      minNights: row.min_nights !== null ? Number(row.min_nights) : null,
+      active: row.active ?? true,
+    }));
+  } catch {
+    return defaultSpecialPeriods;
+  }
+}
+
+/**
+ * @deprecated Get season configs from DB (legacy multiplier system).
  */
 export async function getSeasonConfigsFromDB(): Promise<Record<string, SeasonConfig>> {
   try {
@@ -99,7 +132,7 @@ export async function getSeasonConfigsFromDB(): Promise<Record<string, SeasonCon
 }
 
 /**
- * Get season periods from DB.
+ * @deprecated Get season periods from DB (legacy multiplier system).
  */
 export async function getSeasonPeriodsFromDB(): Promise<SeasonPeriod[]> {
   try {
@@ -172,9 +205,8 @@ export async function recalculateBookingPrices(params: {
   const apartment = await getApartmentWithPricing(params.apartmentId);
   if (!apartment) return null;
 
-  const [seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
-    getSeasonConfigsFromDB(),
-    getSeasonPeriodsFromDB(),
+  const [specialPeriods, taxConfig] = await Promise.all([
+    getSpecialPeriodsFromDB(),
     getTaxConfigFromDB(),
   ]);
 
@@ -189,8 +221,7 @@ export async function recalculateBookingPrices(params: {
     children: params.children,
     dogs: params.dogs,
     overrides: {
-      seasonConfigs,
-      seasonPeriods,
+      specialPeriods,
       localTaxPerNight: taxConfig.localTaxPerNight,
       vatRate: taxConfig.vatRate,
     },
@@ -201,12 +232,13 @@ export async function recalculateBookingPrices(params: {
  * Get ALL pricing data in a single call (for BookingFlow props).
  */
 export async function getAllPricingData() {
-  const [allApartments, seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
+  const [allApartments, specialPeriods, seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
     getAllApartmentsWithPricing(),
+    getSpecialPeriodsFromDB(),
     getSeasonConfigsFromDB(),
     getSeasonPeriodsFromDB(),
     getTaxConfigFromDB(),
   ]);
 
-  return { apartments: allApartments, seasonConfigs, seasonPeriods, taxConfig };
+  return { apartments: allApartments, specialPeriods, seasonConfigs, seasonPeriods, taxConfig };
 }

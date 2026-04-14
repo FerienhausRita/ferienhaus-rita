@@ -13,9 +13,13 @@ interface ApartmentData {
   maxGuests: number;
   baseGuests: number;
   basePrice: number;
+  summerPrice?: number;
+  winterPrice?: number;
   extraPersonPrice: number;
   cleaningFee: number;
   dogFee: number;
+  minNightsSummer?: number;
+  minNightsWinter?: number;
 }
 
 interface ManualBookingFormProps {
@@ -82,6 +86,10 @@ export default function ManualBookingForm({
         amenities: [],
         images: [],
         available: true,
+        summerPrice: selectedApartment.summerPrice ?? selectedApartment.basePrice,
+        winterPrice: selectedApartment.winterPrice ?? selectedApartment.basePrice,
+        minNightsSummer: selectedApartment.minNightsSummer ?? 3,
+        minNightsWinter: selectedApartment.minNightsWinter ?? 5,
       } as Apartment;
 
       return calculatePrice({

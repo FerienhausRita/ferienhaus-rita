@@ -1,8 +1,8 @@
 import { Metadata } from "next";
-import { getDiscountCodes, getSeasonPeriods } from "../actions";
+import { getDiscountCodes, getSpecialPeriods } from "../actions";
 import {
   getAllApartmentsWithPricing,
-  getSeasonConfigsFromDB,
+  getSpecialPeriodsFromDB,
   getTaxConfigFromDB,
 } from "@/lib/pricing-data";
 import { createServerClient } from "@/lib/supabase/server";
@@ -17,13 +17,12 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function PreisePage() {
-  const [discountCodes, allApartments, seasonConfigsMap, taxConfig, seasonPeriodsRaw] =
+  const [discountCodes, allApartments, specialPeriods, taxConfig] =
     await Promise.all([
       getDiscountCodes(),
       getAllApartmentsWithPricing(),
-      getSeasonConfigsFromDB(),
+      getSpecialPeriodsFromDB(),
       getTaxConfigFromDB(),
-      getSeasonPeriods(),
     ]);
 
   // Get raw DB pricing rows for the editor
@@ -38,43 +37,38 @@ export default async function PreisePage() {
   );
   const editorApartments = allApartments.map((a) => {
     const dbRow = pricingMap.get(a.id) as
-      | { base_price: number; extra_person_price: number; cleaning_fee: number; dog_fee: number }
+      | { base_price: number; summer_price: number; winter_price: number; extra_person_price: number; cleaning_fee: number; dog_fee: number; min_nights_summer: number; min_nights_winter: number }
       | undefined;
     return {
       id: a.id,
       name: a.name,
-      base_price: dbRow ? Number(dbRow.base_price) : a.basePrice,
-      extra_person_price: dbRow
-        ? Number(dbRow.extra_person_price)
-        : a.extraPersonPrice,
+      summer_price: dbRow?.summer_price ? Number(dbRow.summer_price) : a.summerPrice,
+      winter_price: dbRow?.winter_price ? Number(dbRow.winter_price) : a.winterPrice,
+      extra_person_price: dbRow ? Number(dbRow.extra_person_price) : a.extraPersonPrice,
       cleaning_fee: dbRow ? Number(dbRow.cleaning_fee) : a.cleaningFee,
       dog_fee: dbRow ? Number(dbRow.dog_fee) : a.dogFee,
+      min_nights_summer: dbRow?.min_nights_summer ? Number(dbRow.min_nights_summer) : a.minNightsSummer,
+      min_nights_winter: dbRow?.min_nights_winter ? Number(dbRow.min_nights_winter) : a.minNightsWinter,
     };
   });
 
-  // Season configs as array for editor
-  const editorSeasonConfigs = Object.values(seasonConfigsMap).map((s) => ({
-    type: s.type,
-    label: s.label,
-    multiplier: s.multiplier,
-    min_nights: s.minNights,
+  // Special periods for editor
+  const editorSpecialPeriods = specialPeriods.map((sp) => ({
+    id: sp.id ?? crypto.randomUUID(),
+    label: sp.label,
+    start_mmdd: sp.startMmdd,
+    end_mmdd: sp.endMmdd,
+    surcharge_percent: sp.surchargePercent,
+    min_nights: sp.minNights,
+    active: sp.active,
   }));
-
-  // Season periods with DB IDs for editor
-  const editorSeasonPeriods = (seasonPeriodsRaw ?? []).map(
-    (p: { id: string; type: string; start_mmdd: string; end_mmdd: string; label: string }) => ({
-      id: p.id,
-      type: p.type,
-      start_mmdd: p.start_mmdd,
-      end_mmdd: p.end_mmdd,
-      label: p.label,
-    })
-  );
 
   // Simulator props
   const simulatorApartments = allApartments.map((a) => ({
     id: a.id,
     name: a.name,
+    summerPrice: a.summerPrice,
+    winterPrice: a.winterPrice,
     basePrice: a.basePrice,
     extraPersonPrice: a.extraPersonPrice,
     cleaningFee: a.cleaningFee,
@@ -83,19 +77,16 @@ export default async function PreisePage() {
     maxGuests: a.maxGuests,
   }));
 
-  const simulatorSeasons = Object.values(seasonConfigsMap).map((s) => ({
-    type: s.type,
-    label: s.label,
-    multiplier: s.multiplier,
-    minNights: s.minNights,
-  }));
-
-  const simulatorPeriods = editorSeasonPeriods.map((p) => ({
-    start: p.start_mmdd,
-    end: p.end_mmdd,
-    type: p.type,
-    label: p.label,
-  }));
+  const simulatorSpecialPeriods = specialPeriods
+    .filter((sp) => sp.active)
+    .map((sp) => ({
+      label: sp.label,
+      startMmdd: sp.startMmdd,
+      endMmdd: sp.endMmdd,
+      surchargePercent: sp.surchargePercent,
+      minNights: sp.minNights,
+      active: sp.active,
+    }));
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto space-y-6">
@@ -104,8 +95,7 @@ export default async function PreisePage() {
       {/* Pricing Editor */}
       <PricingEditor
         apartments={editorApartments}
-        seasonConfigs={editorSeasonConfigs}
-        seasonPeriods={editorSeasonPeriods}
+        specialPeriods={editorSpecialPeriods}
         taxConfig={taxConfig}
       />
 
@@ -115,8 +105,7 @@ export default async function PreisePage() {
       {/* Price Simulator */}
       <PriceSimulator
         apartments={simulatorApartments}
-        seasons={simulatorSeasons}
-        seasonPeriods={simulatorPeriods}
+        specialPeriods={simulatorSpecialPeriods}
         localTaxPerNight={taxConfig.localTaxPerNight}
       />
     </div>

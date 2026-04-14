@@ -11,10 +11,19 @@ export interface Apartment {
   bedrooms: number;
   bathrooms: number;
   floor: string;
+  /** @deprecated Use summerPrice/winterPrice instead */
   basePrice: number;
+  /** Summer price per night (May 1 – Nov 30) */
+  summerPrice: number;
+  /** Winter price per night (Dec 1 – Apr 30) */
+  winterPrice: number;
   extraPersonPrice: number;
   cleaningFee: number;
   dogFee: number;
+  /** Min nights in summer season */
+  minNightsSummer: number;
+  /** Min nights in winter season */
+  minNightsWinter: number;
   features: string[];
   highlights: string[];
   amenities: AmenityGroup[];
@@ -44,9 +53,13 @@ export const apartments: Apartment[] = [
     bathrooms: 1,
     floor: "Dachgeschoss",
     basePrice: 170,
+    summerPrice: 170,
+    winterPrice: 170,
     extraPersonPrice: 20,
     cleaningFee: 100,
     dogFee: 15,
+    minNightsSummer: 3,
+    minNightsWinter: 5,
     features: [
       "Bergpanorama",
       "Voll ausgestattete Küche",
@@ -135,9 +148,13 @@ export const apartments: Apartment[] = [
     bathrooms: 1,
     floor: "Obergeschoss",
     basePrice: 170,
+    summerPrice: 170,
+    winterPrice: 170,
     extraPersonPrice: 20,
     cleaningFee: 100,
     dogFee: 15,
+    minNightsSummer: 3,
+    minNightsWinter: 5,
     features: [
       "Gletscherblick",
       "Voll ausgestattete Küche",
@@ -228,9 +245,13 @@ export const apartments: Apartment[] = [
     bathrooms: 1,
     floor: "Erdgeschoss",
     basePrice: 90,
+    summerPrice: 90,
+    winterPrice: 90,
     extraPersonPrice: 20,
     cleaningFee: 50,
     dogFee: 15,
+    minNightsSummer: 3,
+    minNightsWinter: 5,
     features: [
       "Bergblick",
       "Kompakte Küche",
@@ -306,9 +327,13 @@ export const apartments: Apartment[] = [
     bathrooms: 1,
     floor: "Erdgeschoss",
     basePrice: 90,
+    summerPrice: 90,
+    winterPrice: 90,
     extraPersonPrice: 20,
     cleaningFee: 50,
     dogFee: 15,
+    minNightsSummer: 3,
+    minNightsWinter: 5,
     features: [
       "Bergblick",
       "Kompakte Küche",

@@ -1,5 +1,15 @@
 import { Apartment } from "@/data/apartments";
-import { getSeasonForDate, SeasonType, SeasonConfig, SeasonPeriod, seasonConfigs as defaultSeasonConfigs, seasonPeriods as defaultSeasonPeriods } from "@/data/seasons";
+import {
+  SeasonType,
+  SeasonConfig,
+  SeasonPeriod,
+  SpecialPeriod,
+  seasonConfigs as defaultSeasonConfigs,
+  seasonPeriods as defaultSeasonPeriods,
+  defaultSpecialPeriods,
+  isWinterDate,
+  getSpecialPeriodForDate,
+} from "@/data/seasons";
 import { localTax, vat } from "@/data/taxes";
 import {
   DiscountCode,
@@ -11,10 +21,18 @@ import {
  * When provided, these take precedence over static file defaults.
  */
 export interface PricingOverrides {
+  /** @deprecated Legacy multiplier system */
   seasonConfigs?: Record<string, SeasonConfig>;
+  /** @deprecated Legacy season periods */
   seasonPeriods?: SeasonPeriod[];
+  /** Special periods with surcharges (new system) */
+  specialPeriods?: SpecialPeriod[];
   localTaxPerNight?: number;
   vatRate?: number;
+  /** Override min nights for summer */
+  minNightsSummer?: number;
+  /** Override min nights for winter */
+  minNightsWinter?: number;
 }
 
 export interface BookingParams {
@@ -68,7 +86,76 @@ export function calculateNights(checkIn: Date, checkOut: Date): number {
 }
 
 /**
- * Helper: Get season for a date using custom periods/configs (from DB) or defaults.
+ * Get the night price for a specific date using the summer/winter + special period model.
+ */
+function getNightPriceForDate(
+  date: Date,
+  apartment: Apartment,
+  specialPeriods: SpecialPeriod[],
+): { price: number; label: string; type: SeasonType } {
+  const mm = String(date.getMonth() + 1).padStart(2, "0");
+  const dd = String(date.getDate()).padStart(2, "0");
+  const mmdd = `${mm}-${dd}`;
+
+  // Determine base season (summer or winter)
+  const winter = isWinterDate(mmdd);
+  const basePrice = winter ? apartment.winterPrice : apartment.summerPrice;
+  const baseLabel = winter ? "Winter" : "Sommer";
+  const baseType: SeasonType = winter ? "winter" : "summer";
+
+  // Check for special period surcharge
+  const special = getSpecialPeriodForDate(mmdd, specialPeriods);
+  if (special) {
+    const surchargedPrice = Math.round(basePrice * (1 + special.surchargePercent / 100) * 100) / 100;
+    return {
+      price: surchargedPrice,
+      label: `${special.label} (+${special.surchargePercent}%)`,
+      type: "special",
+    };
+  }
+
+  return { price: basePrice, label: baseLabel, type: baseType };
+}
+
+/**
+ * Get the strictest minimum nights for a date range using new model.
+ */
+export function getMinNightsForRange(
+  checkIn: Date,
+  checkOut: Date,
+  apartment: Apartment,
+  specialPeriods: SpecialPeriod[],
+  overrideMinSummer?: number,
+  overrideMinWinter?: number,
+): number {
+  const minSummer = overrideMinSummer ?? apartment.minNightsSummer;
+  const minWinter = overrideMinWinter ?? apartment.minNightsWinter;
+
+  let maxMin = 1;
+  const current = new Date(checkIn);
+  while (current < checkOut) {
+    const mm = String(current.getMonth() + 1).padStart(2, "0");
+    const dd = String(current.getDate()).padStart(2, "0");
+    const mmdd = `${mm}-${dd}`;
+
+    // Check special period first
+    const special = getSpecialPeriodForDate(mmdd, specialPeriods);
+    if (special && special.minNights !== null) {
+      if (special.minNights > maxMin) maxMin = special.minNights;
+    } else {
+      // Base season min nights
+      const baseMin = isWinterDate(mmdd) ? minWinter : minSummer;
+      if (baseMin > maxMin) maxMin = baseMin;
+    }
+
+    current.setDate(current.getDate() + 1);
+  }
+  return maxMin;
+}
+
+/**
+ * Legacy: Get season for a date using old multiplier system.
+ * @deprecated Use getNightPriceForDate instead
  */
 function getSeasonForDateWithOverrides(
   date: Date,
@@ -98,7 +185,8 @@ function getSeasonForDateWithOverrides(
 }
 
 /**
- * Get the strictest minimum nights for a date range, with optional overrides.
+ * Legacy: Get the strictest minimum nights for a date range (old system).
+ * @deprecated Use getMinNightsForRange instead
  */
 export function getMinNightsWithOverrides(
   checkIn: Date,
@@ -116,6 +204,14 @@ export function getMinNightsWithOverrides(
   return maxMin;
 }
 
+/**
+ * Detect whether apartment has summer/winter prices set.
+ * If both are 0 or undefined, fall back to legacy multiplier system.
+ */
+function useNewPricingModel(apartment: Apartment): boolean {
+  return (apartment.summerPrice > 0 || apartment.winterPrice > 0);
+}
+
 export function calculatePrice(params: BookingParams): PriceBreakdown {
   const { apartment, checkIn, checkOut, adults, children, dogs, discount, overrides } =
     params;
@@ -129,38 +225,70 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
 
   // Day-by-day seasonal price calculation
   const seasonMap = new Map<
-    SeasonType,
-    { label: string; nights: number; pricePerNight: number; total: number }
+    string,
+    { type: SeasonType; label: string; nights: number; pricePerNight: number; total: number }
   >();
 
   let basePriceTotal = 0;
   const current = new Date(checkIn);
 
-  for (let i = 0; i < nights; i++) {
-    const season = getSeasonForDateWithOverrides(current, overrides?.seasonPeriods, overrides?.seasonConfigs);
-    const nightPrice = Math.round(apartment.basePrice * season.multiplier * 100) / 100;
+  const newModel = useNewPricingModel(apartment);
 
-    const existing = seasonMap.get(season.type);
-    if (existing) {
-      existing.nights += 1;
-      existing.total += nightPrice;
-    } else {
-      seasonMap.set(season.type, {
-        label: season.label,
-        nights: 1,
-        pricePerNight: nightPrice,
-        total: nightPrice,
-      });
+  if (newModel) {
+    // ── New pricing: summer/winter + special periods ──
+    const specialPeriods = overrides?.specialPeriods ?? defaultSpecialPeriods;
+
+    for (let i = 0; i < nights; i++) {
+      const { price, label, type } = getNightPriceForDate(current, apartment, specialPeriods);
+
+      const key = label; // Group by label (e.g., "Winter", "Sommer", "Weihnachten (+20%)")
+      const existing = seasonMap.get(key);
+      if (existing) {
+        existing.nights += 1;
+        existing.total += price;
+      } else {
+        seasonMap.set(key, {
+          type,
+          label,
+          nights: 1,
+          pricePerNight: price,
+          total: price,
+        });
+      }
+
+      basePriceTotal += price;
+      current.setDate(current.getDate() + 1);
     }
+  } else {
+    // ── Legacy pricing: basePrice × multiplier ──
+    for (let i = 0; i < nights; i++) {
+      const season = getSeasonForDateWithOverrides(current, overrides?.seasonPeriods, overrides?.seasonConfigs);
+      const nightPrice = Math.round(apartment.basePrice * season.multiplier * 100) / 100;
 
-    basePriceTotal += nightPrice;
-    current.setDate(current.getDate() + 1);
+      const key = season.type;
+      const existing = seasonMap.get(key);
+      if (existing) {
+        existing.nights += 1;
+        existing.total += nightPrice;
+      } else {
+        seasonMap.set(key, {
+          type: season.type,
+          label: season.label,
+          nights: 1,
+          pricePerNight: nightPrice,
+          total: nightPrice,
+        });
+      }
+
+      basePriceTotal += nightPrice;
+      current.setDate(current.getDate() + 1);
+    }
   }
 
   const seasonBreakdown: SeasonBreakdownEntry[] = Array.from(
     seasonMap.entries()
-  ).map(([type, entry]) => ({
-    type,
+  ).map(([, entry]) => ({
+    type: entry.type,
     label: entry.label,
     nights: entry.nights,
     pricePerNight: entry.pricePerNight,
@@ -201,7 +329,6 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
 
   // VAT: extracted from gross amounts that are subject to VAT.
   // Ortstaxe is a public levy and NOT subject to VAT.
-  // VAT-liable gross = total - localTaxTotal
   const vatLiableGross = total - localTaxTotal;
   const vatAmount = Math.round((vatLiableGross / (1 + usedVatRate) * usedVatRate) * 100) / 100;
 

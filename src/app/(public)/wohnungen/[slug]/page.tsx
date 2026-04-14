@@ -158,10 +158,11 @@ export default async function ApartmentDetailPage({ params }: Props) {
             <div className="bg-white rounded-2xl border border-stone-200 shadow-lg p-6">
               <div className="mb-6">
                 <div className="flex items-baseline gap-2">
+                  <span className="text-sm text-stone-500">ab</span>
                   <span className="text-3xl font-bold text-stone-900">
-                    {formatCurrency(apartment.basePrice)}
+                    {formatCurrency(Math.min(apartment.summerPrice || apartment.basePrice, apartment.winterPrice || apartment.basePrice))}
                   </span>
-                  <span className="text-stone-500">/ Nacht *</span>
+                  <span className="text-stone-500">/ Nacht</span>
                 </div>
                 <p className="text-sm text-stone-400 mt-1">
                   Grundpreis bis {apartment.baseGuests} Personen
