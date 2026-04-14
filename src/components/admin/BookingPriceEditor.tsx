@@ -65,26 +65,38 @@ export default function BookingPriceEditor({
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
-  // Work with total accommodation cost to avoid rounding errors
+  // Derived initial values
   const initialAccommodationTotal = round2(initialPPN * nights);
+  const initialExtraGuests = Math.max(0, (adults + children) - baseGuests);
+  const initialExtraPersonPPN = initialExtraGuests > 0 ? round2(initialEG / (initialExtraGuests * nights)) : extraPersonPrice;
+  const initialDogFeePPN = dogsCount > 0 ? round2(initialDogs / (dogsCount * nights)) : dogFeePerNight;
+  const initialLocalTaxPPN = adults > 0 && nights > 0 ? round2(initialLT / (adults * nights)) : localTaxPerNight;
 
-  const [accommodationTotal, setAccommodationTotal] = useState(initialAccommodationTotal);
-  const [eg, setEg] = useState(initialEG);
-  const [dogs, setDogs] = useState(initialDogs);
-  const [cf, setCf] = useState(initialCF);
-  const [lt, setLt] = useState(initialLT);
+  // Editable unit values
+  const [editPPN, setEditPPN] = useState(initialPPN);
+  const [editNights, setEditNights] = useState(nights);
+  const [editAdults, setEditAdults] = useState(adults);
+  const [editChildren, setEditChildren] = useState(children);
+  const [editDogsCount, setEditDogsCount] = useState(dogsCount);
+  const [editDogFeePPN, setEditDogFeePPN] = useState(initialDogFeePPN);
+  const [editExtraPersonPPN, setEditExtraPersonPPN] = useState(initialExtraPersonPPN);
+  const [editCF, setEditCF] = useState(initialCF);
+  const [editLocalTaxPPN, setEditLocalTaxPPN] = useState(initialLocalTaxPPN);
   const [discount, setDiscount] = useState(initialDiscount);
   const [items, setItems] = useState<LineItem[]>(initialLineItems);
   const [newLabel, setNewLabel] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [message, setMessage] = useState("");
 
-  // Derived per-night for storage (back-calculate)
-  const derivedPPN = nights > 0 ? round2(accommodationTotal / nights) : 0;
-
-  const baseTotal = accommodationTotal + eg + dogs + cf + lt - discount;
+  // Auto-calculated totals from unit values
+  const calcAccommodation = round2(editPPN * editNights);
+  const calcExtraGuests = Math.max(0, (editAdults + editChildren) - baseGuests);
+  const calcExtraGuestsTotal = round2(calcExtraGuests * editExtraPersonPPN * editNights);
+  const calcDogsTotal = round2(editDogsCount * editDogFeePPN * editNights);
+  const calcLocalTax = round2(editAdults * editLocalTaxPPN * editNights);
+  const calcSubtotal = calcAccommodation + calcExtraGuestsTotal + calcDogsTotal + editCF + calcLocalTax - discount;
   const lineItemsTotal = items.reduce((sum, li) => sum + li.amount, 0);
-  const calculatedTotal = round2(baseTotal + lineItemsTotal);
+  const calculatedTotal = round2(calcSubtotal + lineItemsTotal);
 
   function addLineItem() {
     if (!newLabel.trim() || !newAmount) return;
@@ -102,13 +114,13 @@ export default function BookingPriceEditor({
       const result = await updateBookingPrices(
         bookingId,
         {
-          price_per_night: derivedPPN,
-          extra_guests_total: eg,
-          dogs_total: dogs,
-          cleaning_fee: cf,
-          local_tax_total: lt,
+          price_per_night: editPPN,
+          extra_guests_total: calcExtraGuestsTotal,
+          dogs_total: calcDogsTotal,
+          cleaning_fee: editCF,
+          local_tax_total: calcLocalTax,
           discount_amount: discount,
-          nights,
+          nights: editNights,
         },
         items
       );
@@ -123,16 +135,14 @@ export default function BookingPriceEditor({
     });
   }
 
-  // Recalculate in edit mode: populate fields, user reviews before saving
+  // Recalculate in edit mode: populate unit prices from pricing engine
   function handleRecalculate() {
     startTransition(async () => {
       const result = await recalculateBookingPricesAction(bookingId);
       if (result.success && result.prices) {
-        setAccommodationTotal(round2(result.prices.pricePerNight * result.prices.nights));
-        setEg(result.prices.extraGuestsTotal);
-        setDogs(result.prices.dogsTotal);
-        setCf(result.prices.cleaningFee);
-        setLt(result.prices.localTaxTotal);
+        setEditPPN(result.prices.pricePerNight);
+        setEditNights(result.prices.nights);
+        setEditCF(result.prices.cleaningFee);
         setDiscount(result.prices.discountAmount);
         setMessage("Preise neu berechnet – bitte prüfen und speichern");
       } else {
@@ -173,11 +183,15 @@ export default function BookingPriceEditor({
   }
 
   function handleCancel() {
-    setAccommodationTotal(initialAccommodationTotal);
-    setEg(initialEG);
-    setDogs(initialDogs);
-    setCf(initialCF);
-    setLt(initialLT);
+    setEditPPN(initialPPN);
+    setEditNights(nights);
+    setEditAdults(adults);
+    setEditChildren(children);
+    setEditDogsCount(dogsCount);
+    setEditDogFeePPN(initialDogFeePPN);
+    setEditExtraPersonPPN(initialExtraPersonPPN);
+    setEditCF(initialCF);
+    setEditLocalTaxPPN(initialLocalTaxPPN);
     setDiscount(initialDiscount);
     setItems(initialLineItems);
     setEditing(false);
@@ -334,105 +348,133 @@ export default function BookingPriceEditor({
     );
   }
 
+  const inputCls = "w-20 text-right rounded-lg border border-stone-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50";
+
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold text-stone-900">Preise bearbeiten</h2>
       </div>
 
-      <div className="space-y-3">
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">
-            Übernachtungen ({nights} {nights === 1 ? "Nacht" : "Nächte"})
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            value={accommodationTotal}
-            onChange={(e) => setAccommodationTotal(parseFloat(e.target.value) || 0)}
-            className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
-        <p className="text-xs text-stone-400 -mt-1 text-right">
-          = {formatCurrency(derivedPPN)}/Nacht
-        </p>
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="text-[10px] text-stone-400 uppercase tracking-wider">
+            <th className="text-left py-1 font-medium">Position</th>
+            <th className="text-right py-1 font-medium">Anzahl</th>
+            <th className="text-right py-1 font-medium">Preis/Einh.</th>
+            <th className="text-right py-1 font-medium">Nächte</th>
+            <th className="text-right py-1 font-medium">Summe</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-stone-100">
+          {/* Übernachtungen */}
+          <tr>
+            <td className="py-2 text-stone-900">Übernachtungen</td>
+            <td className="py-2 text-right">
+              <input type="number" min={1} value={editNights} onChange={(e) => setEditNights(parseInt(e.target.value) || 1)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right">
+              <input type="number" step="0.01" value={editPPN} onChange={(e) => setEditPPN(parseFloat(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right text-stone-400">—</td>
+            <td className="py-2 text-right font-medium text-stone-900">{formatCurrency(calcAccommodation)}</td>
+          </tr>
 
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">Zusatzgäste</label>
-          <input
-            type="number"
-            step="0.01"
-            value={eg}
-            onChange={(e) => setEg(parseFloat(e.target.value) || 0)}
-            className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
+          {/* Zusatzgäste */}
+          <tr>
+            <td className="py-2">
+              <span className="text-stone-900">Zusatzgäste</span>
+              <span className="block text-[10px] text-stone-400">
+                {editAdults + editChildren} Gäste, {baseGuests} inkl. → {calcExtraGuests} extra
+              </span>
+            </td>
+            <td className="py-2 text-right text-stone-500 text-xs">{calcExtraGuests}</td>
+            <td className="py-2 text-right">
+              <input type="number" step="0.01" value={editExtraPersonPPN} onChange={(e) => setEditExtraPersonPPN(parseFloat(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right text-stone-500 text-xs">× {editNights}</td>
+            <td className="py-2 text-right font-medium text-stone-900">{formatCurrency(calcExtraGuestsTotal)}</td>
+          </tr>
 
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">Hund(e)</label>
-          <input
-            type="number"
-            step="0.01"
-            value={dogs}
-            onChange={(e) => setDogs(parseFloat(e.target.value) || 0)}
-            className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
+          {/* Hunde */}
+          <tr>
+            <td className="py-2 text-stone-900">Hunde</td>
+            <td className="py-2 text-right">
+              <input type="number" min={0} value={editDogsCount} onChange={(e) => setEditDogsCount(parseInt(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right">
+              <input type="number" step="0.01" value={editDogFeePPN} onChange={(e) => setEditDogFeePPN(parseFloat(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right text-stone-500 text-xs">× {editNights}</td>
+            <td className="py-2 text-right font-medium text-stone-900">{formatCurrency(calcDogsTotal)}</td>
+          </tr>
 
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">Endreinigung</label>
-          <input
-            type="number"
-            step="0.01"
-            value={cf}
-            onChange={(e) => setCf(parseFloat(e.target.value) || 0)}
-            className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
+          {/* Endreinigung */}
+          <tr>
+            <td className="py-2 text-stone-900">Endreinigung</td>
+            <td className="py-2 text-right text-stone-500 text-xs">1×</td>
+            <td className="py-2 text-right">
+              <input type="number" step="0.01" value={editCF} onChange={(e) => setEditCF(parseFloat(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right text-stone-400">—</td>
+            <td className="py-2 text-right font-medium text-stone-900">{formatCurrency(editCF)}</td>
+          </tr>
 
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">Ortstaxe</label>
-          <input
-            type="number"
-            step="0.01"
-            value={lt}
-            onChange={(e) => setLt(parseFloat(e.target.value) || 0)}
-            className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
+          {/* Ortstaxe */}
+          <tr>
+            <td className="py-2">
+              <span className="text-stone-900">Ortstaxe</span>
+              <span className="block text-[10px] text-stone-400">nur Erwachsene</span>
+            </td>
+            <td className="py-2 text-right">
+              <input type="number" min={1} value={editAdults} onChange={(e) => setEditAdults(parseInt(e.target.value) || 1)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right">
+              <input type="number" step="0.01" value={editLocalTaxPPN} onChange={(e) => setEditLocalTaxPPN(parseFloat(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right text-stone-500 text-xs">× {editNights}</td>
+            <td className="py-2 text-right font-medium text-stone-900">{formatCurrency(calcLocalTax)}</td>
+          </tr>
 
-        <div className="flex items-center justify-between gap-3">
-          <label className="text-sm text-stone-500 flex-1">Rabatt</label>
-          <input
-            type="number"
-            step="0.01"
-            value={discount}
-            onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)}
-            className="w-28 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
-        </div>
+          {/* Rabatt */}
+          <tr>
+            <td className="py-2 text-stone-900">Rabatt</td>
+            <td className="py-2" colSpan={2}></td>
+            <td className="py-2 text-right">
+              <input type="number" step="0.01" value={discount} onChange={(e) => setDiscount(parseFloat(e.target.value) || 0)} className={inputCls} />
+            </td>
+            <td className="py-2 text-right font-medium text-red-600">
+              {discount > 0 ? `-${formatCurrency(discount)}` : formatCurrency(0)}
+            </td>
+          </tr>
 
-        {/* Line items */}
-        {items.length > 0 && (
-          <div className="pt-2 border-t border-stone-100">
-            <p className="text-xs font-semibold text-stone-700 mb-2">Zusätzliche Positionen</p>
-            {items.map((li, i) => (
-              <div key={i} className="flex items-center gap-2 mb-2">
-                <span className="text-sm text-stone-600 flex-1">{li.label}</span>
-                <span className="text-sm font-medium w-20 text-right">{formatCurrency(li.amount)}</span>
-                <button
-                  onClick={() => removeLineItem(i)}
-                  className="text-red-400 hover:text-red-600 text-xs"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
+          {/* Zusätzliche Positionen */}
+          {items.map((li, i) => (
+            <tr key={i}>
+              <td className="py-2 text-stone-900" colSpan={3}>
+                <span className="flex items-center gap-1.5">
+                  {li.label}
+                  <button onClick={() => removeLineItem(i)} className="text-red-400 hover:text-red-600">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </span>
+              </td>
+              <td className="py-2"></td>
+              <td className="py-2 text-right font-medium text-stone-900">{formatCurrency(li.amount)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t-2 border-stone-900">
+            <td colSpan={4} className="py-3 font-bold text-stone-900 text-base">Gesamtpreis</td>
+            <td className="py-3 text-right font-bold text-stone-900 text-base">{formatCurrency(calculatedTotal)}</td>
+          </tr>
+        </tfoot>
+      </table>
 
+      <div className="space-y-3 mt-3">
         {/* Add line item */}
         <div className="pt-2 border-t border-stone-100">
           <p className="text-xs font-semibold text-stone-700 mb-2">Position hinzufügen</p>
@@ -460,12 +502,6 @@ export default function BookingPriceEditor({
               +
             </button>
           </div>
-        </div>
-
-        {/* Total */}
-        <div className="pt-3 border-t-2 border-stone-900 flex justify-between">
-          <span className="font-bold text-stone-900">Gesamtpreis</span>
-          <span className="font-bold text-stone-900">{formatCurrency(calculatedTotal)}</span>
         </div>
 
         {/* Actions */}
