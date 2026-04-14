@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
+import { recalculateBookingPrices } from "@/lib/pricing-data";
 
 interface ImportRow {
   apartment_id: string;
@@ -123,12 +124,28 @@ export async function POST(request: NextRequest) {
         .select("id, total_stays, total_revenue")
         .single();
 
-      // Insert booking
+      // Recalculate prices using the pricing engine
+      const calculated = await recalculateBookingPrices({
+        apartmentId: row.apartment_id,
+        checkIn: row.check_in,
+        checkOut: row.check_out,
+        adults: row.adults || 2,
+        children: row.children || 0,
+        dogs: row.dogs || 0,
+      });
+
+      if (calculated && row.total_price && Math.abs(row.total_price - calculated.total) > 0.01) {
+        console.warn(
+          `Import Zeile ${rowNum}: Excel-Preis ${row.total_price} weicht von berechnetem Preis ${calculated.total} ab (Diff: ${(row.total_price - calculated.total).toFixed(2)})`
+        );
+      }
+
+      // Insert booking – use calculated values, fallback to spreadsheet
       const { error: insertError } = await supabase.from("bookings").insert({
         apartment_id: row.apartment_id,
         check_in: row.check_in,
         check_out: row.check_out,
-        nights: row.nights,
+        nights: calculated?.nights ?? row.nights,
         adults: row.adults || 2,
         children: row.children || 0,
         dogs: row.dogs || 0,
@@ -141,14 +158,14 @@ export async function POST(request: NextRequest) {
         city: row.city || "",
         country: row.country || "AT",
         notes: row.notes || "",
-        price_per_night: row.price_per_night || 0,
-        extra_guests_total: row.extra_guests_total || 0,
-        dogs_total: row.dogs_total || 0,
-        cleaning_fee: row.cleaning_fee || 0,
-        local_tax_total: row.local_tax_total || 0,
-        discount_amount: row.discount_amount || 0,
+        price_per_night: calculated ? calculated.basePrice : (row.price_per_night || 0),
+        extra_guests_total: calculated ? calculated.extraGuestsTotal : (row.extra_guests_total || 0),
+        dogs_total: calculated ? calculated.dogsTotal : (row.dogs_total || 0),
+        cleaning_fee: calculated ? calculated.cleaningFee : (row.cleaning_fee || 0),
+        local_tax_total: calculated ? calculated.localTaxTotal : (row.local_tax_total || 0),
+        discount_amount: calculated ? calculated.discountAmount : (row.discount_amount || 0),
         discount_code: row.discount_code || null,
-        total_price: row.total_price || 0,
+        total_price: calculated ? calculated.total : (row.total_price || 0),
         status: row.status || "confirmed",
         payment_status: row.payment_status || "unpaid",
         invoice_number: row.invoice_number || null,
@@ -166,7 +183,7 @@ export async function POST(request: NextRequest) {
           .from("guests")
           .update({
             total_stays: (guestData.total_stays || 0) + 1,
-            total_revenue: Number(guestData.total_revenue || 0) + Number(row.total_price || 0),
+            total_revenue: Number(guestData.total_revenue || 0) + Number(calculated ? calculated.total : row.total_price || 0),
           })
           .eq("id", guestData.id);
       }

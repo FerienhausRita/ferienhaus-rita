@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateBookingPrices } from "@/app/(admin)/admin/actions";
+import { updateBookingPrices, recalculateBookingPricesAction } from "@/app/(admin)/admin/actions";
 
 interface LineItem {
   id?: string;
@@ -108,6 +108,55 @@ export default function BookingPriceEditor({
     });
   }
 
+  // Recalculate in edit mode: populate fields, user reviews before saving
+  function handleRecalculate() {
+    startTransition(async () => {
+      const result = await recalculateBookingPricesAction(bookingId);
+      if (result.success && result.prices) {
+        setAccommodationTotal(round2(result.prices.pricePerNight * result.prices.nights));
+        setEg(result.prices.extraGuestsTotal);
+        setDogs(result.prices.dogsTotal);
+        setCf(result.prices.cleaningFee);
+        setLt(result.prices.localTaxTotal);
+        setDiscount(result.prices.discountAmount);
+        setMessage("Preise neu berechnet – bitte prüfen und speichern");
+      } else {
+        setMessage(`Fehler: ${result.error}`);
+      }
+    });
+  }
+
+  // Recalculate + save in one step (for read mode)
+  function handleRecalculateAndSave() {
+    startTransition(async () => {
+      const result = await recalculateBookingPricesAction(bookingId);
+      if (result.success && result.prices) {
+        const saveResult = await updateBookingPrices(
+          bookingId,
+          {
+            price_per_night: result.prices.pricePerNight,
+            extra_guests_total: result.prices.extraGuestsTotal,
+            dogs_total: result.prices.dogsTotal,
+            cleaning_fee: result.prices.cleaningFee,
+            local_tax_total: result.prices.localTaxTotal,
+            discount_amount: result.prices.discountAmount,
+            nights: result.prices.nights,
+          },
+          items // bestehende Line Items beibehalten
+        );
+        if (saveResult.success) {
+          setMessage("Preise neu berechnet und gespeichert");
+          router.refresh();
+          setTimeout(() => setMessage(""), 3000);
+        } else {
+          setMessage(`Fehler beim Speichern: ${saveResult.error}`);
+        }
+      } else {
+        setMessage(`Fehler: ${result.error}`);
+      }
+    });
+  }
+
   function handleCancel() {
     setAccommodationTotal(initialAccommodationTotal);
     setEg(initialEG);
@@ -125,12 +174,21 @@ export default function BookingPriceEditor({
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-stone-900">Preisaufschlüsselung</h2>
-          <button
-            onClick={() => setEditing(true)}
-            className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
-          >
-            Bearbeiten
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleRecalculateAndSave}
+              disabled={isPending}
+              className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
+            >
+              {isPending ? "Berechne..." : "Neu berechnen"}
+            </button>
+            <button
+              onClick={() => setEditing(true)}
+              className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
+            >
+              Bearbeiten
+            </button>
+          </div>
         </div>
 
         <table className="w-full text-sm">
@@ -353,6 +411,13 @@ export default function BookingPriceEditor({
 
         {/* Actions */}
         <div className="flex gap-2 pt-2">
+          <button
+            onClick={handleRecalculate}
+            disabled={isPending}
+            className="px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium py-2 rounded-lg transition-colors border border-blue-200 disabled:opacity-50"
+          >
+            {isPending ? "Berechne..." : "Neu berechnen"}
+          </button>
           <button
             onClick={handleSave}
             disabled={isPending}

@@ -155,6 +155,49 @@ export async function getTaxConfigFromDB(): Promise<TaxConfig> {
 }
 
 /**
+ * Recalculate booking prices using the full pricing engine.
+ * Used by import flows and the "Neu berechnen" button.
+ * Returns null if apartment not found.
+ */
+export async function recalculateBookingPrices(params: {
+  apartmentId: string;
+  checkIn: string;   // YYYY-MM-DD
+  checkOut: string;
+  adults: number;
+  children: number;
+  dogs: number;
+}): Promise<import("@/lib/pricing").PriceBreakdown | null> {
+  const { calculatePrice } = await import("@/lib/pricing");
+
+  const apartment = await getApartmentWithPricing(params.apartmentId);
+  if (!apartment) return null;
+
+  const [seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
+    getSeasonConfigsFromDB(),
+    getSeasonPeriodsFromDB(),
+    getTaxConfigFromDB(),
+  ]);
+
+  const checkIn = new Date(params.checkIn + "T00:00:00");
+  const checkOut = new Date(params.checkOut + "T00:00:00");
+
+  return calculatePrice({
+    apartment,
+    checkIn,
+    checkOut,
+    adults: params.adults,
+    children: params.children,
+    dogs: params.dogs,
+    overrides: {
+      seasonConfigs,
+      seasonPeriods,
+      localTaxPerNight: taxConfig.localTaxPerNight,
+      vatRate: taxConfig.vatRate,
+    },
+  });
+}
+
+/**
  * Get ALL pricing data in a single call (for BookingFlow props).
  */
 export async function getAllPricingData() {

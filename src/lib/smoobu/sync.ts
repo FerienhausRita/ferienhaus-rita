@@ -1,6 +1,7 @@
 import { createServerClient } from "@/lib/supabase/server";
 import { createSmoobuClient, SmoobuApiError } from "./client";
 import { getSmoobuConfig, getLocalApartmentSlug, getSmoobuApartmentId } from "./mapping";
+import { recalculateBookingPrices } from "@/lib/pricing-data";
 import type { SmoobuReservation } from "./types";
 
 // ── Channel name mapping ──
@@ -74,6 +75,16 @@ export async function syncReservationFromSmoobu(
     }
 
     if (!isCancellation) {
+      // Recalculate price breakdown using local pricing engine
+      const calculated = await recalculateBookingPrices({
+        apartmentId: localSlug,
+        checkIn: reservation.arrival,
+        checkOut: reservation.departure,
+        adults: reservation.adults || 1,
+        children: reservation.children || 0,
+        dogs: 0, // Smoobu liefert keine Hundezahl
+      });
+
       // Update guest data, dates, price
       await supabase
         .from("bookings")
@@ -86,7 +97,12 @@ export async function syncReservationFromSmoobu(
           phone: reservation.phone || undefined,
           adults: reservation.adults,
           children: reservation.children,
-          total_price: reservation.price,
+          total_price: calculated?.total ?? reservation.price,
+          price_per_night: calculated?.basePrice ?? undefined,
+          extra_guests_total: calculated?.extraGuestsTotal ?? undefined,
+          dogs_total: calculated?.dogsTotal ?? undefined,
+          cleaning_fee: calculated?.cleaningFee ?? undefined,
+          local_tax_total: calculated?.localTaxTotal ?? undefined,
           payment_status: paymentStatus,
           source_channel: channelName,
           smoobu_sync_status: "synced",
@@ -110,6 +126,22 @@ export async function syncReservationFromSmoobu(
   const departure = new Date(reservation.departure + "T00:00:00Z");
   const nights = Math.max(1, Math.round((departure.getTime() - arrival.getTime()) / 86400000));
 
+  // Recalculate price breakdown using local pricing engine
+  const calculated = await recalculateBookingPrices({
+    apartmentId: localSlug,
+    checkIn: reservation.arrival,
+    checkOut: reservation.departure,
+    adults: reservation.adults || 1,
+    children: reservation.children || 0,
+    dogs: 0, // Smoobu liefert keine Hundezahl
+  });
+
+  if (calculated && Math.abs(reservation.price - calculated.total) > 1) {
+    console.warn(
+      `Smoobu Reservation ${reservation.id}: Smoobu-Preis ${reservation.price} vs. berechnet ${calculated.total}`
+    );
+  }
+
   // Create new booking from external source
   const { data: booking, error } = await supabase
     .from("bookings")
@@ -124,13 +156,13 @@ export async function syncReservationFromSmoobu(
       adults: reservation.adults || 1,
       children: reservation.children || 0,
       dogs: 0,
-      nights,
-      price_per_night: nights > 0 ? Math.round((reservation.price / nights) * 100) / 100 : 0,
-      total_price: reservation.price,
-      cleaning_fee: 0,
-      extra_guests_total: 0,
-      dogs_total: 0,
-      local_tax_total: 0,
+      nights: calculated?.nights ?? nights,
+      price_per_night: calculated?.basePrice ?? (nights > 0 ? Math.round((reservation.price / nights) * 100) / 100 : 0),
+      total_price: calculated?.total ?? reservation.price,
+      cleaning_fee: calculated?.cleaningFee ?? 0,
+      extra_guests_total: calculated?.extraGuestsTotal ?? 0,
+      dogs_total: calculated?.dogsTotal ?? 0,
+      local_tax_total: calculated?.localTaxTotal ?? 0,
       discount_amount: 0,
       status: "confirmed",
       payment_status: paymentStatus,

@@ -2840,6 +2840,52 @@ export async function updateBookingPrices(
 }
 
 /**
+ * Recalculate booking prices from apartment config + guest data.
+ * Returns calculated values without saving – admin reviews first.
+ */
+export async function recalculateBookingPricesAction(bookingId: string) {
+  const supabase = createServerClient();
+
+  const { data: booking, error } = await supabase
+    .from("bookings")
+    .select("apartment_id, check_in, check_out, adults, children, dogs")
+    .eq("id", bookingId)
+    .single();
+
+  if (error || !booking) {
+    return { success: false as const, error: "Buchung nicht gefunden" };
+  }
+
+  const { recalculateBookingPrices } = await import("@/lib/pricing-data");
+  const calculated = await recalculateBookingPrices({
+    apartmentId: booking.apartment_id,
+    checkIn: booking.check_in,
+    checkOut: booking.check_out,
+    adults: booking.adults,
+    children: booking.children ?? 0,
+    dogs: booking.dogs ?? 0,
+  });
+
+  if (!calculated) {
+    return { success: false as const, error: "Apartment-Konfiguration nicht gefunden" };
+  }
+
+  return {
+    success: true as const,
+    prices: {
+      pricePerNight: calculated.basePrice,
+      extraGuestsTotal: calculated.extraGuestsTotal,
+      dogsTotal: calculated.dogsTotal,
+      cleaningFee: calculated.cleaningFee,
+      localTaxTotal: calculated.localTaxTotal,
+      discountAmount: calculated.discountAmount,
+      totalPrice: calculated.total,
+      nights: calculated.nights,
+    },
+  };
+}
+
+/**
  * Update guest data on a booking (and sync to guests table if email exists)
  */
 export async function updateBookingGuestData(
