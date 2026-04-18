@@ -967,6 +967,66 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
 }
 
 /**
+ * Get caretaker overview: all bookings + blocks overlapping the date range,
+ * grouped per apartment + a flat chronological list for the printable detail table.
+ *
+ * A booking overlaps the window [start, end] if check_in <= end AND check_out >= start.
+ */
+export async function getCaretakerOverview(start: string, end: string) {
+  const supabase = createServerClient();
+
+  const [bookingsResult, blockedResult] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select(
+        "id, apartment_id, first_name, last_name, phone, check_in, check_out, adults, children, dogs, status, notes"
+      )
+      .neq("status", "cancelled")
+      .lte("check_in", end)
+      .gte("check_out", start)
+      .order("check_in", { ascending: true }),
+    supabase
+      .from("blocked_dates")
+      .select("id, apartment_id, start_date, end_date, reason")
+      .lte("start_date", end)
+      .gte("end_date", start)
+      .order("start_date", { ascending: true }),
+  ]);
+
+  const bookings = bookingsResult.data ?? [];
+  const blocks = blockedResult.data ?? [];
+
+  // Detect turnovers: same apartment, check_out == another booking's check_in
+  const bookingsByApartment = new Map<string, typeof bookings>();
+  for (const b of bookings) {
+    const arr = bookingsByApartment.get(b.apartment_id) ?? [];
+    arr.push(b);
+    bookingsByApartment.set(b.apartment_id, arr);
+  }
+
+  const turnoverDates = new Set<string>(); // key: apartment_id|date
+  for (const [aptId, apts] of bookingsByApartment) {
+    const checkIns = new Set(apts.map((b) => b.check_in));
+    for (const b of apts) {
+      if (checkIns.has(b.check_out)) {
+        turnoverDates.add(`${aptId}|${b.check_out}`);
+      }
+    }
+  }
+
+  const timeline = bookings.map((b) => ({
+    ...b,
+    isTurnoverOut: turnoverDates.has(`${b.apartment_id}|${b.check_out}`),
+    isTurnoverIn: turnoverDates.has(`${b.apartment_id}|${b.check_in}`),
+  }));
+
+  return {
+    bookings: timeline,
+    blocks,
+  };
+}
+
+/**
  * Get cleaning schedule – bookings with check-out in date range
  */
 export async function getCleaningSchedule(start: string, end: string) {

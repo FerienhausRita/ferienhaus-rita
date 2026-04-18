@@ -2,6 +2,76 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ========================================
+   Print (Hausmeister-Übersicht & Co.)
+   ======================================== */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 1cm;
+  }
+
+  /* Hide chrome */
+  .no-print,
+  aside.admin-sidebar,
+  nav.admin-topbar,
+  [data-print-hide] {
+    display: none !important;
+  }
+
+  /* Show print-only blocks */
+  .print-only {
+    display: block !important;
+  }
+
+  /* Full-width container */
+  .print-container {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Preserve colors */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Table-friendly: avoid splitting rows */
+  tr, .print-break-avoid {
+    page-break-inside: avoid;
+  }
+
+  .print-break-before {
+    page-break-before: auto;
+  }
+
+  /* Remove shadows & round corners (ink-wasting) */
+  .shadow, .shadow-sm, .shadow-md, .shadow-lg {
+    box-shadow: none !important;
+  }
+
+  /* Links: strip colors, remove underlines */
+  a {
+    color: inherit !important;
+    text-decoration: none !important;
+  }
+
+  /* Timeline: force full width visible (no scroll) */
+  .timeline-scroll {
+    overflow: visible !important;
+  }
+
+  body {
+    background: white !important;
+  }
+}
+
+/* Print-only helper (hidden on screen) */
+.print-only {
+  display: none;
+}
+
 /* Striped background for blocked dates in calendar */
 .bg-stripes {
   background-image: repeating-linear-gradient(

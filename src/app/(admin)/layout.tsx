@@ -38,10 +38,12 @@ export default async function AdminLayout({
       <RouterRefresh />
       <IdleLock />
       <AdminSidebar userName={userName} userEmail={userEmail} />
-      <AdminBottomNav />
+      <div className="no-print">
+        <AdminBottomNav />
+      </div>
 
       {/* Main content area */}
-      <div className="md:ml-64 pb-20 md:pb-0">
+      <div className="md:ml-64 pb-20 md:pb-0 print:ml-0 print:pb-0">
         {children}
       </div>
     </div>
