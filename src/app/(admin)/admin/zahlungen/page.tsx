@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getPaymentOverview } from "../actions";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 import SortHeader from "@/components/admin/SortHeader";
 
 export const metadata: Metadata = {
@@ -30,7 +30,10 @@ export default async function ZahlungenPage({
 }: {
   searchParams: { sort?: string; dir?: string };
 }) {
-  const { bookings, overdueCount, totalOutstanding } = await getPaymentOverview(searchParams.sort, searchParams.dir);
+  const [{ bookings, overdueCount, totalOutstanding }, nameMap] = await Promise.all([
+    getPaymentOverview(searchParams.sort, searchParams.dir),
+    getApartmentNameMap(),
+  ]);
   const sp = searchParams as Record<string, string | undefined>;
   const today = new Date().toISOString().split("T")[0];
 
@@ -75,7 +78,7 @@ export default async function ZahlungenPage({
               </thead>
               <tbody className="divide-y divide-stone-50">
                 {bookings.map((b) => {
-                  const apartment = getApartmentById(b.apartment_id);
+                  const apartmentName = nameMap.get(b.apartment_id) ?? b.apartment_id;
                   const depositOverdue = b.deposit_due_date && b.deposit_due_date < today && !b.deposit_paid_at && Number(b.deposit_amount) > 0;
                   const remainderOverdue = b.remainder_due_date && b.remainder_due_date < today && !b.remainder_paid_at && Number(b.remainder_amount) > 0;
 
@@ -86,7 +89,7 @@ export default async function ZahlungenPage({
                           {b.first_name} {b.last_name}
                         </Link>
                       </td>
-                      <td className="py-3 px-4 text-stone-600">{apartment?.name ?? b.apartment_id}</td>
+                      <td className="py-3 px-4 text-stone-600">{apartmentName}</td>
                       <td className="py-3 px-4 text-stone-600 whitespace-nowrap">
                         {formatDate(b.check_in)} &ndash; {formatDate(b.check_out)}
                       </td>

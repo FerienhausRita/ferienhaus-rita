@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing } from "@/lib/pricing-data";
 import { contact } from "@/data/contact";
 import { generateInvoicePdf } from "@/lib/invoice-pdf";
 import { verifyGuestToken } from "@/lib/guest-auth";
@@ -127,7 +127,7 @@ export async function GET(
   }
 
   // --- Load apartment ---
-  const apartment = getApartmentById(booking.apartment_id);
+  const apartment = await getApartmentWithPricing(booking.apartment_id);
   if (!apartment) {
     return NextResponse.json({ error: "Wohnung nicht gefunden" }, { status: 404 });
   }

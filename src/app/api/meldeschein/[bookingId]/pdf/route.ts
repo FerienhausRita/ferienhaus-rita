@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing } from "@/lib/pricing-data";
 import { generateMeldescheinPdf } from "@/lib/meldeschein-pdf";
 
 /**
@@ -62,7 +62,7 @@ export async function GET(
     );
   }
 
-  const apartment = getApartmentById(booking.apartment_id);
+  const apartment = await getApartmentWithPricing(booking.apartment_id);
   const bookingRef = `FR-${booking.id.substring(0, 8).toUpperCase()}`;
 
   // --- Generate PDF ---

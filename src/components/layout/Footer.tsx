@@ -38,6 +38,14 @@ export default function Footer() {
               </li>
               <li>
                 <Link
+                  href="/preise"
+                  className="text-sm hover:text-white transition-colors"
+                >
+                  Preise &amp; Konditionen
+                </Link>
+              </li>
+              <li>
+                <Link
                   href="/buchen"
                   className="text-sm hover:text-white transition-colors"
                 >

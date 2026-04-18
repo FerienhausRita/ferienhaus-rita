@@ -2,7 +2,6 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting } from "../../actions";
-import { getApartmentById } from "@/data/apartments";
 import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
@@ -91,9 +90,9 @@ export default async function BookingDetailPage({
     notFound();
   }
 
-  const apartment = getApartmentById(booking.apartment_id);
-  // Load apartment with DB pricing overrides for accurate unit prices
+  // Load apartment with DB overrides (name + pricing)
   const apartmentPricing = await getApartmentWithPricing(booking.apartment_id);
+  const apartment = apartmentPricing;
   const status = statusConfig[booking.status] ?? statusConfig.pending;
 
   return (

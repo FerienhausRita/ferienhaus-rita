@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { getCleaningSchedule } from "../actions";
-import { getApartmentById, apartments } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 
 export const metadata: Metadata = {
   title: "Reinigungsplan",
@@ -22,7 +22,10 @@ export default async function ReinigungPage() {
   const endDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
   const end = endDate.toISOString().split("T")[0];
 
-  const { departures, arrivals } = await getCleaningSchedule(start, end);
+  const [{ departures, arrivals }, nameMap] = await Promise.all([
+    getCleaningSchedule(start, end),
+    getApartmentNameMap(),
+  ]);
 
   // Group departures by date
   const byDate = new Map<string, typeof departures>();
@@ -84,7 +87,7 @@ export default async function ReinigungPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {deps.map((dep) => {
-                    const apartment = getApartmentById(dep.apartment_id);
+                    const apartmentName = nameMap.get(dep.apartment_id) ?? dep.apartment_id;
                     // Find next arrival for same apartment on this date
                     const nextArrival = arrivalMap.get(`${dep.apartment_id}-${dep.check_out}`);
                     const isTurnover = !!nextArrival;
@@ -101,7 +104,7 @@ export default async function ReinigungPage() {
                         <div className="flex items-start justify-between mb-2">
                           <div>
                             <p className="font-semibold text-stone-900">
-                              {apartment?.name ?? dep.apartment_id}
+                              {apartmentName}
                             </p>
                             {isTurnover && (
                               <span className="text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">

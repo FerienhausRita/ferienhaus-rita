@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getDashboardStats, getAnalyticsData, getPaymentOverview } from "./actions";
-import { apartments } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 import RevenueChart from "@/components/admin/RevenueChart";
 import OccupancyStats from "@/components/admin/OccupancyStats";
 import ExportButton from "@/components/admin/ExportButton";
@@ -12,10 +12,6 @@ export const metadata: Metadata = {
 
 // Force dynamic rendering
 export const dynamic = "force-dynamic";
-
-function getApartmentName(id: string) {
-  return apartments.find((a) => a.id === id)?.name ?? id;
-}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("de-AT", {
@@ -46,11 +42,14 @@ const paymentLabels: Record<string, { label: string; className: string }> = {
 };
 
 export default async function AdminDashboard() {
-  const [stats, analytics, payments] = await Promise.all([
+  const [stats, analytics, payments, nameMap] = await Promise.all([
     getDashboardStats(),
     getAnalyticsData(),
     getPaymentOverview(),
+    getApartmentNameMap(),
   ]);
+
+  const getApartmentName = (id: string) => nameMap.get(id) ?? id;
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">

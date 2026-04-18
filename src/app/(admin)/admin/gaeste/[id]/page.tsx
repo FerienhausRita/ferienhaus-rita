@@ -1,17 +1,13 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getGuestById, getGuestBookings } from "../../actions";
-import { apartments } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 
 export const metadata: Metadata = {
   title: "Gästedetail",
 };
 
 export const dynamic = "force-dynamic";
-
-function getApartmentName(id: string) {
-  return apartments.find((a) => a.id === id)?.name ?? id;
-}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("de-AT", {
@@ -41,7 +37,11 @@ export default async function GuestDetailPage({
   params: { id: string };
 }) {
   const guestId = params.id;
-  const guest = await getGuestById(guestId);
+  const [guest, nameMap] = await Promise.all([
+    getGuestById(guestId),
+    getApartmentNameMap(),
+  ]);
+  const getApartmentName = (id: string) => nameMap.get(id) ?? id;
 
   if (!guest) {
     return (

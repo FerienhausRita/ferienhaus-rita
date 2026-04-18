@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentBySlug } from "@/data/apartments";
+import { getApartmentBySlugWithPricing } from "@/lib/pricing-data";
 import { generateICal } from "@/lib/ical";
 import { getMaxBookingDate } from "@/lib/availability-server";
 
@@ -17,7 +17,7 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: { apartment: string } }
 ) {
-  const apartment = getApartmentBySlug(params.apartment);
+  const apartment = await getApartmentBySlugWithPricing(params.apartment);
   if (!apartment) {
     return NextResponse.json(
       { error: "Apartment not found" },

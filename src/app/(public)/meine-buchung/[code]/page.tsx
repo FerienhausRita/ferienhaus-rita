@@ -6,7 +6,7 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 import { verifyGuestToken } from "@/lib/guest-auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing } from "@/lib/pricing-data";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import WeatherWidget from "@/components/guest/WeatherWidget";
 import RebookButton from "@/components/guest/RebookButton";
@@ -105,7 +105,7 @@ export default async function BookingOverviewPage({
   }
 
   // --- Load apartment ---
-  const apartment = getApartmentById(booking.apartment_id);
+  const apartment = await getApartmentWithPricing(booking.apartment_id);
   if (!apartment) {
     redirect("/meine-buchung");
   }

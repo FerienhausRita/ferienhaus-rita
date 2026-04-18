@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { getTasks, getAdminList } from "../actions";
 import TaskList from "@/components/admin/TaskList";
-import { apartments } from "@/data/apartments";
+import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 
 export const metadata: Metadata = {
   title: "Aufgaben",
@@ -10,9 +10,13 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function AufgabenPage() {
-  const [tasks, admins] = await Promise.all([getTasks(), getAdminList()]);
+  const [tasks, admins, allApts] = await Promise.all([
+    getTasks(),
+    getAdminList(),
+    getAllApartmentsWithPricing(),
+  ]);
 
-  const apartmentList = apartments.map((a) => ({ id: a.id, name: a.name }));
+  const apartmentList = allApts.map((a) => ({ id: a.id, name: a.name }));
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">

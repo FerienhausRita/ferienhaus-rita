@@ -8,6 +8,7 @@ import {
   removeAdmin,
   triggerIcalSync,
   updateSiteSetting,
+  updateApartmentName,
 } from "@/app/(admin)/admin/actions";
 
 /** Klappbare Sektion */
@@ -66,6 +67,12 @@ interface ICalFeed {
   urls: string[];
 }
 
+interface ApartmentNameEntry {
+  id: string;
+  defaultName: string;   // from src/data/apartments.ts
+  currentName: string;   // from DB override, falls back to default
+}
+
 interface SettingsPanelProps {
   currentUserId: string;
   currentName: string;
@@ -74,6 +81,7 @@ interface SettingsPanelProps {
   icalFeeds: ICalFeed[];
   exportBaseUrl: string;
   siteSettings: Record<string, any>;
+  apartmentNames: ApartmentNameEntry[];
 }
 
 export default function SettingsPanel({
@@ -84,6 +92,7 @@ export default function SettingsPanel({
   icalFeeds,
   exportBaseUrl,
   siteSettings,
+  apartmentNames,
 }: SettingsPanelProps) {
   // Display name
   const [displayName, setDisplayName] = useState(currentName);
@@ -162,6 +171,13 @@ export default function SettingsPanel({
   const [maxDateLoading, setMaxDateLoading] = useState(false);
   const [maxDateMessage, setMaxDateMessage] = useState<string | null>(null);
 
+  // Wohnungsnamen
+  const [aptNames, setAptNames] = useState<Record<string, string>>(
+    Object.fromEntries(apartmentNames.map((a) => [a.id, a.currentName]))
+  );
+  const [aptNameLoading, setAptNameLoading] = useState<string | null>(null);
+  const [aptNameMessage, setAptNameMessage] = useState<Record<string, string>>({});
+
   // Accordion: welche Sektionen sind offen
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(["account"]));
   const toggleSection = (id: string) => {
@@ -182,6 +198,26 @@ export default function SettingsPanel({
     setNameMessage(result.success ? "Gespeichert" : result.error || "Fehler");
     if (result.success) {
       setTimeout(() => setNameMessage(null), 3000);
+    }
+  };
+
+  const handleApartmentNameSave = async (id: string, defaultName: string) => {
+    const value = (aptNames[id] ?? "").trim();
+    setAptNameLoading(id);
+    setAptNameMessage((m) => ({ ...m, [id]: "" }));
+    // Empty or matches default → reset override (null)
+    const override = value && value !== defaultName ? value : null;
+    const result = await updateApartmentName(id, override);
+    setAptNameLoading(null);
+    setAptNameMessage((m) => ({
+      ...m,
+      [id]: result.success ? "Gespeichert" : result.error || "Fehler",
+    }));
+    if (result.success) {
+      setTimeout(
+        () => setAptNameMessage((m) => ({ ...m, [id]: "" })),
+        3000
+      );
     }
   };
 
@@ -397,6 +433,77 @@ export default function SettingsPanel({
               {currentRole === "admin" ? "Administrator" : "Betrachter"}
             </p>
           </div>
+        </div>
+      </Section>
+
+      {/* Wohnungsnamen */}
+      <Section
+        id="apartment-names"
+        title="Wohnungsnamen"
+        subtitle="Namen der Wohnungen anpassen — greift überall (Buchungen, Rechnungen, E-Mails, Website)"
+        open={openSections.has("apartment-names")}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-stone-500">
+            Leer lassen oder den Standard-Namen eingeben, um zur ursprünglichen Bezeichnung zurückzukehren. Der URL-Pfad (<code className="text-[11px] bg-stone-100 px-1.5 py-0.5 rounded">/wohnungen/edelweiss</code>) bleibt in jedem Fall unverändert.
+          </p>
+          {apartmentNames.map((apt) => {
+            const value = aptNames[apt.id] ?? "";
+            const isOverridden = value.trim() !== "" && value.trim() !== apt.defaultName;
+            const msg = aptNameMessage[apt.id];
+            return (
+              <div key={apt.id} className="flex items-start gap-3 flex-wrap sm:flex-nowrap">
+                <div className="w-32 shrink-0 pt-2.5">
+                  <p className="text-xs font-medium text-stone-500">
+                    Standard
+                  </p>
+                  <p className="text-sm text-stone-900">{apt.defaultName}</p>
+                </div>
+                <div className="flex-1 min-w-[200px]">
+                  <label className="block text-xs font-medium text-stone-500 mb-1">
+                    Angezeigter Name
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={value}
+                      onChange={(e) =>
+                        setAptNames((n) => ({ ...n, [apt.id]: e.target.value }))
+                      }
+                      placeholder={apt.defaultName}
+                      className="flex-1 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleApartmentNameSave(apt.id, apt.defaultName)}
+                      disabled={aptNameLoading === apt.id}
+                      className={btnClass}
+                    >
+                      {aptNameLoading === apt.id ? "..." : "Speichern"}
+                    </button>
+                  </div>
+                  <div className="flex items-center justify-between mt-1">
+                    <p
+                      className={
+                        msg === "Gespeichert"
+                          ? successClass
+                          : msg
+                          ? "text-xs text-red-600 mt-1"
+                          : "text-xs text-stone-400 mt-1"
+                      }
+                    >
+                      {msg
+                        ? msg
+                        : isOverridden
+                        ? "Weicht vom Standard ab"
+                        : "Verwendet Standard-Namen"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       </Section>
 

@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getInvoices } from "../actions";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 
 export const metadata: Metadata = {
   title: "Rechnungen",
@@ -32,7 +32,10 @@ const statusLabels: Record<string, { label: string; className: string }> = {
 };
 
 export default async function RechnungenPage() {
-  const invoices = await getInvoices();
+  const [invoices, nameMap] = await Promise.all([
+    getInvoices(),
+    getApartmentNameMap(),
+  ]);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
@@ -76,7 +79,7 @@ export default async function RechnungenPage() {
               </thead>
               <tbody className="divide-y divide-stone-100">
                 {invoices.map((inv) => {
-                  const apartment = getApartmentById(inv.apartment_id);
+                  const apartmentName = nameMap.get(inv.apartment_id) ?? inv.apartment_id;
                   const st = statusLabels[inv.status] ?? statusLabels.pending;
 
                   return (
@@ -96,7 +99,7 @@ export default async function RechnungenPage() {
                         {inv.first_name} {inv.last_name}
                       </td>
                       <td className="px-4 py-3 text-stone-600 hidden sm:table-cell">
-                        {apartment?.name ?? inv.apartment_id}
+                        {apartmentName}
                       </td>
                       <td className="px-4 py-3 text-stone-600 hidden md:table-cell">
                         {formatDate(inv.check_in)} – {formatDate(inv.check_out)}

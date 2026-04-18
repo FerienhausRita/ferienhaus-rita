@@ -6,6 +6,7 @@ import Link from "next/link";
 
 const navItems = [
   { label: "Wohnungen", href: "/wohnungen" },
+  { label: "Preise", href: "/preise" },
   { label: "Region", href: "/region" },
   { label: "Über uns", href: "/ueber-uns" },
   { label: "FAQ", href: "/faq" },

@@ -3,6 +3,7 @@ import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { getAdminProfiles, getAllSiteSettings } from "../actions";
 import { apartments } from "@/data/apartments";
 import { icalFeeds } from "@/data/ical-feeds";
+import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 
 export const metadata: Metadata = {
@@ -23,17 +24,28 @@ export default async function EinstellungenPage() {
     .eq("id", user?.id ?? "")
     .single();
 
-  const [admins, siteSettings] = await Promise.all([
+  const [admins, siteSettings, dbApartments] = await Promise.all([
     getAdminProfiles(),
     getAllSiteSettings(),
+    getAllApartmentsWithPricing(),
   ]);
 
   const feedData = Object.entries(icalFeeds).map(([aptId, urls]) => ({
     apartmentId: aptId,
     apartmentName:
-      apartments.find((a) => a.id === aptId)?.name ?? aptId,
+      dbApartments.find((a) => a.id === aptId)?.name ?? aptId,
     urls,
   }));
+
+  // Apartment name overrides for SettingsPanel
+  const apartmentNames = apartments.map((staticApt) => {
+    const dbApt = dbApartments.find((a) => a.id === staticApt.id);
+    return {
+      id: staticApt.id,
+      defaultName: staticApt.name,
+      currentName: dbApt?.name ?? staticApt.name,
+    };
+  });
 
   const exportBaseUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
@@ -49,6 +61,7 @@ export default async function EinstellungenPage() {
         icalFeeds={feedData}
         exportBaseUrl={exportBaseUrl}
         siteSettings={siteSettings}
+        apartmentNames={apartmentNames}
       />
     </div>
   );

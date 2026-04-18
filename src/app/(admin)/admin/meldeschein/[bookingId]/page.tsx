@@ -2,7 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getMeldeschein, getBookingById } from "../../actions";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing } from "@/lib/pricing-data";
 import MeldescheinVerifyButton from "@/components/admin/MeldescheinVerifyButton";
 
 export const metadata: Metadata = {
@@ -59,7 +59,7 @@ export default async function MeldescheinAdminPage({
     notFound();
   }
 
-  const apartment = getApartmentById(booking.apartment_id);
+  const apartment = await getApartmentWithPricing(booking.apartment_id);
   const companions = (meldeschein.companions || []) as {
     first_name: string;
     last_name: string;

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 import * as XLSX from "xlsx";
 
 /**
@@ -60,11 +60,12 @@ export async function GET() {
     refunded: "Erstattet",
   };
 
+  const nameMap = await getApartmentNameMap();
+
   const rows = (bookings || []).map((b) => {
-    const apartment = getApartmentById(b.apartment_id);
     return {
       "Buchungs-ID": `FR-${b.id.slice(0, 8).toUpperCase()}`,
-      Wohnung: apartment?.name || b.apartment_id,
+      Wohnung: nameMap.get(b.apartment_id) || b.apartment_id,
       Vorname: b.first_name,
       Nachname: b.last_name,
       "E-Mail": b.email,

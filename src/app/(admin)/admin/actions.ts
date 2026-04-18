@@ -4,7 +4,7 @@ import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendBookingConfirmed, sendCustomEmail, type BankDetails } from "@/lib/email";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing } from "@/lib/pricing-data";
 
 /**
  * Get dashboard statistics
@@ -214,6 +214,10 @@ export async function getAnalyticsData() {
   // Use full year for the denominator so rates stay comparable
   const denominatorNights = Math.round(daysInYear);
 
+  // Resolve apartment names (with DB overrides) once
+  const { getApartmentNameMap } = await import("@/lib/pricing-data");
+  const aptNameMap = await getApartmentNameMap();
+
   const occupancyByApartment = apartmentIds.map((id) => {
     const bookings = yearBookings.filter((b) => b.apartment_id === id);
     let occupiedNights = 0;
@@ -228,10 +232,9 @@ export async function getAnalyticsData() {
       );
       occupiedNights += nights;
     }
-    const apt = getApartmentById(id);
     return {
       apartmentId: id,
-      apartmentName: apt?.name ?? id,
+      apartmentName: aptNameMap.get(id) ?? id,
       occupiedNights,
       totalNights: denominatorNights,
       rate: denominatorNights > 0
@@ -427,7 +430,7 @@ export async function updateBookingStatus(
   // When confirming: send confirmation email + schedule automated emails
   if (status === "confirmed" && booking.status !== "confirmed") {
     try {
-      const apartment = getApartmentById(booking.apartment_id);
+      const apartment = await getApartmentWithPricing(booking.apartment_id);
       if (apartment) {
         // Load bank details
         const { data: bankRow } = await supabase
@@ -1009,7 +1012,7 @@ export async function resendConfirmation(bookingId: string) {
     return { success: false, error: "Buchung nicht gefunden" };
   }
 
-  const apartment = getApartmentById(booking.apartment_id);
+  const apartment = await getApartmentWithPricing(booking.apartment_id);
   if (!apartment) {
     return { success: false, error: "Wohnung nicht gefunden" };
   }
@@ -1869,6 +1872,49 @@ export async function removeAdmin(userId: string) {
 /**
  * Update apartment pricing
  */
+/**
+ * Update apartment name override. Pass null or empty string to reset to default.
+ */
+export async function updateApartmentName(
+  apartmentId: string,
+  nameOverride: string | null
+) {
+  const supabase = createServerClient();
+
+  const value =
+    nameOverride && nameOverride.trim() ? nameOverride.trim() : null;
+
+  // Upsert — ensure a row exists for this apartment
+  const { data: existing } = await supabase
+    .from("apartment_pricing")
+    .select("apartment_id")
+    .eq("apartment_id", apartmentId)
+    .maybeSingle();
+
+  if (existing) {
+    const { error } = await supabase
+      .from("apartment_pricing")
+      .update({ name_override: value })
+      .eq("apartment_id", apartmentId);
+    if (error) return { success: false, error: error.message };
+  } else {
+    // No row yet → create one with just the override (prices default to NULL)
+    const { error } = await supabase
+      .from("apartment_pricing")
+      .insert({ apartment_id: apartmentId, name_override: value });
+    if (error) return { success: false, error: error.message };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath("/admin/einstellungen");
+  revalidatePath("/admin/preise");
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/wohnungen");
+  revalidatePath("/buchen");
+  revalidatePath("/preise");
+  return { success: true };
+}
+
 export async function updateApartmentPricing(
   apartmentId: string,
   pricing: {

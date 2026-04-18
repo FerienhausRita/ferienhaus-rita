@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentById } from "@/data/apartments";
+import { getApartmentWithPricing } from "@/lib/pricing-data";
 import {
   sendBookingConfirmed,
   sendPaymentReminder,
@@ -190,7 +190,7 @@ async function processScheduledEmails() {
       }
 
       // Load apartment
-      const apartment = getApartmentById(booking.apartment_id);
+      const apartment = await getApartmentWithPricing(booking.apartment_id);
       if (!apartment) {
         await markFailed(
           supabase,

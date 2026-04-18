@@ -29,7 +29,7 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
     const supabase = createServerClient();
     const { data: pricing } = await supabase
       .from("apartment_pricing")
-      .select("apartment_id, base_price, summer_price, winter_price, extra_person_price, cleaning_fee, dog_fee, min_nights_summer, min_nights_winter");
+      .select("apartment_id, name_override, base_price, summer_price, winter_price, extra_person_price, cleaning_fee, dog_fee, min_nights_summer, min_nights_winter");
 
     if (!pricing || pricing.length === 0) {
       return apartments;
@@ -40,8 +40,10 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
     return apartments.map((apt) => {
       const dbPrice = pricingMap.get(apt.id);
       if (!dbPrice) return apt;
+      const override = (dbPrice as { name_override?: string | null }).name_override;
       return {
         ...apt,
+        name: override && override.trim() ? override.trim() : apt.name,
         basePrice: Number(dbPrice.base_price),
         summerPrice: Number(dbPrice.summer_price ?? dbPrice.base_price),
         winterPrice: Number(dbPrice.winter_price ?? dbPrice.base_price),
@@ -71,6 +73,15 @@ export async function getApartmentWithPricing(id: string): Promise<Apartment | u
 export async function getApartmentBySlugWithPricing(slug: string): Promise<Apartment | undefined> {
   const all = await getAllApartmentsWithPricing();
   return all.find((a) => a.slug === slug);
+}
+
+/**
+ * Get a map of apartment_id → current display name (with DB override applied).
+ * Use this in server components/routes that only need to display names.
+ */
+export async function getApartmentNameMap(): Promise<Map<string, string>> {
+  const all = await getAllApartmentsWithPricing();
+  return new Map(all.map((a) => [a.id, a.name]));
 }
 
 /**

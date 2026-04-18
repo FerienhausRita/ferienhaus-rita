@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getBookings } from "../actions";
-import { apartments } from "@/data/apartments";
+import { getApartmentNameMap } from "@/lib/pricing-data";
 import BookingFilters from "@/components/admin/BookingFilters";
 import SortHeader from "@/components/admin/SortHeader";
 
@@ -10,10 +10,6 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = "force-dynamic";
-
-function getApartmentName(id: string) {
-  return apartments.find((a) => a.id === id)?.name ?? id;
-}
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("de-AT", {
@@ -49,7 +45,11 @@ export default async function BookingsPage({
 }: {
   searchParams: { filter?: string; search?: string; sort?: string; dir?: string };
 }) {
-  const bookings = await getBookings(searchParams.filter, searchParams.search, searchParams.sort, searchParams.dir);
+  const [bookings, nameMap] = await Promise.all([
+    getBookings(searchParams.filter, searchParams.search, searchParams.sort, searchParams.dir),
+    getApartmentNameMap(),
+  ]);
+  const getApartmentName = (id: string) => nameMap.get(id) ?? id;
   const sp = searchParams as Record<string, string | undefined>;
 
   return (

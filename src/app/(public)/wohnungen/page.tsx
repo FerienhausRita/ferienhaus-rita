@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Link from "next/link";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import ApartmentCard from "@/components/apartments/ApartmentCard";
 import Container from "@/components/ui/Container";
@@ -27,7 +28,18 @@ export default async function WohnungenPage() {
             <ApartmentCard key={apartment.id} apartment={apartment} />
           ))}
         </div>
-        <p className="text-xs text-stone-400 mt-6 text-center">
+        <div className="mt-10 text-center">
+          <Link
+            href="/preise"
+            className="inline-flex items-center gap-2 text-[var(--color-gold)] hover:text-[#b89555] text-sm font-medium underline underline-offset-4"
+          >
+            Alle Preise transparent ansehen
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+            </svg>
+          </Link>
+        </div>
+        <p className="text-xs text-stone-400 mt-4 text-center">
           * Alle Preise inkl. 10% MwSt. Ortstaxe wird zusätzlich erhoben.{" "}
           <a href="/agb" className="text-alpine-600 hover:text-alpine-700 underline">
             Buchungsbedingungen
