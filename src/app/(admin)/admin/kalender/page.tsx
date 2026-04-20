@@ -1,5 +1,6 @@
 import { Metadata } from "next";
 import { getCalendarDataForYear } from "../actions";
+import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import CalendarView from "@/components/admin/CalendarView";
 import BlockDateForm from "@/components/admin/BlockDateForm";
 import ICalSync from "@/components/admin/ICalDebug";
@@ -10,13 +11,6 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-const calendarApartments = [
-  { id: "grossglockner-suite", name: "Großglockner Suite" },
-  { id: "gletscherblick", name: "Gletscherblick" },
-  { id: "almrausch", name: "Almrausch" },
-  { id: "edelweiss", name: "Edelweiß" },
-];
-
 export default async function KalenderPage({
   searchParams,
 }: {
@@ -26,7 +20,11 @@ export default async function KalenderPage({
   const year = searchParams.year ? parseInt(searchParams.year) : now.getFullYear();
   const currentMonth = now.getFullYear() === year ? now.getMonth() + 1 : 1;
 
-  const { bookings, blockedDates } = await getCalendarDataForYear(year);
+  const [{ bookings, blockedDates }, allApts] = await Promise.all([
+    getCalendarDataForYear(year),
+    getAllApartmentsWithPricing(),
+  ]);
+  const calendarApartments = allApts.map((a) => ({ id: a.id, name: a.name }));
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-[100vw] mx-auto">

@@ -69,6 +69,9 @@ export default function EmailCompose({
   bankDetails,
 }: EmailComposeProps) {
   const hasDeposit = depositAmount > 0 && depositAmount < totalPrice;
+  const depositPct =
+    totalPrice > 0 ? Math.round((depositAmount / totalPrice) * 100) : 30;
+  const remainderPct = 100 - depositPct;
 
   const templates = [
     {
@@ -102,8 +105,8 @@ Buchungsnr.: ${bookingRef}
 Wohnung: ${apartmentName}
 Zeitraum: ${formatDate(checkIn)} – ${formatDate(checkOut)}
 
-Anzahlung (30%): ${formatCurrency(depositAmount)}
-Restbetrag (70%): ${formatCurrency(remainderAmount)}
+Anzahlung (${depositPct}%): ${formatCurrency(depositAmount)}
+Restbetrag (${remainderPct}%): ${formatCurrency(remainderAmount)}
 
 Bitte überweisen Sie den fälligen Betrag auf folgendes Konto:
 

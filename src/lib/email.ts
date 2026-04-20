@@ -412,6 +412,12 @@ export async function sendBookingConfirmed(
         ? formatDate(new Date(booking.remainderDueDate + "T00:00:00Z"))
         : "30 Tage vor Anreise";
 
+      // Derive percentages from actual amounts (self-consistent with deposit_config)
+      const depositPct = Math.round(
+        (booking.depositAmount! / booking.totalPrice) * 100
+      );
+      const remainderPct = 100 - depositPct;
+
       paymentSection = `
         ${sectionHeading("Zahlung")}
         <p style="font-size:14px;color:${GRAY};line-height:1.6;margin:0 0 16px;">
@@ -419,13 +425,13 @@ export async function sendBookingConfirmed(
         </p>
 
         <div style="background:${CARD_BG};border-radius:10px;padding:16px 24px;margin:0 0 12px;border-left:4px solid ${GOLD};">
-          <p style="margin:0 0 4px;font-size:13px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">1. Anzahlung (30%)</p>
+          <p style="margin:0 0 4px;font-size:13px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">1. Anzahlung (${depositPct}%)</p>
           <p style="margin:0;font-size:22px;font-weight:700;color:${DARK};">${formatCurrency(booking.depositAmount!)}</p>
           <p style="margin:4px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${depositDueFormatted}</p>
         </div>
 
         <div style="background:${CARD_BG};border-radius:10px;padding:16px 24px;margin:0 0 16px;">
-          <p style="margin:0 0 4px;font-size:13px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">2. Restbetrag (70%)</p>
+          <p style="margin:0 0 4px;font-size:13px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">2. Restbetrag (${remainderPct}%)</p>
           <p style="margin:0;font-size:22px;font-weight:700;color:${DARK};">${formatCurrency(booking.remainderAmount || 0)}</p>
           <p style="margin:4px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${remainderDueFormatted}</p>
         </div>
@@ -710,7 +716,7 @@ export async function sendDepositReminder(
     <!-- Deposit amount -->
     <div style="text-align:center;margin:28px 0;">
       <div style="display:inline-block;background:${CARD_BG};border:2px solid ${GOLD};border-radius:10px;padding:20px 36px;">
-        <p style="margin:0 0 4px;font-size:12px;color:${GRAY};text-transform:uppercase;letter-spacing:1.5px;">Anzahlung (30%)</p>
+        <p style="margin:0 0 4px;font-size:12px;color:${GRAY};text-transform:uppercase;letter-spacing:1.5px;">Anzahlung (${Math.round((depositAmount / booking.totalPrice) * 100)}%)</p>
         <p style="margin:0;font-size:28px;font-weight:700;color:${DARK};">${formatCurrency(depositAmount)}</p>
         <p style="margin:6px 0 0;font-size:13px;color:${GRAY};">F\u00e4llig bis ${formattedDue}</p>
       </div>

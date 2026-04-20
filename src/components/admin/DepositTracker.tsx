@@ -26,6 +26,15 @@ const paymentMethods: Record<string, string> = {
   other: "Sonstige",
 };
 
+interface BookingPayment {
+  id: string;
+  amount: number;
+  paid_at: string;
+  method: string;
+  applies_to: "deposit" | "remainder";
+  note: string | null;
+}
+
 interface DepositTrackerProps {
   bookingId: string;
   totalPrice: number;
@@ -36,6 +45,7 @@ interface DepositTrackerProps {
   remainderDueDate: string | null;
   remainderPaidAt: string | null;
   paymentStatus: string;
+  payments?: BookingPayment[];
 }
 
 export default function DepositTracker({
@@ -48,6 +58,7 @@ export default function DepositTracker({
   remainderDueDate,
   remainderPaidAt,
   paymentStatus,
+  payments = [],
 }: DepositTrackerProps) {
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
@@ -56,6 +67,23 @@ export default function DepositTracker({
   const [manualDate, setManualDate] = useState(new Date().toISOString().split("T")[0]);
   const [manualMethod, setManualMethod] = useState("bank_transfer");
   const [manualNote, setManualNote] = useState("");
+  const [manualAppliesTo, setManualAppliesTo] = useState<"auto" | "deposit" | "remainder">("auto");
+
+  // Dynamic percentage labels derived from actual amounts
+  const depositPercent =
+    totalPrice > 0 ? Math.round((depositAmount / totalPrice) * 100) : 0;
+  const remainderPercent =
+    totalPrice > 0 ? Math.round((remainderAmount / totalPrice) * 100) : 0;
+
+  // Running totals from ledger
+  const depositPaidSum = payments
+    .filter((p) => p.applies_to === "deposit")
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const remainderPaidSum = payments
+    .filter((p) => p.applies_to === "remainder")
+    .reduce((s, p) => s + Number(p.amount || 0), 0);
+  const depositOpen = Math.max(0, depositAmount - depositPaidSum);
+  const remainderOpen = Math.max(0, remainderAmount - remainderPaidSum);
 
   const today = new Date().toISOString().split("T")[0];
   const depositOverdue = depositDueDate && depositDueDate < today && !depositPaidAt;
@@ -103,10 +131,14 @@ export default function DepositTracker({
               setMethod={setManualMethod}
               note={manualNote}
               setNote={setManualNote}
+              appliesTo={manualAppliesTo}
+              setAppliesTo={setManualAppliesTo}
               loading={loading}
               setLoading={setLoading}
               setMessage={setMessage}
               onClose={() => setShowManualForm(false)}
+              depositOpen={depositOpen}
+              remainderOpen={remainderOpen}
             />
           )}
 
@@ -204,7 +236,7 @@ export default function DepositTracker({
           }`}>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-stone-500 uppercase tracking-wider">
-                {hasRemainder ? "Anzahlung (30%)" : "Gesamtbetrag"}
+                {hasRemainder ? `Anzahlung (${depositPercent}%)` : "Gesamtbetrag"}
               </span>
               {depositPaidAt && (
                 <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -216,6 +248,11 @@ export default function DepositTracker({
               )}
             </div>
             <p className="text-lg font-bold text-stone-900">{formatCurrency(depositAmount)}</p>
+            {depositPaidSum > 0 && depositPaidSum < depositAmount && (
+              <p className="text-xs text-stone-600 mt-0.5">
+                {formatCurrency(depositPaidSum)} gezahlt · <span className="text-red-600">{formatCurrency(depositOpen)} offen</span>
+              </p>
+            )}
             {depositDueDate && (
               <p className="text-xs text-stone-500 mt-0.5">
                 {depositPaidAt
@@ -247,7 +284,7 @@ export default function DepositTracker({
           }`}>
             <div className="flex items-center justify-between mb-1">
               <span className="text-xs font-medium text-stone-500 uppercase tracking-wider">
-                Restbetrag (70%)
+                Restbetrag ({remainderPercent}%)
               </span>
               {remainderPaidAt && (
                 <svg className="w-4 h-4 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -259,6 +296,11 @@ export default function DepositTracker({
               )}
             </div>
             <p className="text-lg font-bold text-stone-900">{formatCurrency(remainderAmount)}</p>
+            {remainderPaidSum > 0 && remainderPaidSum < remainderAmount && (
+              <p className="text-xs text-stone-600 mt-0.5">
+                {formatCurrency(remainderPaidSum)} gezahlt · <span className="text-red-600">{formatCurrency(remainderOpen)} offen</span>
+              </p>
+            )}
             {remainderDueDate && (
               <p className="text-xs text-stone-500 mt-0.5">
                 {remainderPaidAt
@@ -309,13 +351,57 @@ export default function DepositTracker({
                 setMethod={setManualMethod}
                 note={manualNote}
                 setNote={setManualNote}
+                appliesTo={manualAppliesTo}
+                setAppliesTo={setManualAppliesTo}
                 loading={loading}
                 setLoading={setLoading}
                 setMessage={setMessage}
                 onClose={() => setShowManualForm(false)}
+                depositOpen={depositOpen}
+                remainderOpen={remainderOpen}
               />
             )}
           </>
+        )}
+
+        {/* Payment history */}
+        {payments.length > 0 && (
+          <div className="pt-3 border-t border-stone-100">
+            <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">
+              Verbuchte Zahlungen
+            </p>
+            <ul className="space-y-1.5">
+              {payments.map((p) => (
+                <li key={p.id} className="flex items-center gap-2 text-xs">
+                  <span
+                    className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                      p.applies_to === "deposit"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
+                    {p.applies_to === "deposit" ? "Anzahlung" : "Restbetrag"}
+                  </span>
+                  <span className="text-stone-600">{formatDate(p.paid_at)}</span>
+                  <span className="text-stone-500">·</span>
+                  <span className="text-stone-500">
+                    {paymentMethods[p.method] ?? p.method}
+                  </span>
+                  {p.note && (
+                    <span
+                      className="text-stone-400 truncate"
+                      title={p.note}
+                    >
+                      · {p.note}
+                    </span>
+                  )}
+                  <span className="ml-auto font-semibold text-stone-900">
+                    {formatCurrency(Number(p.amount))}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         )}
 
         {/* Message */}
@@ -342,10 +428,14 @@ function ManualPaymentForm({
   setMethod,
   note,
   setNote,
+  appliesTo,
+  setAppliesTo,
   loading,
   setLoading,
   setMessage,
   onClose,
+  depositOpen,
+  remainderOpen,
 }: {
   bookingId: string;
   amount: string;
@@ -356,10 +446,14 @@ function ManualPaymentForm({
   setMethod: (v: string) => void;
   note: string;
   setNote: (v: string) => void;
+  appliesTo: "auto" | "deposit" | "remainder";
+  setAppliesTo: (v: "auto" | "deposit" | "remainder") => void;
   loading: string | null;
   setLoading: (v: string | null) => void;
   setMessage: (v: { type: "success" | "error"; text: string } | null) => void;
   onClose: () => void;
+  depositOpen: number;
+  remainderOpen: number;
 }) {
   const handleSubmit = async () => {
     const parsedAmount = parseFloat(amount);
@@ -380,6 +474,7 @@ function ManualPaymentForm({
       paid_at: date,
       method,
       note: note.trim() || undefined,
+      applies_to: appliesTo,
     });
 
     setLoading(null);
@@ -415,17 +510,31 @@ function ManualPaymentForm({
           />
         </div>
       </div>
-      <div>
-        <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Zahlungsart</label>
-        <select
-          value={method}
-          onChange={(e) => setMethod(e.target.value)}
-          className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 bg-white"
-        >
-          {Object.entries(paymentMethods).map(([k, v]) => (
-            <option key={k} value={k}>{v}</option>
-          ))}
-        </select>
+      <div className="flex gap-2">
+        <div className="flex-1">
+          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Zahlungsart</label>
+          <select
+            value={method}
+            onChange={(e) => setMethod(e.target.value)}
+            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 bg-white"
+          >
+            {Object.entries(paymentMethods).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+        </div>
+        <div className="flex-1">
+          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Verbuchen auf</label>
+          <select
+            value={appliesTo}
+            onChange={(e) => setAppliesTo(e.target.value as "auto" | "deposit" | "remainder")}
+            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 bg-white"
+          >
+            <option value="auto">Automatisch</option>
+            <option value="deposit">Anzahlung{depositOpen > 0 ? ` (${formatCurrency(depositOpen)} offen)` : ""}</option>
+            <option value="remainder">Restbetrag{remainderOpen > 0 ? ` (${formatCurrency(remainderOpen)} offen)` : ""}</option>
+          </select>
+        </div>
       </div>
       <div>
         <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Notiz (optional)</label>

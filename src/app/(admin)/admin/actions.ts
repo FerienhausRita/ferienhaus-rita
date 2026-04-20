@@ -781,6 +781,7 @@ export async function recordManualPayment(
     paid_at: string; // YYYY-MM-DD
     method: string; // "bank_transfer" | "cash" | "card" | "paypal" | "other"
     note?: string;
+    applies_to?: "auto" | "deposit" | "remainder";
   }
 ) {
   const supabase = createServerClient();
@@ -798,53 +799,95 @@ export async function recordManualPayment(
 
   const depositAmount = Number(booking.deposit_amount || 0);
   const remainderAmount = Number(booking.remainder_amount || 0);
-  const totalPrice = Number(booking.total_price || 0);
-  const paidAt = new Date(data.paid_at + "T12:00:00Z").toISOString();
 
-  // Insert into booking_payments table
-  const { error: insertErr } = await supabase
+  // Load already-recorded payments to compute running totals per bucket
+  const { data: existingPayments } = await supabase
     .from("booking_payments")
-    .insert({
-      booking_id: bookingId,
-      amount: data.amount,
-      paid_at: paidAt,
-      method: data.method,
-      note: data.note || null,
-    });
+    .select("amount, applies_to")
+    .eq("booking_id", bookingId);
 
-  if (insertErr) {
-    // Table might not exist yet, fall back to direct update
-    console.error("booking_payments insert error (table may not exist):", insertErr);
+  const sumBucket = (bucket: "deposit" | "remainder") =>
+    (existingPayments ?? [])
+      .filter((p) => p.applies_to === bucket)
+      .reduce((sum, p) => sum + Number(p.amount || 0), 0);
+
+  let depositPaidSoFar = sumBucket("deposit");
+  let remainderPaidSoFar = sumBucket("remainder");
+
+  // Determine how to split this payment across buckets
+  // Auto mode: fill deposit first, overflow to remainder.
+  // Explicit mode: goes entirely to the chosen bucket.
+  const appliesTo = data.applies_to ?? "auto";
+  const ledgerEntries: Array<{ amount: number; applies_to: "deposit" | "remainder" }> = [];
+
+  if (appliesTo === "deposit") {
+    ledgerEntries.push({ amount: data.amount, applies_to: "deposit" });
+    depositPaidSoFar += data.amount;
+  } else if (appliesTo === "remainder") {
+    ledgerEntries.push({ amount: data.amount, applies_to: "remainder" });
+    remainderPaidSoFar += data.amount;
+  } else {
+    // auto
+    const depositOpen = Math.max(0, depositAmount - depositPaidSoFar);
+    const toDeposit = Math.min(depositOpen, data.amount);
+    const toRemainder = Math.round((data.amount - toDeposit) * 100) / 100;
+    if (toDeposit > 0) {
+      ledgerEntries.push({
+        amount: Math.round(toDeposit * 100) / 100,
+        applies_to: "deposit",
+      });
+      depositPaidSoFar += toDeposit;
+    }
+    if (toRemainder > 0) {
+      ledgerEntries.push({ amount: toRemainder, applies_to: "remainder" });
+      remainderPaidSoFar += toRemainder;
+    }
   }
 
-  // Smart payment status update based on amount
+  // Insert ledger entries
+  const paidAtIso = new Date(data.paid_at + "T12:00:00Z").toISOString();
+  for (const entry of ledgerEntries) {
+    const { error: insertErr } = await supabase.from("booking_payments").insert({
+      booking_id: bookingId,
+      amount: entry.amount,
+      paid_at: data.paid_at, // DATE column
+      method: data.method,
+      applies_to: entry.applies_to,
+      note: data.note || null,
+    });
+    if (insertErr) {
+      console.error("booking_payments insert error:", insertErr);
+      return {
+        success: false,
+        error: `Fehler beim Speichern der Zahlung: ${insertErr.message}`,
+      };
+    }
+  }
+
+  // Recompute paid_at timestamps based on running totals
   const updateData: Record<string, unknown> = {};
 
-  if (!booking.deposit_paid_at && depositAmount > 0 && data.amount >= depositAmount - 0.01) {
-    // Covers deposit
-    updateData.deposit_paid_at = paidAt;
-    if (data.amount >= totalPrice - 0.01) {
-      // Covers full amount
-      updateData.remainder_paid_at = paidAt;
-      updateData.payment_status = "paid";
-    } else if (remainderAmount > 0 && data.amount >= depositAmount + remainderAmount - 0.01) {
-      // Covers deposit + remainder
-      updateData.remainder_paid_at = paidAt;
-      updateData.payment_status = "paid";
-    } else {
-      updateData.payment_status = remainderAmount > 0 ? "deposit_paid" : "paid";
-    }
-  } else if (booking.deposit_paid_at && !booking.remainder_paid_at && data.amount >= remainderAmount - 0.01) {
-    // Deposit already paid, this covers remainder
-    updateData.remainder_paid_at = paidAt;
+  // Deposit fully paid?
+  if (!booking.deposit_paid_at && depositAmount > 0 && depositPaidSoFar >= depositAmount - 0.01) {
+    updateData.deposit_paid_at = paidAtIso;
+  }
+  // Remainder fully paid?
+  if (!booking.remainder_paid_at && remainderAmount > 0 && remainderPaidSoFar >= remainderAmount - 0.01) {
+    updateData.remainder_paid_at = paidAtIso;
+  }
+
+  // Compute new overall payment_status
+  const depositDone =
+    (updateData.deposit_paid_at || booking.deposit_paid_at) ||
+    depositAmount === 0;
+  const remainderDone =
+    (updateData.remainder_paid_at || booking.remainder_paid_at) ||
+    remainderAmount === 0;
+
+  if (depositDone && remainderDone) {
     updateData.payment_status = "paid";
-  } else if (!booking.deposit_paid_at && depositAmount === 0 && data.amount >= totalPrice - 0.01) {
-    // No split payment, covers full amount
-    updateData.deposit_paid_at = paidAt;
-    updateData.payment_status = "paid";
-  } else {
-    // Partial payment – just record it, update note
-    updateData.payment_note = `Teilzahlung: ${data.amount.toFixed(2)} EUR am ${data.paid_at}${data.method ? ` (${data.method})` : ""}`;
+  } else if (depositDone) {
+    updateData.payment_status = "deposit_paid";
   }
 
   if (Object.keys(updateData).length > 0) {
@@ -858,7 +901,7 @@ export async function recordManualPayment(
     }
   }
 
-  // Skip relevant reminder emails
+  // Skip relevant reminder emails when bucket becomes fully paid
   if (updateData.deposit_paid_at) {
     await supabase
       .from("email_schedule")
@@ -881,6 +924,24 @@ export async function recordManualPayment(
   revalidatePath("/admin/zahlungen");
   revalidatePath("/admin");
   return { success: true };
+}
+
+/**
+ * Get all manual payment ledger entries for a booking.
+ */
+export async function getBookingPayments(bookingId: string) {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("booking_payments")
+    .select("id, amount, paid_at, method, applies_to, note, created_at")
+    .eq("booking_id", bookingId)
+    .order("paid_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching booking payments:", error);
+    return [];
+  }
+  return data ?? [];
 }
 
 /**
@@ -3026,8 +3087,11 @@ export async function updateBookingPrices(
     .single();
 
   if (booking && booking.deposit_amount && !booking.deposit_paid_at && !booking.remainder_paid_at) {
-    // Recalculate 30/70 split only if nothing paid yet
-    const depositAmount = Math.round(totalPrice * 0.3 * 100) / 100;
+    // Recalculate deposit/remainder split only if nothing paid yet
+    const { getDepositConfig } = await import("@/lib/deposit-config");
+    const depositCfg = await getDepositConfig();
+    const depositAmount =
+      Math.round(totalPrice * (depositCfg.deposit_percent / 100) * 100) / 100;
     const remainderAmount = Math.round((totalPrice - depositAmount) * 100) / 100;
 
     await supabase

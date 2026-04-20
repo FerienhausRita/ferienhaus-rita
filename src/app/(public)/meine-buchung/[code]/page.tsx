@@ -139,6 +139,47 @@ export default async function BookingOverviewPage({
   );
   const isPaid = booking.payment_status === "paid";
 
+  // --- Load deposit config for dynamic percent display ---
+  const { data: depositCfgRow } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "deposit_config")
+    .single();
+  const depositPercent = Number(
+    (depositCfgRow?.value as { deposit_percent?: number } | null)?.deposit_percent ?? 30
+  );
+  const remainderPercent = 100 - depositPercent;
+
+  // --- Chat gating: only from check-in date onwards ---
+  const todayIso = new Date().toISOString().split("T")[0];
+  const chatAvailable =
+    (booking.status === "confirmed" || booking.status === "completed") &&
+    booking.check_in <= todayIso;
+
+  // --- Detail rows for price breakdown (with formula strings) ---
+  const pricePerNight = Number(booking.price_per_night || 0);
+  const extraGuests = Math.max(
+    0,
+    (Number(booking.adults || 0) + Number(booking.children || 0)) -
+      (apartment.baseGuests ?? 2)
+  );
+  const extraGuestsTotal = Number(booking.extra_guests_total || 0);
+  const dogsTotal = Number(booking.dogs_total || 0);
+  const localTaxTotal = Number(booking.local_tax_total || 0);
+  const localTaxPerNightPerAdult =
+    Number(booking.adults || 0) > 0 && nights > 0
+      ? Math.round(
+          (localTaxTotal / (Number(booking.adults) * nights)) * 100
+        ) / 100
+      : 0;
+  const extraPersonPrice =
+    extraGuests > 0 && nights > 0
+      ? Math.round((extraGuestsTotal / (extraGuests * nights)) * 100) / 100
+      : 0;
+  const dogFeePerNight =
+    Number(booking.dogs || 0) > 0 && nights > 0
+      ? Math.round((dogsTotal / (Number(booking.dogs) * nights)) * 100) / 100
+      : 0;
 
   return (
     <div className="pt-28 pb-24">
@@ -230,48 +271,95 @@ export default async function BookingOverviewPage({
               <PaymentBadge status={booking.payment_status || "pending"} />
             </div>
 
-            {/* Full price breakdown */}
-            <div className="border-t border-stone-100 pt-4 space-y-2 text-sm">
-              <div className="flex justify-between">
-                <span className="text-stone-500">{nights} x Übernachtung</span>
-                <span className="font-medium text-stone-900">
-                  {formatCurrency(Number(booking.price_per_night || 0) * nights)}
+            {/* Full price breakdown with formulas */}
+            <div className="border-t border-stone-100 pt-4 space-y-3 text-sm">
+              {/* Übernachtungen */}
+              <div className="flex justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <p className="text-stone-700">Übernachtungen</p>
+                  <p className="text-xs text-stone-400">
+                    {nights} {nights === 1 ? "Nacht" : "Nächte"} &times;{" "}
+                    {formatCurrency(pricePerNight)}/Nacht
+                  </p>
+                </div>
+                <span className="font-medium text-stone-900 whitespace-nowrap">
+                  {formatCurrency(pricePerNight * nights)}
                 </span>
               </div>
-              {Number(booking.extra_guests_total || 0) > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Zusatzgäste</span>
-                  <span className="font-medium text-stone-900">
-                    {formatCurrency(Number(booking.extra_guests_total))}
+
+              {/* Zusatzgäste */}
+              {extraGuestsTotal > 0 && extraGuests > 0 && (
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0">
+                    <p className="text-stone-700">
+                      Zusatzgäste ({extraGuests} {extraGuests === 1 ? "Person" : "Personen"})
+                    </p>
+                    <p className="text-xs text-stone-400">
+                      {extraGuests} &times; {formatCurrency(extraPersonPrice)}/Nacht &times;{" "}
+                      {nights} Nächte
+                    </p>
+                  </div>
+                  <span className="font-medium text-stone-900 whitespace-nowrap">
+                    {formatCurrency(extraGuestsTotal)}
                   </span>
                 </div>
               )}
-              {Number(booking.dogs_total || 0) > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Hund(e)</span>
-                  <span className="font-medium text-stone-900">
-                    {formatCurrency(Number(booking.dogs_total))}
+
+              {/* Hunde */}
+              {dogsTotal > 0 && Number(booking.dogs) > 0 && (
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0">
+                    <p className="text-stone-700">
+                      {Number(booking.dogs)} {Number(booking.dogs) === 1 ? "Hund" : "Hunde"}
+                    </p>
+                    <p className="text-xs text-stone-400">
+                      {Number(booking.dogs)} &times; {formatCurrency(dogFeePerNight)}/Nacht &times;{" "}
+                      {nights} Nächte
+                    </p>
+                  </div>
+                  <span className="font-medium text-stone-900 whitespace-nowrap">
+                    {formatCurrency(dogsTotal)}
                   </span>
                 </div>
               )}
-              <div className="flex justify-between">
-                <span className="text-stone-500">Endreinigung</span>
-                <span className="font-medium text-stone-900">
+
+              {/* Endreinigung */}
+              <div className="flex justify-between items-start gap-4">
+                <div className="min-w-0">
+                  <p className="text-stone-700">Endreinigung</p>
+                  <p className="text-xs text-stone-400">einmalig pauschal</p>
+                </div>
+                <span className="font-medium text-stone-900 whitespace-nowrap">
                   {formatCurrency(Number(booking.cleaning_fee || 0))}
                 </span>
               </div>
-              {Number(booking.local_tax_total || 0) > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Ortstaxe</span>
-                  <span className="font-medium text-stone-900">
-                    {formatCurrency(Number(booking.local_tax_total))}
+
+              {/* Ortstaxe */}
+              {localTaxTotal > 0 && (
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0">
+                    <p className="text-stone-700">Ortstaxe</p>
+                    <p className="text-xs text-stone-400">
+                      {Number(booking.adults)} Erw. &times;{" "}
+                      {formatCurrency(localTaxPerNightPerAdult)}/Nacht &times;{" "}
+                      {nights} Nächte
+                    </p>
+                  </div>
+                  <span className="font-medium text-stone-900 whitespace-nowrap">
+                    {formatCurrency(localTaxTotal)}
                   </span>
                 </div>
               )}
+
+              {/* Rabatt */}
               {Number(booking.discount_amount || 0) > 0 && (
-                <div className="flex justify-between">
-                  <span className="text-stone-500">Rabatt</span>
-                  <span className="font-medium text-red-600">
+                <div className="flex justify-between items-start gap-4">
+                  <div className="min-w-0">
+                    <p className="text-stone-700">
+                      Rabatt{booking.discount_code ? ` (${booking.discount_code})` : ""}
+                    </p>
+                  </div>
+                  <span className="font-medium text-red-600 whitespace-nowrap">
                     -{formatCurrency(Number(booking.discount_amount))}
                   </span>
                 </div>
@@ -281,6 +369,9 @@ export default async function BookingOverviewPage({
                 <span>Gesamtpreis</span>
                 <span>{formatCurrency(Number(booking.total_price || 0))}</span>
               </div>
+              <p className="text-[11px] text-stone-400 text-right">
+                Alle Preise inkl. 10 % MwSt. (außer Ortstaxe, öffentliche Abgabe)
+              </p>
             </div>
 
             {/* Deposit / Remainder details */}
@@ -288,7 +379,7 @@ export default async function BookingOverviewPage({
               <div className="mt-4 pt-4 border-t border-stone-100 space-y-2">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-stone-600">
-                    Anzahlung (30%)
+                    Anzahlung ({depositPercent}%)
                     {booking.deposit_paid_at && <span className="ml-1 text-emerald-600">&#10003;</span>}
                   </span>
                   <span className={`font-medium ${booking.deposit_paid_at ? "text-emerald-600" : "text-stone-900"}`}>
@@ -300,7 +391,7 @@ export default async function BookingOverviewPage({
                 )}
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-stone-600">
-                    Restbetrag
+                    Restbetrag ({remainderPercent}%)
                     {booking.remainder_paid_at && <span className="ml-1 text-emerald-600">&#10003;</span>}
                   </span>
                   <span className={`font-medium ${booking.remainder_paid_at ? "text-emerald-600" : "text-stone-900"}`}>
@@ -478,58 +569,30 @@ export default async function BookingOverviewPage({
             </div>
           </Link>
 
-          {(booking.status === "confirmed" || booking.status === "completed") ? (
-            <Link
-              href={`/meine-buchung/${code}/rechnung`}
-              className="flex items-center gap-4 bg-white rounded-2xl border border-stone-200 p-5 shadow-sm hover:border-alpine-300 hover:shadow-md transition-all group"
-            >
-              <div className="w-12 h-12 rounded-xl bg-alpine-100 flex items-center justify-center flex-shrink-0 group-hover:bg-alpine-200 transition-colors">
-                <svg
-                  className="w-6 h-6 text-alpine-600"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-stone-900">
-                  Rechnung herunterladen
-                </p>
-                <p className="text-sm text-stone-500">PDF-Rechnung speichern</p>
-              </div>
-            </Link>
-          ) : (
-            <div className="flex items-center gap-4 bg-stone-50 rounded-2xl border border-stone-200 p-5">
-              <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
-                <svg
-                  className="w-6 h-6 text-stone-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={1.5}
-                    d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z"
-                  />
-                </svg>
-              </div>
-              <div>
-                <p className="font-semibold text-stone-500">Rechnung</p>
-                <p className="text-sm text-stone-400">
-                  Wird nach Bestätigung Ihrer Anfrage verfügbar.
-                </p>
-              </div>
+          {/* Invoice: sent by email only (no portal download) */}
+          <div className="flex items-center gap-4 bg-stone-50 rounded-2xl border border-stone-200 p-5">
+            <div className="w-12 h-12 rounded-xl bg-stone-100 flex items-center justify-center flex-shrink-0">
+              <svg
+                className="w-6 h-6 text-stone-400"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={1.5}
+                  d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75"
+                />
+              </svg>
             </div>
-          )}
+            <div>
+              <p className="font-semibold text-stone-700">Rechnung</p>
+              <p className="text-sm text-stone-500">
+                Wird per E-Mail zugesandt.
+              </p>
+            </div>
+          </div>
 
           {/* Gästemappe */}
           <Link
@@ -597,12 +660,48 @@ export default async function BookingOverviewPage({
           </div>
         )}
 
-        {/* Chat – for confirmed/completed bookings */}
-        {(booking.status === "confirmed" || booking.status === "completed") && (
+        {/* Chat – only from check-in day onwards */}
+        {chatAvailable && (
           <div className="mt-6">
             <ChatSection bookingId={code} />
           </div>
         )}
+
+        {/* Chat hint when confirmed but before check-in */}
+        {!chatAvailable &&
+          (booking.status === "confirmed" || booking.status === "completed") && (
+            <div className="mt-6 bg-stone-50 rounded-2xl border border-stone-200 p-5">
+              <div className="flex items-start gap-3">
+                <svg
+                  className="w-5 h-5 text-stone-400 flex-shrink-0 mt-0.5"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={1.5}
+                    d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12c0 4.556-4.03 8.25-9 8.25a9.764 9.764 0 01-2.555-.337A5.972 5.972 0 015.41 20.97a5.969 5.969 0 01-.474-.065 4.48 4.48 0 00.978-2.025c.09-.457-.133-.901-.467-1.226C3.93 16.178 3 14.189 3 12c0-4.556 4.03-8.25 9-8.25s9 3.694 9 8.25z"
+                  />
+                </svg>
+                <div>
+                  <p className="font-semibold text-stone-700">Chat mit dem Gastgeber</p>
+                  <p className="text-sm text-stone-500 mt-0.5">
+                    Der Chat wird ab Ihrem Anreisetag ({formatDate(checkIn)}) verfügbar.
+                    Haben Sie vorher Fragen? Schreiben Sie uns gerne per{" "}
+                    <a
+                      href="/kontakt"
+                      className="text-[#c8a96e] underline underline-offset-2"
+                    >
+                      E-Mail
+                    </a>
+                    .
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
 
         {/* Rebook CTA – only for completed bookings */}
         {booking.status === "completed" && apartment && (

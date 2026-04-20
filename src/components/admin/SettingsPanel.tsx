@@ -141,6 +141,20 @@ export default function SettingsPanel({
   const [bankLoading, setBankLoading] = useState(false);
   const [bankMessage, setBankMessage] = useState<string | null>(null);
 
+  // Zahlungskonditionen
+  const depositInit = siteSettings.deposit_config ?? {};
+  const [depositPercent, setDepositPercent] = useState<number>(
+    Number(depositInit.deposit_percent ?? 30)
+  );
+  const [depositDueDays, setDepositDueDays] = useState<number>(
+    Number(depositInit.deposit_due_days ?? 7)
+  );
+  const [remainderDaysBefore, setRemainderDaysBefore] = useState<number>(
+    Number(depositInit.remainder_days_before_checkin ?? 30)
+  );
+  const [depositCfgLoading, setDepositCfgLoading] = useState(false);
+  const [depositCfgMessage, setDepositCfgMessage] = useState<string | null>(null);
+
   // Check-in Informationen
   const checkinInit = siteSettings.checkin_info ?? {};
   const [checkinKey, setCheckinKey] = useState(checkinInit.key_handover ?? "");
@@ -347,6 +361,24 @@ export default function SettingsPanel({
     setBankLoading(false);
     setBankMessage(result.success ? "Gespeichert" : result.error || "Fehler");
     if (result.success) setTimeout(() => setBankMessage(null), 3000);
+  };
+
+  const handleDepositCfgSave = async () => {
+    const pct = Number(depositPercent);
+    if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+      setDepositCfgMessage("Prozent muss zwischen 0 und 100 liegen");
+      return;
+    }
+    setDepositCfgLoading(true);
+    setDepositCfgMessage(null);
+    const result = await updateSiteSetting("deposit_config", {
+      deposit_percent: Math.round(pct),
+      deposit_due_days: Math.max(0, Math.round(Number(depositDueDays))),
+      remainder_days_before_checkin: Math.max(0, Math.round(Number(remainderDaysBefore))),
+    });
+    setDepositCfgLoading(false);
+    setDepositCfgMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setDepositCfgMessage(null), 3000);
   };
 
   const handleCheckinSave = async () => {
@@ -733,6 +765,91 @@ export default function SettingsPanel({
               {bankLoading ? "..." : "Speichern"}
             </button>
             {bankMessage && <p className={successClass}>{bankMessage}</p>}
+          </div>
+        </div>
+      </Section>
+
+      {/* Zahlungskonditionen */}
+      <Section
+        id="deposit-config"
+        title="Zahlungskonditionen"
+        subtitle="Anzahlungshöhe & Fälligkeiten – greift automatisch für neue Bestätigungen"
+        open={openSections.has("deposit-config")}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-stone-500">
+            Die Prozentangaben werden in Bestätigungsmails, Erinnerungen,
+            Dashboard und Gästeportal konsistent verwendet. Der Restbetrag
+            beträgt automatisch {100 - Number(depositPercent || 0)} %.
+          </p>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Anzahlung (%)
+              </label>
+              <input
+                type="number"
+                min={0}
+                max={100}
+                step={1}
+                value={depositPercent}
+                onChange={(e) => setDepositPercent(Number(e.target.value))}
+                className={inputClass}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Anzahlung fällig in (Tagen)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={depositDueDays}
+                onChange={(e) => setDepositDueDays(Number(e.target.value))}
+                className={inputClass}
+              />
+              <p className="text-[10px] text-stone-400 mt-1">
+                Nach Bestätigung der Buchung
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Restbetrag fällig (Tage vor Anreise)
+              </label>
+              <input
+                type="number"
+                min={0}
+                step={1}
+                value={remainderDaysBefore}
+                onChange={(e) => setRemainderDaysBefore(Number(e.target.value))}
+                className={inputClass}
+              />
+              <p className="text-[10px] text-stone-400 mt-1">
+                Ist die Anreise früher, wird der Gesamtbetrag sofort fällig
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleDepositCfgSave}
+              disabled={depositCfgLoading}
+              className={btnClass}
+            >
+              {depositCfgLoading ? "..." : "Speichern"}
+            </button>
+            {depositCfgMessage && (
+              <p
+                className={
+                  depositCfgMessage === "Gespeichert"
+                    ? successClass
+                    : "text-xs text-red-600 mt-1"
+                }
+              >
+                {depositCfgMessage}
+              </p>
+            )}
           </div>
         </div>
       </Section>

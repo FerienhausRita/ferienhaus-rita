@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Container from "@/components/ui/Container";
 import { contact } from "@/data/contact";
+import { getDepositConfig } from "@/lib/deposit-config";
 
 export const metadata: Metadata = {
   title: "Buchungsbedingungen & Hausregeln",
@@ -8,7 +9,14 @@ export const metadata: Metadata = {
     "Allgemeine Geschäftsbedingungen, Stornobedingungen und Hausregeln für Ihre Buchung im Ferienhaus Rita in Kals am Großglockner.",
 };
 
-export default function AGBPage() {
+export const dynamic = "force-dynamic";
+
+export default async function AGBPage() {
+  const depositCfg = await getDepositConfig();
+  const depositPct = depositCfg.deposit_percent;
+  const remainderDays = depositCfg.remainder_days_before_checkin;
+  const depositDueDays = depositCfg.deposit_due_days;
+  const refundPct = 100 - depositPct;
   return (
     <div className="pt-28 pb-24">
       <Container narrow>
@@ -58,16 +66,16 @@ export default function AGBPage() {
             </p>
             <div className="bg-stone-50 rounded-xl p-5 my-5 space-y-2">
               <p>
-                <strong>Anzahlung:</strong> Innerhalb von 7 Tagen nach
+                <strong>Anzahlung:</strong> Innerhalb von {depositDueDays} Tagen nach
                 Buchungsbestätigung ist eine Anzahlung in Höhe von{" "}
-                <strong>30% des Gesamtpreises</strong> per Banküberweisung fällig.
+                <strong>{depositPct}% des Gesamtpreises</strong> per Banküberweisung fällig.
               </p>
               <p>
                 <strong>Restzahlung:</strong> Der Restbetrag ist spätestens{" "}
-                <strong>30 Tage vor Anreise</strong> zu begleichen.
+                <strong>{remainderDays} Tage vor Anreise</strong> zu begleichen.
               </p>
               <p>
-                Bei Buchungen innerhalb von 30 Tagen vor Anreise ist der
+                Bei Buchungen innerhalb von {remainderDays} Tagen vor Anreise ist der
                 Gesamtbetrag sofort fällig.
               </p>
             </div>
@@ -113,14 +121,14 @@ export default function AGBPage() {
                     </td>
                   </tr>
                   <tr>
-                    <td className="py-3 pr-4">59 bis 30 Tage vor Anreise</td>
+                    <td className="py-3 pr-4">59 bis {remainderDays} Tage vor Anreise</td>
                     <td className="py-3">
-                      70% Erstattung (30% Stornogebühr)
+                      {refundPct}% Erstattung ({depositPct}% Stornogebühr)
                     </td>
                   </tr>
                   <tr>
                     <td className="py-3 pr-4 font-medium text-stone-900">
-                      Weniger als 30 Tage vor Anreise
+                      Weniger als {remainderDays} Tage vor Anreise
                     </td>
                     <td className="py-3 font-medium text-stone-900">
                       Keine Erstattung

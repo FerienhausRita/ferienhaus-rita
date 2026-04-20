@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting } from "../../actions";
+import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments } from "../../actions";
 import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
@@ -76,7 +76,7 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails, taxConfig] = await Promise.all([
+  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails, taxConfig, payments] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
     getEmailSchedule(params.id),
@@ -84,6 +84,7 @@ export default async function BookingDetailPage({
     getBookingLineItems(params.id),
     getSiteSetting("bank_details"),
     getTaxConfigFromDB(),
+    getBookingPayments(params.id),
   ]);
 
   if (!booking) {
@@ -424,6 +425,14 @@ export default async function BookingDetailPage({
             remainderDueDate={booking.remainder_due_date}
             remainderPaidAt={booking.remainder_paid_at}
             paymentStatus={booking.payment_status}
+            payments={(payments ?? []).map((p) => ({
+              id: p.id,
+              amount: Number(p.amount),
+              paid_at: p.paid_at,
+              method: p.method,
+              applies_to: (p.applies_to as "deposit" | "remainder") ?? "deposit",
+              note: p.note,
+            }))}
           />
 
           <BookingActions

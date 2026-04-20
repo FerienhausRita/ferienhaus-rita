@@ -4,12 +4,15 @@ import Container from "@/components/ui/Container";
 import FAQAccordion from "@/components/ui/FAQAccordion";
 import FAQJsonLd from "@/components/seo/FAQJsonLd";
 import { apartments } from "@/data/apartments";
+import { getDepositConfig } from "@/lib/deposit-config";
 
 export const metadata: Metadata = {
   title: "Häufige Fragen",
   description:
     "Antworten auf häufig gestellte Fragen rund um Ihren Aufenthalt im Ferienhaus Rita.",
 };
+
+export const dynamic = "force-dynamic";
 
 // Dynamic pricing from apartment data
 const cleaningFees = [...new Set(apartments.map((a) => a.cleaningFee))].sort((a, b) => a - b);
@@ -18,7 +21,8 @@ const cleaningFeeText = cleaningFees.length === 1
   : `${cleaningFees[0]} € bis ${cleaningFees[cleaningFees.length - 1]} €`;
 const dogFee = apartments[0]?.dogFee ?? 15;
 
-const faqGroups = [
+function buildFaqGroups(depositPct: number, depositDueDays: number, remainderDaysBefore: number) {
+  return [
   {
     category: "Buchung & Anreise",
     items: [
@@ -40,12 +44,12 @@ const faqGroups = [
       {
         question: "Welche Zahlungsmethoden werden akzeptiert?",
         answer:
-          "Wir akzeptieren Zahlung per Banküberweisung. Die Zahlungsdetails erhalten Sie mit der Buchungsbestätigung. Eine Anzahlung von 30% ist innerhalb von 7 Tagen nach Bestätigung fällig, der Restbetrag 30 Tage vor Anreise. Bei Buchungen innerhalb von 30 Tagen vor Anreise ist der Gesamtbetrag sofort fällig.",
+          `Wir akzeptieren Zahlung per Banküberweisung. Die Zahlungsdetails erhalten Sie mit der Buchungsbestätigung. Eine Anzahlung von ${depositPct}% ist innerhalb von ${depositDueDays} Tagen nach Bestätigung fällig, der Restbetrag ${remainderDaysBefore} Tage vor Anreise. Bei Buchungen innerhalb von ${remainderDaysBefore} Tagen vor Anreise ist der Gesamtbetrag sofort fällig.`,
       },
       {
         question: "Wie sind die Stornobedingungen?",
         answer:
-          "Bis 60 Tage vor Anreise ist eine kostenlose Stornierung möglich. Bei Stornierung zwischen 59 und 30 Tagen vor Anreise erhalten Sie 70% des Gesamtpreises zurück (30% Stornogebühr). Bei weniger als 30 Tagen vor Anreise ist keine Erstattung möglich. Wir empfehlen den Abschluss einer Reiserücktrittsversicherung.",
+          `Bis 60 Tage vor Anreise ist eine kostenlose Stornierung möglich. Bei Stornierung zwischen 59 und ${remainderDaysBefore} Tagen vor Anreise erhalten Sie ${100 - depositPct}% des Gesamtpreises zurück (${depositPct}% Stornogebühr). Bei weniger als ${remainderDaysBefore} Tagen vor Anreise ist keine Erstattung möglich. Wir empfehlen den Abschluss einer Reiserücktrittsversicherung.`,
       },
     ],
   },
@@ -114,10 +118,20 @@ const faqGroups = [
       },
     ],
   },
-];
+  ];
+}
 
-export default function FAQPage() {
+export default async function FAQPage() {
+  const depositCfg = await getDepositConfig();
+  const depositPct = depositCfg.deposit_percent;
+  const stornoPct = 100 - depositPct; // Refund matches the deposit % approach
+  const faqGroups = buildFaqGroups(
+    depositPct,
+    depositCfg.deposit_due_days,
+    depositCfg.remainder_days_before_checkin
+  );
   const allItems = faqGroups.flatMap((g) => g.items);
+  void stornoPct;
 
   return (
     <>

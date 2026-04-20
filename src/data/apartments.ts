@@ -135,12 +135,12 @@ export const apartments: Apartment[] = [
   {
     id: "gletscherblick",
     slug: "gletscherblick",
-    name: "Gletscherblick",
-    subtitle: "Großzügig wohnen mit Blick auf die Gletscherwelt",
+    name: "Blauspitz",
+    subtitle: "Großzügig wohnen mit Blick auf die Bergwelt der Hohen Tauern",
     description:
-      "Die Wohnung Gletscherblick bietet auf 96 m² höchsten Komfort mit einem herrlichen Ausblick auf die Gletscher der Hohen Tauern. Moderne alpine Einrichtung, eine vollwertige Küche und großzügige Schlafräume machen diese Wohnung zum idealen Rückzugsort nach einem aktiven Tag in der Natur.",
+      "Die Wohnung Blauspitz bietet auf 96 m² höchsten Komfort mit einem herrlichen Ausblick auf die Hohen Tauern. Moderne alpine Einrichtung, eine vollwertige Küche und großzügige Schlafräume machen diese Wohnung zum idealen Rückzugsort nach einem aktiven Tag in der Natur.",
     shortDescription:
-      "96 m² mit Gletscherpanorama – moderner Komfort für bis zu 6 Personen.",
+      "96 m² mit Bergpanorama – moderner Komfort für bis zu 6 Personen.",
     size: 96,
     maxGuests: 6,
     baseGuests: 4,
@@ -156,7 +156,7 @@ export const apartments: Apartment[] = [
     minNightsSummer: 3,
     minNightsWinter: 5,
     features: [
-      "Gletscherblick",
+      "Bergblick",
       "Voll ausgestattete Küche",
       "Großer Wohn-/Essbereich",
       "Balkon mit Panoramablick",
@@ -166,7 +166,7 @@ export const apartments: Apartment[] = [
     highlights: [
       "96 m² Wohnfläche",
       "Bis zu 6 Personen",
-      "Gletscherpanorama",
+      "Bergpanorama",
       "Obergeschoss mit Weitblick",
     ],
     amenities: [
