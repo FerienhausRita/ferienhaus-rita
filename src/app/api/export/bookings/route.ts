@@ -83,38 +83,39 @@ export async function GET() {
   };
 
   // --- Column definition (order matters!) ---
+  // Gesamtpreis is placed early so it's visible at a glance.
   const headers = [
     "Buchungs-ID",               // A
     "Wohnung",                   // B
     "Vorname",                   // C
     "Nachname",                  // D
-    "E-Mail",                    // E
-    "Telefon",                   // F
-    "Straße",                    // G
-    "PLZ",                       // H
-    "Ort",                       // I
-    "Land",                      // J
-    "Check-in",                  // K
-    "Check-out",                 // L
-    "Nächte",                    // M
-    "Erwachsene",                // N
-    "Kinder",                    // O
-    "Zusatzgäste",               // P  (= max(0, Erw+Kind − baseGuests))
-    "Hunde",                     // Q
-    "Preis/Nacht",               // R  (Einheit)
-    "Aufpreis Zusatzgast/Nacht", // S  (Einheit)
-    "Hundegebühr/Nacht",         // T  (Einheit)
-    "Ortstaxe/Person/Nacht",     // U  (Einheit)
-    "Übernachtung",              // V  FORMEL = R*M
-    "Zuschlag Gäste",            // W  FORMEL = P*S*M
-    "Zuschlag Hunde",            // X  FORMEL = Q*T*M
-    "Endreinigung",              // Y
-    "Ortstaxe",                  // Z  FORMEL = N*U*M
-    "Rabatt",                    // AA
-    "Rabattcode",                // AB
-    "Gesamtpreis",               // AC FORMEL = V+W+X+Y+Z − AA
-    "Status",                    // AD
-    "Zahlungsstatus",            // AE
+    "Gesamtpreis",               // E  FORMEL = S+T+U+V+W − X
+    "Status",                    // F
+    "Zahlungsstatus",            // G
+    "Check-in",                  // H
+    "Check-out",                 // I
+    "Nächte",                    // J
+    "Erwachsene",                // K
+    "Kinder",                    // L
+    "Zusatzgäste",               // M  (= max(0, Erw+Kind − baseGuests))
+    "Hunde",                     // N
+    "Preis/Nacht",               // O  (Einheit)
+    "Aufpreis Zusatzgast/Nacht", // P  (Einheit)
+    "Hundegebühr/Nacht",         // Q  (Einheit)
+    "Ortstaxe/Person/Nacht",     // R  (Einheit)
+    "Übernachtung",              // S  FORMEL = O*J
+    "Zuschlag Gäste",            // T  FORMEL = M*P*J
+    "Zuschlag Hunde",            // U  FORMEL = N*Q*J
+    "Endreinigung",              // V
+    "Ortstaxe",                  // W  FORMEL = K*R*J
+    "Rabatt",                    // X
+    "Rabattcode",                // Y
+    "E-Mail",                    // Z
+    "Telefon",                   // AA
+    "Straße",                    // AB
+    "PLZ",                       // AC
+    "Ort",                       // AD
+    "Land",                      // AE
     "Rechnungsnummer",           // AF
     "Anmerkungen",               // AG
     "Erstellt am",               // AH
@@ -122,22 +123,26 @@ export async function GET() {
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
 
+  // Euro currency format — renders as "1.234,56 €" (Austrian locale)
+  const EUR_FMT = '#,##0.00" €"';
+
   // Column letters for formula building
   const COL = {
-    M: "M",   // Nächte
-    N: "N",   // Erwachsene
-    P: "P",   // Zusatzgäste
-    Q: "Q",   // Hunde
-    R: "R",   // Preis/Nacht
-    S: "S",   // Aufpreis Zusatzgast/Nacht
-    T: "T",   // Hundegebühr/Nacht
-    U: "U",   // Ortstaxe/Person/Nacht
-    V: "V",   // Übernachtung
-    W: "W",   // Zuschlag Gäste
-    X: "X",   // Zuschlag Hunde
-    Y: "Y",   // Endreinigung
-    Z: "Z",   // Ortstaxe
-    AA: "AA", // Rabatt
+    E: "E",   // Gesamtpreis
+    J: "J",   // Nächte
+    K: "K",   // Erwachsene
+    M: "M",   // Zusatzgäste
+    N: "N",   // Hunde
+    O: "O",   // Preis/Nacht
+    P: "P",   // Aufpreis Zusatzgast/Nacht
+    Q: "Q",   // Hundegebühr/Nacht
+    R: "R",   // Ortstaxe/Person/Nacht
+    S: "S",   // Übernachtung
+    T: "T",   // Zuschlag Gäste
+    U: "U",   // Zuschlag Hunde
+    V: "V",   // Endreinigung
+    W: "W",   // Ortstaxe
+    X: "X",   // Rabatt
   };
 
   // Build data rows (plain values – formulas will be overwritten afterwards)
@@ -229,33 +234,33 @@ export async function GET() {
       raw.apartmentName,        // B
       raw.firstName,            // C
       raw.lastName,             // D
-      raw.email,                // E
-      raw.phone,                // F
-      raw.street,               // G
-      raw.zip,                  // H
-      raw.city,                 // I
-      raw.country,              // J
-      raw.checkIn,              // K
-      raw.checkOut,             // L
-      raw.nights,               // M
-      raw.adults,               // N
-      raw.children,             // O
-      raw.extraGuestsCount,     // P
-      raw.dogs,                 // Q
-      raw.pricePerNight,        // R
-      raw.perGuestRate,         // S
-      raw.dogRate,              // T
-      raw.localTaxRate,         // U
-      cached.accommodationTotal,// V  (replaced by formula below)
-      cached.extraGuestsTotal,  // W
-      cached.dogsTotal,         // X
-      raw.cleaningFee,          // Y
-      cached.localTaxTotal,     // Z  (replaced by formula below)
-      raw.discountAmount,       // AA
-      raw.discountCode,         // AB
-      cached.totalPrice,        // AC (replaced by formula below)
-      raw.status,               // AD
-      raw.paymentStatus,        // AE
+      cached.totalPrice,        // E  Gesamtpreis (replaced by formula)
+      raw.status,               // F
+      raw.paymentStatus,        // G
+      raw.checkIn,              // H
+      raw.checkOut,             // I
+      raw.nights,               // J
+      raw.adults,               // K
+      raw.children,             // L
+      raw.extraGuestsCount,     // M
+      raw.dogs,                 // N
+      raw.pricePerNight,        // O
+      raw.perGuestRate,         // P
+      raw.dogRate,              // Q
+      raw.localTaxRate,         // R
+      cached.accommodationTotal,// S  (replaced by formula)
+      cached.extraGuestsTotal,  // T  (replaced by formula)
+      cached.dogsTotal,         // U  (replaced by formula)
+      raw.cleaningFee,          // V
+      cached.localTaxTotal,     // W  (replaced by formula)
+      raw.discountAmount,       // X
+      raw.discountCode,         // Y
+      raw.email,                // Z
+      raw.phone,                // AA
+      raw.street,               // AB
+      raw.zip,                  // AC
+      raw.city,                 // AD
+      raw.country,              // AE
       raw.invoiceNumber,        // AF
       raw.notes,                // AG
       raw.createdAt,            // AH
@@ -265,44 +270,62 @@ export async function GET() {
   // Create worksheet from array-of-arrays
   const ws = XLSX.utils.aoa_to_sheet(aoa);
 
-  // Overwrite formula cells for each data row (row index i in dataRows → Excel row i+2)
+  // Overwrite formula cells for each data row (row index i in dataRows → Excel row i+2).
+  // Columns with euro amounts get the EUR format string for display as "1.234,56 €".
+  // Non-formula currency columns (Preis/Nacht, Einheiten, Endreinigung, Rabatt) also get formatted.
+  const currencyValueCols = [COL.O, COL.P, COL.Q, COL.R, COL.V, COL.X];
+
   dataRows.forEach((r, i) => {
     const rowIdx = i + 2; // 1-indexed + header
 
-    // V: Übernachtung  = R × M
-    ws[`${COL.V}${rowIdx}`] = {
+    // S: Übernachtung  = O × J
+    ws[`${COL.S}${rowIdx}`] = {
       t: "n",
-      f: `${COL.R}${rowIdx}*${COL.M}${rowIdx}`,
+      f: `${COL.O}${rowIdx}*${COL.J}${rowIdx}`,
       v: r.cached.accommodationTotal,
+      z: EUR_FMT,
     };
 
-    // W: Zuschlag Gäste = P × S × M
+    // T: Zuschlag Gäste = M × P × J
+    ws[`${COL.T}${rowIdx}`] = {
+      t: "n",
+      f: `${COL.M}${rowIdx}*${COL.P}${rowIdx}*${COL.J}${rowIdx}`,
+      v: r.cached.extraGuestsTotal,
+      z: EUR_FMT,
+    };
+
+    // U: Zuschlag Hunde = N × Q × J
+    ws[`${COL.U}${rowIdx}`] = {
+      t: "n",
+      f: `${COL.N}${rowIdx}*${COL.Q}${rowIdx}*${COL.J}${rowIdx}`,
+      v: r.cached.dogsTotal,
+      z: EUR_FMT,
+    };
+
+    // W: Ortstaxe = K × R × J
     ws[`${COL.W}${rowIdx}`] = {
       t: "n",
-      f: `${COL.P}${rowIdx}*${COL.S}${rowIdx}*${COL.M}${rowIdx}`,
-      v: r.cached.extraGuestsTotal,
-    };
-
-    // X: Zuschlag Hunde = Q × T × M
-    ws[`${COL.X}${rowIdx}`] = {
-      t: "n",
-      f: `${COL.Q}${rowIdx}*${COL.T}${rowIdx}*${COL.M}${rowIdx}`,
-      v: r.cached.dogsTotal,
-    };
-
-    // Z: Ortstaxe = N × U × M
-    ws[`${COL.Z}${rowIdx}`] = {
-      t: "n",
-      f: `${COL.N}${rowIdx}*${COL.U}${rowIdx}*${COL.M}${rowIdx}`,
+      f: `${COL.K}${rowIdx}*${COL.R}${rowIdx}*${COL.J}${rowIdx}`,
       v: r.cached.localTaxTotal,
+      z: EUR_FMT,
     };
 
-    // AC: Gesamtpreis = V + W + X + Y + Z − AA
-    ws[`AC${rowIdx}`] = {
+    // E: Gesamtpreis = S + T + U + V + W − X
+    ws[`${COL.E}${rowIdx}`] = {
       t: "n",
-      f: `${COL.V}${rowIdx}+${COL.W}${rowIdx}+${COL.X}${rowIdx}+${COL.Y}${rowIdx}+${COL.Z}${rowIdx}-${COL.AA}${rowIdx}`,
+      f: `${COL.S}${rowIdx}+${COL.T}${rowIdx}+${COL.U}${rowIdx}+${COL.V}${rowIdx}+${COL.W}${rowIdx}-${COL.X}${rowIdx}`,
       v: r.cached.totalPrice,
+      z: EUR_FMT,
     };
+
+    // Apply Euro format to unit/flat currency cells (values, not formulas)
+    for (const col of currencyValueCols) {
+      const addr = `${col}${rowIdx}`;
+      const cell = ws[addr];
+      if (cell && cell.t === "n") {
+        cell.z = EUR_FMT;
+      }
+    }
   });
 
   // Auto-size columns (base on header + any displayed value as string)
@@ -408,6 +431,17 @@ export async function GET() {
       return { wch: Math.min(maxLen + 2, 40) };
     });
     ws2["!cols"] = colWidths2;
+
+    // Format Gesamtumsatz column (column E in the Gäste sheet) as currency
+    for (let i = 0; i < guestRows.length; i++) {
+      const addr = `E${i + 2}`;
+      const cell = ws2[addr];
+      if (cell && cell.t === "n") {
+        cell.z = EUR_FMT;
+      }
+    }
+
+    ws2["!freeze"] = { xSplit: 0, ySplit: 1 };
     XLSX.utils.book_append_sheet(wb, ws2, "Gäste");
   }
 
