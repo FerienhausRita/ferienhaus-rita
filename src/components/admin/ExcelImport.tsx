@@ -22,6 +22,13 @@ const KNOWN_HEADERS: Record<string, string> = {
   "Kinder": "children",
   "Hunde": "dogs",
   "Preis/Nacht": "price_per_night",
+  // Informative unit columns emitted by the export (read but not actively used
+  // on import — the import relies on the calculated totals below).
+  "Zusatzgäste": "_extra_guests_count",
+  "Aufpreis Zusatzgast/Nacht": "_extra_person_price",
+  "Hundegebühr/Nacht": "_dog_fee_per_night",
+  "Ortstaxe/Person/Nacht": "_local_tax_per_night",
+  "Übernachtung": "_accommodation_total",
   "Zuschlag Gäste": "extra_guests_total",
   "Zuschlag Hunde": "dogs_total",
   "Endreinigung": "cleaning_fee",
