@@ -1859,6 +1859,155 @@ export async function triggerIcalSync() {
 }
 
 // ============================================
+// iCAL IMPORT FEEDS (editable in admin panel)
+// ============================================
+
+function detectFeedLabel(url: string): string {
+  const u = url.toLowerCase();
+  if (u.includes("airbnb")) return "Airbnb";
+  if (u.includes("smoobu")) return "Smoobu";
+  if (u.includes("booking")) return "Booking.com";
+  if (u.includes("vrbo") || u.includes("homeaway")) return "Vrbo";
+  return "Extern";
+}
+
+export async function getIcalImportFeeds() {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("ical_import_feeds")
+    .select(
+      "id, apartment_id, url, label, active, last_synced_at, last_sync_status, last_sync_error, last_sync_event_count, created_at"
+    )
+    .order("apartment_id", { ascending: true })
+    .order("created_at", { ascending: true });
+
+  if (error) {
+    console.error("Error fetching ical feeds:", error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function createIcalImportFeed(feed: {
+  apartment_id: string;
+  url: string;
+  label?: string;
+}) {
+  const url = feed.url.trim();
+  if (!url.startsWith("http")) {
+    return { success: false, error: "URL muss mit http(s):// beginnen" };
+  }
+  if (!feed.apartment_id) {
+    return { success: false, error: "Wohnung fehlt" };
+  }
+
+  const supabase = createServerClient();
+  const { error } = await supabase.from("ical_import_feeds").insert({
+    apartment_id: feed.apartment_id,
+    url,
+    label: feed.label?.trim() || detectFeedLabel(url),
+    active: true,
+  });
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+export async function updateIcalImportFeed(
+  id: string,
+  updates: Partial<{ url: string; label: string; active: boolean }>
+) {
+  const supabase = createServerClient();
+  const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
+  if (updates.url !== undefined) {
+    const url = updates.url.trim();
+    if (!url.startsWith("http")) {
+      return { success: false, error: "URL muss mit http(s):// beginnen" };
+    }
+    payload.url = url;
+  }
+  if (updates.label !== undefined) payload.label = updates.label.trim() || null;
+  if (updates.active !== undefined) payload.active = updates.active;
+
+  const { error } = await supabase
+    .from("ical_import_feeds")
+    .update(payload)
+    .eq("id", id);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+export async function toggleIcalImportFeed(id: string, active: boolean) {
+  return updateIcalImportFeed(id, { active });
+}
+
+export async function deleteIcalImportFeed(id: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("ical_import_feeds")
+    .delete()
+    .eq("id", id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+// ============================================
+// DAILY EXCEL EXPORT E-MAIL
+// ============================================
+
+/**
+ * Trigger a manual "test" send of the daily bookings export.
+ * Calls the cron endpoint with service-role bearer to bypass the vercel-cron
+ * header requirement. Optionally override the recipient for this one send.
+ */
+export async function sendBookingsExportEmailNow(recipientOverride?: string) {
+  // Admin-only
+  const authSupabase = createAuthServerClient();
+  const {
+    data: { user },
+  } = await authSupabase.auth.getUser();
+  if (!user) return { success: false, error: "Nicht authentifiziert" };
+
+  const baseUrl =
+    process.env.NEXT_PUBLIC_SITE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+
+  const url = new URL("/api/cron/export-bookings", baseUrl);
+  if (recipientOverride) url.searchParams.set("to", recipientOverride);
+
+  try {
+    const res = await fetch(url.toString(), {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      },
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      return { success: false, error: data.error || `Fehler (${res.status})` };
+    }
+    if (data.skipped) {
+      return {
+        success: false,
+        error: "Versand ist deaktiviert oder keine Empfänger-Adresse hinterlegt",
+      };
+    }
+    return { success: true, sentTo: data.sentTo };
+  } catch (err) {
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unbekannter Fehler",
+    };
+  }
+}
+
+// ============================================
 // ADMIN USER MANAGEMENT
 // ============================================
 

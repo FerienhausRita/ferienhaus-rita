@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
-import { getAdminProfiles, getAllSiteSettings } from "../actions";
+import { getAdminProfiles, getAllSiteSettings, getIcalImportFeeds } from "../actions";
 import { apartments } from "@/data/apartments";
 import { icalFeeds } from "@/data/ical-feeds";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
@@ -24,17 +24,35 @@ export default async function EinstellungenPage() {
     .eq("id", user?.id ?? "")
     .single();
 
-  const [admins, siteSettings, dbApartments] = await Promise.all([
+  const [admins, siteSettings, dbApartments, icalImportRows] = await Promise.all([
     getAdminProfiles(),
     getAllSiteSettings(),
     getAllApartmentsWithPricing(),
+    getIcalImportFeeds(),
   ]);
 
+  // Legacy static feed mapping – still used for the "Export-Feeds" block in the
+  // iCal section (those URLs are code-generated, apartment-id based).
   const feedData = Object.entries(icalFeeds).map(([aptId, urls]) => ({
     apartmentId: aptId,
     apartmentName:
       dbApartments.find((a) => a.id === aptId)?.name ?? aptId,
     urls,
+  }));
+
+  // Editable import feeds (DB-backed)
+  const icalImportFeeds = icalImportRows.map((r) => ({
+    id: r.id,
+    apartment_id: r.apartment_id,
+    apartment_name:
+      dbApartments.find((a) => a.id === r.apartment_id)?.name ?? r.apartment_id,
+    url: r.url,
+    label: r.label ?? null,
+    active: r.active,
+    last_synced_at: r.last_synced_at ?? null,
+    last_sync_status: r.last_sync_status ?? null,
+    last_sync_error: r.last_sync_error ?? null,
+    last_sync_event_count: r.last_sync_event_count ?? null,
   }));
 
   // Apartment name overrides for SettingsPanel
@@ -59,6 +77,7 @@ export default async function EinstellungenPage() {
         currentRole={profile?.role || "admin"}
         admins={admins}
         icalFeeds={feedData}
+        icalImportFeeds={icalImportFeeds}
         exportBaseUrl={exportBaseUrl}
         siteSettings={siteSettings}
         apartmentNames={apartmentNames}

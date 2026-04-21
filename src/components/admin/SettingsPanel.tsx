@@ -9,6 +9,11 @@ import {
   triggerIcalSync,
   updateSiteSetting,
   updateApartmentName,
+  createIcalImportFeed,
+  updateIcalImportFeed,
+  deleteIcalImportFeed,
+  toggleIcalImportFeed,
+  sendBookingsExportEmailNow,
 } from "@/app/(admin)/admin/actions";
 
 /** Klappbare Sektion */
@@ -67,6 +72,19 @@ interface ICalFeed {
   urls: string[];
 }
 
+export interface ICalImportFeed {
+  id: string;
+  apartment_id: string;
+  apartment_name: string;
+  url: string;
+  label: string | null;
+  active: boolean;
+  last_synced_at: string | null;
+  last_sync_status: string | null;
+  last_sync_error: string | null;
+  last_sync_event_count: number | null;
+}
+
 interface ApartmentNameEntry {
   id: string;
   defaultName: string;   // from src/data/apartments.ts
@@ -79,6 +97,7 @@ interface SettingsPanelProps {
   currentRole: string;
   admins: AdminProfile[];
   icalFeeds: ICalFeed[];
+  icalImportFeeds: ICalImportFeed[];
   exportBaseUrl: string;
   siteSettings: Record<string, any>;
   apartmentNames: ApartmentNameEntry[];
@@ -90,6 +109,7 @@ export default function SettingsPanel({
   currentRole,
   admins,
   icalFeeds,
+  icalImportFeeds,
   exportBaseUrl,
   siteSettings,
   apartmentNames,
@@ -192,6 +212,35 @@ export default function SettingsPanel({
   const [aptNameLoading, setAptNameLoading] = useState<string | null>(null);
   const [aptNameMessage, setAptNameMessage] = useState<Record<string, string>>({});
 
+  // iCal-Import-Feeds (editierbar)
+  const [feeds, setFeeds] = useState<ICalImportFeed[]>(icalImportFeeds);
+  const [feedLoading, setFeedLoading] = useState<string | null>(null);
+  const [feedMessage, setFeedMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [newFeedAptId, setNewFeedAptId] = useState<string>(
+    apartmentNames[0]?.id ?? ""
+  );
+  const [newFeedUrl, setNewFeedUrl] = useState("");
+  const [newFeedLabel, setNewFeedLabel] = useState("");
+
+  // Täglicher Excel-Export
+  const exportInit = siteSettings.export_email_config ?? {};
+  const [exportEnabled, setExportEnabled] = useState<boolean>(
+    exportInit.enabled ?? false
+  );
+  const [exportRecipient, setExportRecipient] = useState<string>(
+    exportInit.recipient ?? ""
+  );
+  const [exportCfgLoading, setExportCfgLoading] = useState(false);
+  const [exportCfgMessage, setExportCfgMessage] = useState<string | null>(null);
+  const [exportSendLoading, setExportSendLoading] = useState(false);
+  const [exportSendMessage, setExportSendMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+
   // Accordion: welche Sektionen sind offen
   const [openSections, setOpenSections] = useState<Set<string>>(new Set(["account"]));
   const toggleSection = (id: string) => {
@@ -233,6 +282,130 @@ export default function SettingsPanel({
         3000
       );
     }
+  };
+
+  // ── iCal feed handlers ──
+  const handleToggleFeed = async (id: string, newActive: boolean) => {
+    setFeedLoading(`toggle-${id}`);
+    setFeedMessage(null);
+    const result = await toggleIcalImportFeed(id, newActive);
+    setFeedLoading(null);
+    if (result.success) {
+      setFeeds((prev) =>
+        prev.map((f) => (f.id === id ? { ...f, active: newActive } : f))
+      );
+      setFeedMessage({
+        type: "success",
+        text: newActive ? "Feed aktiviert" : "Feed deaktiviert",
+      });
+      setTimeout(() => setFeedMessage(null), 2500);
+    } else {
+      setFeedMessage({
+        type: "error",
+        text: result.error || "Fehler beim Aktualisieren",
+      });
+    }
+  };
+
+  const handleDeleteFeed = async (id: string) => {
+    if (!confirm("Diesen Feed wirklich entfernen? Die alten Blockierungen werden beim nächsten Sync automatisch bereinigt.")) {
+      return;
+    }
+    setFeedLoading(`delete-${id}`);
+    setFeedMessage(null);
+    const result = await deleteIcalImportFeed(id);
+    setFeedLoading(null);
+    if (result.success) {
+      setFeeds((prev) => prev.filter((f) => f.id !== id));
+      setFeedMessage({ type: "success", text: "Feed entfernt" });
+      setTimeout(() => setFeedMessage(null), 2500);
+    } else {
+      setFeedMessage({
+        type: "error",
+        text: result.error || "Fehler beim Löschen",
+      });
+    }
+  };
+
+  const handleCreateFeed = async () => {
+    if (!newFeedAptId || !newFeedUrl.trim()) {
+      setFeedMessage({ type: "error", text: "Wohnung und URL erforderlich" });
+      return;
+    }
+    setFeedLoading("create");
+    setFeedMessage(null);
+    const result = await createIcalImportFeed({
+      apartment_id: newFeedAptId,
+      url: newFeedUrl.trim(),
+      label: newFeedLabel.trim() || undefined,
+    });
+    setFeedLoading(null);
+    if (result.success) {
+      // Optimistic row — gets overwritten by server data on next navigation
+      setFeeds((prev) => [
+        ...prev,
+        {
+          id: `optimistic-${Date.now()}`,
+          apartment_id: newFeedAptId,
+          apartment_name:
+            apartmentNames.find((a) => a.id === newFeedAptId)?.currentName ??
+            newFeedAptId,
+          url: newFeedUrl.trim(),
+          label: newFeedLabel.trim() || null,
+          active: true,
+          last_synced_at: null,
+          last_sync_status: null,
+          last_sync_error: null,
+          last_sync_event_count: null,
+        },
+      ]);
+      setNewFeedUrl("");
+      setNewFeedLabel("");
+      setFeedMessage({
+        type: "success",
+        text: "Feed hinzugefügt — beim nächsten Sync wird er verwendet",
+      });
+      setTimeout(() => setFeedMessage(null), 3500);
+    } else {
+      setFeedMessage({
+        type: "error",
+        text: result.error || "Fehler beim Hinzufügen",
+      });
+    }
+  };
+
+  // ── Export e-mail config handlers ──
+  const handleSaveExportCfg = async () => {
+    setExportCfgLoading(true);
+    setExportCfgMessage(null);
+    const result = await updateSiteSetting("export_email_config", {
+      enabled: exportEnabled,
+      recipient: exportRecipient.trim(),
+    });
+    setExportCfgLoading(false);
+    setExportCfgMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setExportCfgMessage(null), 3000);
+  };
+
+  const handleSendExportNow = async () => {
+    setExportSendLoading(true);
+    setExportSendMessage(null);
+    const result = await sendBookingsExportEmailNow(
+      exportRecipient.trim() || undefined
+    );
+    setExportSendLoading(false);
+    if (result.success) {
+      setExportSendMessage({
+        type: "success",
+        text: `Export an ${result.sentTo} gesendet`,
+      });
+    } else {
+      setExportSendMessage({
+        type: "error",
+        text: result.error || "Versand fehlgeschlagen",
+      });
+    }
+    setTimeout(() => setExportSendMessage(null), 5000);
   };
 
   const handleInvite = async (e: React.FormEvent) => {
@@ -1127,6 +1300,88 @@ export default function SettingsPanel({
         </div>
       </Section>
 
+      {/* Täglicher Excel-Export */}
+      <Section
+        id="export-email"
+        title="Täglicher Excel-Export"
+        subtitle="Buchungsübersicht als XLSX täglich per E-Mail zustellen"
+        open={openSections.has("export-email")}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-3">
+          <p className="text-xs text-stone-500">
+            Die Datei enthält alle Buchungen mit Formeln, Währungsformatierung
+            und einem Gäste-Blatt. Versand erfolgt automatisch jeden Morgen um
+            08:00 UTC (~10:00 Ortszeit).
+          </p>
+
+          <label className="flex items-center gap-3">
+            <input
+              type="checkbox"
+              checked={exportEnabled}
+              onChange={(e) => setExportEnabled(e.target.checked)}
+              className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]/40"
+            />
+            <span className="text-sm text-stone-700">
+              Täglichen Versand aktivieren
+            </span>
+          </label>
+
+          <div>
+            <label className="block text-xs font-medium text-stone-500 mb-1">
+              Empfänger-E-Mail
+            </label>
+            <input
+              type="email"
+              value={exportRecipient}
+              onChange={(e) => setExportRecipient(e.target.value)}
+              placeholder="manuel@example.com"
+              className={inputClass}
+            />
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={handleSaveExportCfg}
+              disabled={exportCfgLoading}
+              className={btnClass}
+            >
+              {exportCfgLoading ? "..." : "Speichern"}
+            </button>
+            <button
+              onClick={handleSendExportNow}
+              disabled={exportSendLoading || !exportRecipient.trim()}
+              className="px-4 py-2.5 bg-stone-100 hover:bg-stone-200 text-stone-700 text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+            >
+              {exportSendLoading ? "Sende..." : "Testversand jetzt"}
+            </button>
+            {exportCfgMessage && (
+              <p
+                className={
+                  exportCfgMessage === "Gespeichert"
+                    ? successClass
+                    : "text-xs text-red-600"
+                }
+              >
+                {exportCfgMessage}
+              </p>
+            )}
+          </div>
+
+          {exportSendMessage && (
+            <div
+              className={`rounded-lg p-3 text-xs font-medium ${
+                exportSendMessage.type === "success"
+                  ? "bg-emerald-100 text-emerald-700"
+                  : "bg-red-100 text-red-700"
+              }`}
+            >
+              {exportSendMessage.text}
+            </div>
+          )}
+        </div>
+      </Section>
+
       {/* iCal Sync */}
       <Section id="ical" title="iCal-Synchronisation" subtitle="Kalender-Abgleich mit Airbnb, Booking.com und anderen Plattformen" open={openSections.has("ical")} onToggle={toggleSection}>
         <div className="space-y-5">
@@ -1161,41 +1416,199 @@ export default function SettingsPanel({
             </div>
           )}
 
-          {/* Import: Externe Plattformen → Rita */}
+          {/* Import: Externe Plattformen → Rita (editierbar) */}
           <div>
             <h3 className="text-sm font-medium text-stone-700 mb-1">
               Import-Feeds (Plattformen &rarr; Rita)
             </h3>
             <p className="text-xs text-stone-400 mb-3">
               Buchungen von externen Plattformen werden automatisch importiert und blockieren den Kalender.
+              Du kannst Feeds deaktivieren (Blockierungen verschwinden beim nächsten Sync) oder entfernen.
             </p>
+
+            {feedMessage && (
+              <div
+                className={`rounded-lg p-2 mb-3 text-xs font-medium ${
+                  feedMessage.type === "success"
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-red-100 text-red-700"
+                }`}
+              >
+                {feedMessage.text}
+              </div>
+            )}
+
             <div className="space-y-3">
-              {icalFeeds.map((feed) => (
-                <div key={feed.apartmentId} className="bg-stone-50 rounded-xl p-3">
-                  <p className="text-sm font-medium text-stone-800 mb-2">
-                    {feed.apartmentName}
-                  </p>
-                  <div className="space-y-1.5">
-                    {feed.urls.map((url, i) => {
-                      const source = url.includes("airbnb") ? "Airbnb" : url.includes("smoobu") ? "Smoobu" : url.includes("booking") ? "Booking.com" : "Extern";
-                      const badgeColor = source === "Airbnb" ? "bg-rose-100 text-rose-700" : source === "Smoobu" ? "bg-blue-100 text-blue-700" : source === "Booking.com" ? "bg-indigo-100 text-indigo-700" : "bg-stone-100 text-stone-600";
-                      return (
-                        <div key={i} className="flex items-center gap-2">
-                          <span className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badgeColor}`}>
-                            {source}
-                          </span>
-                          <code className="flex-1 text-[11px] text-stone-400 truncate">
-                            {url}
-                          </code>
-                        </div>
-                      );
-                    })}
-                    {feed.urls.length === 0 && (
-                      <p className="text-xs text-stone-400 italic">Keine Import-Feeds konfiguriert</p>
+              {apartmentNames.map((apt) => {
+                const aptFeeds = feeds.filter((f) => f.apartment_id === apt.id);
+                return (
+                  <div key={apt.id} className="bg-stone-50 rounded-xl p-3">
+                    <p className="text-sm font-medium text-stone-800 mb-2">
+                      {apt.currentName}
+                    </p>
+                    {aptFeeds.length === 0 ? (
+                      <p className="text-xs text-stone-400 italic">
+                        Keine Feeds konfiguriert
+                      </p>
+                    ) : (
+                      <div className="space-y-2">
+                        {aptFeeds.map((feed) => {
+                          const source =
+                            feed.label ||
+                            (feed.url.toLowerCase().includes("airbnb")
+                              ? "Airbnb"
+                              : feed.url.toLowerCase().includes("smoobu")
+                              ? "Smoobu"
+                              : feed.url.toLowerCase().includes("booking")
+                              ? "Booking.com"
+                              : "Extern");
+                          const badgeColor =
+                            source === "Airbnb"
+                              ? "bg-rose-100 text-rose-700"
+                              : source === "Smoobu"
+                              ? "bg-blue-100 text-blue-700"
+                              : source === "Booking.com"
+                              ? "bg-indigo-100 text-indigo-700"
+                              : "bg-stone-100 text-stone-600";
+                          const syncOk = feed.last_sync_status === "ok";
+                          const syncErr = feed.last_sync_status === "error";
+                          return (
+                            <div
+                              key={feed.id}
+                              className={`bg-white rounded-lg border p-2 ${
+                                feed.active
+                                  ? "border-stone-200"
+                                  : "border-stone-100 opacity-50"
+                              }`}
+                            >
+                              <div className="flex items-center gap-2 mb-1">
+                                <span
+                                  className={`text-[10px] px-1.5 py-0.5 rounded font-medium ${badgeColor}`}
+                                >
+                                  {source}
+                                </span>
+                                <code className="flex-1 text-[11px] text-stone-500 truncate">
+                                  {feed.url}
+                                </code>
+                                <button
+                                  onClick={() =>
+                                    handleToggleFeed(feed.id, !feed.active)
+                                  }
+                                  disabled={feedLoading !== null}
+                                  className={`text-[10px] px-2 py-0.5 rounded font-medium transition-colors ${
+                                    feed.active
+                                      ? "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                                      : "bg-stone-100 text-stone-500 hover:bg-stone-200"
+                                  }`}
+                                >
+                                  {feed.active ? "Aktiv" : "Inaktiv"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteFeed(feed.id)}
+                                  disabled={feedLoading !== null}
+                                  className="text-stone-300 hover:text-red-500 transition-colors"
+                                  title="Feed entfernen"
+                                >
+                                  <svg
+                                    className="w-3.5 h-3.5"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    stroke="currentColor"
+                                    strokeWidth={1.5}
+                                  >
+                                    <path
+                                      strokeLinecap="round"
+                                      strokeLinejoin="round"
+                                      d="M6 18L18 6M6 6l12 12"
+                                    />
+                                  </svg>
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-stone-400">
+                                {feed.last_synced_at ? (
+                                  <>
+                                    <span>
+                                      Zuletzt:{" "}
+                                      {new Date(
+                                        feed.last_synced_at
+                                      ).toLocaleString("de-AT")}
+                                    </span>
+                                    {syncOk && (
+                                      <span className="text-emerald-600">
+                                        ✓ {feed.last_sync_event_count ?? 0} Events
+                                      </span>
+                                    )}
+                                    {syncErr && (
+                                      <span
+                                        className="text-red-600 truncate"
+                                        title={feed.last_sync_error ?? ""}
+                                      >
+                                        ⚠ Fehler
+                                      </span>
+                                    )}
+                                  </>
+                                ) : (
+                                  <span className="italic">Noch nicht synchronisiert</span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     )}
                   </div>
-                </div>
-              ))}
+                );
+              })}
+            </div>
+
+            {/* Neuer Feed */}
+            <div className="mt-4 bg-stone-50 rounded-xl p-3">
+              <p className="text-xs font-semibold text-stone-500 uppercase tracking-wider mb-2">
+                Neuer Feed
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                <select
+                  value={newFeedAptId}
+                  onChange={(e) => setNewFeedAptId(e.target.value)}
+                  className="px-2 py-1.5 text-sm bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                >
+                  {apartmentNames.map((apt) => (
+                    <option key={apt.id} value={apt.id}>
+                      {apt.currentName}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  type="url"
+                  value={newFeedUrl}
+                  onChange={(e) => setNewFeedUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="sm:col-span-2 px-2 py-1.5 text-sm bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                />
+                <input
+                  type="text"
+                  value={newFeedLabel}
+                  onChange={(e) => setNewFeedLabel(e.target.value)}
+                  placeholder="Label (optional)"
+                  className="px-2 py-1.5 text-sm bg-white border border-stone-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                />
+              </div>
+              <div className="flex items-center gap-3 mt-2">
+                <button
+                  onClick={handleCreateFeed}
+                  disabled={
+                    feedLoading === "create" ||
+                    !newFeedUrl.trim() ||
+                    !newFeedAptId
+                  }
+                  className="px-3 py-1.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50"
+                >
+                  {feedLoading === "create" ? "Speichern..." : "+ Feed hinzufügen"}
+                </button>
+                <p className="text-[11px] text-stone-400">
+                  Label wird aus der URL abgeleitet, wenn leer gelassen.
+                </p>
+              </div>
             </div>
           </div>
 
