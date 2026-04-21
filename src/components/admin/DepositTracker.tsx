@@ -370,34 +370,39 @@ export default function DepositTracker({
             <p className="text-xs font-medium text-stone-500 uppercase tracking-wider mb-2">
               Verbuchte Zahlungen
             </p>
-            <ul className="space-y-1.5">
+            <ul className="space-y-2">
               {payments.map((p) => (
-                <li key={p.id} className="flex items-center gap-2 text-xs">
-                  <span
-                    className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                      p.applies_to === "deposit"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-blue-100 text-blue-700"
-                    }`}
-                  >
-                    {p.applies_to === "deposit" ? "Anzahlung" : "Restbetrag"}
-                  </span>
-                  <span className="text-stone-600">{formatDate(p.paid_at)}</span>
-                  <span className="text-stone-500">·</span>
-                  <span className="text-stone-500">
-                    {paymentMethods[p.method] ?? p.method}
-                  </span>
-                  {p.note && (
+                <li
+                  key={p.id}
+                  className="bg-white border border-stone-200 rounded-lg p-2.5"
+                >
+                  <div className="flex items-center justify-between gap-2">
                     <span
-                      className="text-stone-400 truncate"
+                      className={`inline-block px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                        p.applies_to === "deposit"
+                          ? "bg-amber-100 text-amber-700"
+                          : "bg-blue-100 text-blue-700"
+                      }`}
+                    >
+                      {p.applies_to === "deposit" ? "Anzahlung" : "Restbetrag"}
+                    </span>
+                    <span className="font-semibold text-stone-900 text-sm">
+                      {formatCurrency(Number(p.amount))}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1.5 text-[11px] text-stone-500 mt-1">
+                    <span>{formatDate(p.paid_at)}</span>
+                    <span>·</span>
+                    <span>{paymentMethods[p.method] ?? p.method}</span>
+                  </div>
+                  {p.note && (
+                    <p
+                      className="text-[11px] text-stone-400 mt-1 break-words"
                       title={p.note}
                     >
-                      · {p.note}
-                    </span>
+                      {p.note}
+                    </p>
                   )}
-                  <span className="ml-auto font-semibold text-stone-900">
-                    {formatCurrency(Number(p.amount))}
-                  </span>
                 </li>
               ))}
             </ul>
@@ -487,77 +492,106 @@ function ManualPaymentForm({
     }
   };
 
+  const labelClass =
+    "block text-xs font-medium text-stone-500 uppercase tracking-wider mb-1";
+  const inputClass =
+    "w-full px-3 py-2 rounded-lg border border-stone-200 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50";
+
+  const openHint: string[] = [];
+  if (depositOpen > 0)
+    openHint.push(`Anzahlung ${formatCurrency(depositOpen)}`);
+  if (remainderOpen > 0)
+    openHint.push(`Restbetrag ${formatCurrency(remainderOpen)}`);
+
   return (
-    <div className="mt-3 p-3 bg-stone-50 rounded-xl border border-stone-200 space-y-2.5">
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Betrag</label>
+    <div className="mt-3 p-4 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+      {/* Amount — prominent */}
+      <div>
+        <label className={labelClass}>Betrag</label>
+        <div className="relative">
           <input
             type="number"
             step="0.01"
+            inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value)}
-            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+            placeholder="0,00"
+            className="w-full px-3 py-2.5 pr-10 rounded-lg border border-stone-200 text-base font-semibold bg-white focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
           />
-        </div>
-        <div className="flex-1">
-          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Datum</label>
-          <input
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
-          />
+          <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 font-medium text-sm pointer-events-none">
+            €
+          </span>
         </div>
       </div>
-      <div className="flex gap-2">
-        <div className="flex-1">
-          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Zahlungsart</label>
-          <select
-            value={method}
-            onChange={(e) => setMethod(e.target.value)}
-            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 bg-white"
-          >
-            {Object.entries(paymentMethods).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </div>
-        <div className="flex-1">
-          <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Verbuchen auf</label>
-          <select
-            value={appliesTo}
-            onChange={(e) => setAppliesTo(e.target.value as "auto" | "deposit" | "remainder")}
-            className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50 bg-white"
-          >
-            <option value="auto">Automatisch</option>
-            <option value="deposit">Anzahlung{depositOpen > 0 ? ` (${formatCurrency(depositOpen)} offen)` : ""}</option>
-            <option value="remainder">Restbetrag{remainderOpen > 0 ? ` (${formatCurrency(remainderOpen)} offen)` : ""}</option>
-          </select>
-        </div>
-      </div>
+
       <div>
-        <label className="text-[10px] font-medium text-stone-500 uppercase tracking-wider">Notiz (optional)</label>
+        <label className={labelClass}>Datum</label>
+        <input
+          type="date"
+          value={date}
+          onChange={(e) => setDate(e.target.value)}
+          className={inputClass}
+        />
+      </div>
+
+      <div>
+        <label className={labelClass}>Zahlungsart</label>
+        <select
+          value={method}
+          onChange={(e) => setMethod(e.target.value)}
+          className={inputClass}
+        >
+          {Object.entries(paymentMethods).map(([k, v]) => (
+            <option key={k} value={k}>
+              {v}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div>
+        <label className={labelClass}>Verbuchen auf</label>
+        <select
+          value={appliesTo}
+          onChange={(e) =>
+            setAppliesTo(e.target.value as "auto" | "deposit" | "remainder")
+          }
+          className={inputClass}
+        >
+          <option value="auto">Automatisch</option>
+          <option value="deposit">Anzahlung</option>
+          <option value="remainder">Restbetrag</option>
+        </select>
+        {openHint.length > 0 && (
+          <p className="text-[11px] text-stone-400 mt-1">
+            Noch offen: {openHint.join(" · ")}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className={labelClass}>Notiz (optional)</label>
         <input
           type="text"
           value={note}
           onChange={(e) => setNote(e.target.value)}
-          placeholder="z.B. Referenznr., Verwendungszweck..."
-          className="w-full mt-0.5 px-2.5 py-1.5 rounded-lg border border-stone-200 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+          placeholder="z.B. Referenznr."
+          className={inputClass}
         />
       </div>
+
       <div className="flex gap-2 pt-1">
         <button
           onClick={handleSubmit}
           disabled={loading !== null}
-          className="flex-1 py-1.5 px-3 rounded-lg text-xs font-medium bg-[#c8a96e] hover:bg-[#b89555] text-white transition-colors disabled:opacity-50"
+          className="flex-1 py-2 px-3 rounded-lg text-sm font-medium bg-[#c8a96e] hover:bg-[#b89555] text-white transition-colors disabled:opacity-50"
         >
           {loading === "manual" ? "Verbuche..." : "Zahlung verbuchen"}
         </button>
         <button
           onClick={onClose}
           disabled={loading !== null}
-          className="py-1.5 px-3 rounded-lg text-xs font-medium bg-stone-200 hover:bg-stone-300 text-stone-700 transition-colors"
+          className="py-2 px-3 rounded-lg text-sm font-medium bg-stone-200 hover:bg-stone-300 text-stone-700 transition-colors"
         >
           Abbrechen
         </button>

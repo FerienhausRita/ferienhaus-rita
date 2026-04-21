@@ -69,6 +69,36 @@ function dayOffset(startIso: string, targetIso: string, days: number): number {
   return Math.max(0, Math.min(days, n));
 }
 
+/**
+ * Compute bar position using the hotellerie convention:
+ * bar occupies the right half of the check-in day and the left half of the
+ * check-out day, so a follow-up guest arriving on the same check-out day
+ * visually picks up at the middle of that day.
+ */
+function hotelBarPosition(
+  windowStart: string,
+  start: string,
+  end: string,
+  days: number,
+  dayWidth: number
+): { left: number; width: number } | null {
+  const ws = parseDate(windowStart).getTime();
+  const rawStart = (parseDate(start).getTime() - ws) / (1000 * 60 * 60 * 24);
+  const rawEnd = (parseDate(end).getTime() - ws) / (1000 * 60 * 60 * 24);
+
+  // Middle-to-middle raw positions (in day units)
+  let leftUnits = rawStart + 0.5;
+  let rightUnits = rawEnd + 0.5;
+
+  // Clip to visible window
+  if (leftUnits < 0) leftUnits = 0;
+  if (rightUnits > days) rightUnits = days;
+
+  const width = (rightUnits - leftUnits) * dayWidth;
+  if (width <= 0) return null;
+  return { left: leftUnits * dayWidth, width };
+}
+
 export default function TimelineChart({
   apartments,
   bookings,
@@ -219,19 +249,23 @@ export default function TimelineChart({
                       ))}
                     </div>
 
-                    {/* Blocks (gray) */}
+                    {/* Blocks (gray) — hotellerie convention: middle-to-middle */}
                     {aptBlocks.map((bl) => {
-                      const startOff = dayOffset(startDate, bl.start_date, days);
-                      const endOff = dayOffset(startDate, bl.end_date, days) + 1;
-                      const width = (endOff - startOff) * DAY_WIDTH;
-                      if (width <= 0) return null;
+                      const pos = hotelBarPosition(
+                        startDate,
+                        bl.start_date,
+                        bl.end_date,
+                        days,
+                        DAY_WIDTH
+                      );
+                      if (!pos) return null;
                       return (
                         <div
                           key={bl.id}
                           className="absolute top-2 bottom-2 rounded-md bg-stone-300/60 border border-stone-400/60 flex items-center px-2"
                           style={{
-                            left: `${startOff * DAY_WIDTH}px`,
-                            width: `${width - 2}px`,
+                            left: `${pos.left}px`,
+                            width: `${Math.max(0, pos.width - 2)}px`,
                           }}
                           title={bl.reason ?? "Blockiert"}
                         >
@@ -242,12 +276,16 @@ export default function TimelineChart({
                       );
                     })}
 
-                    {/* Bookings */}
+                    {/* Bookings — hotellerie convention: middle-to-middle */}
                     {aptBookings.map((b) => {
-                      const startOff = dayOffset(startDate, b.check_in, days);
-                      const endOff = dayOffset(startDate, b.check_out, days);
-                      const width = (endOff - startOff) * DAY_WIDTH;
-                      if (width <= 0) return null;
+                      const pos = hotelBarPosition(
+                        startDate,
+                        b.check_in,
+                        b.check_out,
+                        days,
+                        DAY_WIDTH
+                      );
+                      if (!pos) return null;
 
                       const isPending = b.status === "pending";
                       const barColor = isPending
@@ -260,21 +298,12 @@ export default function TimelineChart({
                           href={`/admin/buchungen/${b.id}`}
                           className={`absolute top-2 bottom-2 rounded-lg border flex items-center px-2 overflow-hidden hover:brightness-95 transition-all group ${barColor}`}
                           style={{
-                            left: `${startOff * DAY_WIDTH + 2}px`,
-                            width: `${width - 4}px`,
+                            left: `${pos.left + 1}px`,
+                            width: `${Math.max(0, pos.width - 2)}px`,
                             zIndex: 5,
                           }}
                           title={`${b.last_name} · ${b.check_in} → ${b.check_out}${b.notes ? ` · ${b.notes}` : ""}`}
                         >
-                          {/* Turnover markers */}
-                          {b.isTurnoverIn && (
-                            <span
-                              className="absolute -left-2 top-1/2 -translate-y-1/2 text-[10px] bg-red-500 text-white rounded-full w-4 h-4 flex items-center justify-center font-bold border border-white shadow"
-                              title="Wechsel: Abreise + Anreise am selben Tag"
-                            >
-                              ⇆
-                            </span>
-                          )}
                           <div className="flex flex-col min-w-0 leading-tight">
                             <span className="text-[11px] font-semibold truncate">
                               {b.last_name || "—"}
@@ -320,11 +349,8 @@ export default function TimelineChart({
           <span className="inline-block w-4 h-[18px] bg-[#c8a96e]" style={{ width: "2px" }} />
           <span>Heute</span>
         </div>
-        <div className="flex items-center gap-1.5">
-          <span className="inline-block text-white bg-red-500 rounded-full w-4 h-4 text-[9px] flex items-center justify-center font-bold">
-            ⇆
-          </span>
-          <span>Wechseltag (Abreise + Anreise)</span>
+        <div className="flex items-center gap-1.5 text-stone-400">
+          <span>Balken von Tag-Mitte zu Tag-Mitte — Wechseltage schließen nahtlos an</span>
         </div>
       </div>
 

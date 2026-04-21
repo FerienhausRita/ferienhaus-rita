@@ -132,25 +132,24 @@ export default function CalendarView({
     const monthEndExclusive =
       month === 12 ? formatDateStr(year + 1, 1, 1) : formatDateStr(year, month + 1, 1);
 
+    // Hotellerie-Convention: Balken belegt rechte Hälfte des Check-in-Tages
+    // bis zur linken Hälfte des Check-out-Tages. Ein Folgegast am Check-out-Tag
+    // schließt visuell in der Tagesmitte nahtlos an.
     const calcBarPosition = (start: string, end: string) => {
-      let startDay: number;
-      if (start < monthStart) {
-        startDay = 1;
-      } else {
-        startDay = parseInt(start.split("-")[2]);
-      }
+      const startClamped = start < monthStart;
+      const endClamped = end >= monthEndExclusive;
 
-      let endDay: number;
-      if (end >= monthEndExclusive) {
-        endDay = daysInMonth;
-      } else {
-        endDay = parseInt(end.split("-")[2]) - 1;
-      }
+      const startDay = startClamped ? 1 : parseInt(start.split("-")[2]);
+      const endDay = endClamped ? daysInMonth + 1 : parseInt(end.split("-")[2]);
 
-      if (endDay < startDay) return null;
+      // Position in "Tag-Einheiten" (0 = Monatsanfang, daysInMonth = Monatsende)
+      const leftUnits = startClamped ? 0 : startDay - 0.5;
+      const rightUnits = endClamped ? daysInMonth : endDay - 0.5;
 
-      const leftPercent = ((startDay - 1) / daysInMonth) * 100;
-      const widthPercent = ((endDay - startDay + 1) / daysInMonth) * 100;
+      if (rightUnits <= leftUnits) return null;
+
+      const leftPercent = (leftUnits / daysInMonth) * 100;
+      const widthPercent = ((rightUnits - leftUnits) / daysInMonth) * 100;
       return { leftPercent, widthPercent };
     };
 

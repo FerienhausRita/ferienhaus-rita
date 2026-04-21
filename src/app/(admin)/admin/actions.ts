@@ -1963,48 +1963,51 @@ export async function deleteIcalImportFeed(id: string) {
 
 /**
  * Trigger a manual "test" send of the daily bookings export.
- * Calls the cron endpoint with service-role bearer to bypass the vercel-cron
- * header requirement. Optionally override the recipient for this one send.
+ *
+ * Runs the mail-sending helper directly in-process (no HTTP fetch), which
+ * avoids the "Unexpected token '<'" JSON-parse error that Vercel deployment
+ * protection, redirects or error pages can cause when round-tripping through
+ * the own `/api/cron/export-bookings` endpoint.
  */
 export async function sendBookingsExportEmailNow(recipientOverride?: string) {
-  // Admin-only
   const authSupabase = createAuthServerClient();
   const {
     data: { user },
   } = await authSupabase.auth.getUser();
   if (!user) return { success: false, error: "Nicht authentifiziert" };
 
-  const baseUrl =
-    process.env.NEXT_PUBLIC_SITE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "http://localhost:3000");
+  const { data: profile } = await authSupabase
+    .from("admin_profiles")
+    .select("id")
+    .eq("id", user.id)
+    .single();
+  if (!profile) return { success: false, error: "Keine Admin-Berechtigung" };
 
-  const url = new URL("/api/cron/export-bookings", baseUrl);
-  if (recipientOverride) url.searchParams.set("to", recipientOverride);
+  const { sendBookingsExportEmail } = await import(
+    "@/lib/send-bookings-export-email"
+  );
 
-  try {
-    const res = await fetch(url.toString(), {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
-      },
-    });
-    const data = await res.json();
-    if (!res.ok) {
-      return { success: false, error: data.error || `Fehler (${res.status})` };
-    }
-    if (data.skipped) {
+  const result = await sendBookingsExportEmail({
+    recipientOverride,
+    // Manual test send: ignore the "enabled" flag so the admin can always
+    // trigger a probe, even before activating the daily schedule.
+    ignoreEnabled: true,
+  });
+
+  if (!result.success) {
+    if (result.skipped === "no_recipient") {
       return {
         success: false,
-        error: "Versand ist deaktiviert oder keine Empfänger-Adresse hinterlegt",
+        error: "Kein Empfänger hinterlegt. Bitte E-Mail eintragen und speichern.",
       };
     }
-    return { success: true, sentTo: data.sentTo };
-  } catch (err) {
     return {
       success: false,
-      error: err instanceof Error ? err.message : "Unbekannter Fehler",
+      error: result.error ?? "Versand fehlgeschlagen",
     };
   }
+
+  return { success: true, sentTo: result.sentTo };
 }
 
 // ============================================
