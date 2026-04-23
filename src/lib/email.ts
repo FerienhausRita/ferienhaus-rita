@@ -48,6 +48,19 @@ interface BookingData {
   depositDueDate?: string;
   remainderAmount?: number;
   remainderDueDate?: string;
+  // Detailed breakdown (optional — filled by callers that have priceBreakdown)
+  seasonBreakdown?: Array<{
+    label: string;
+    nights: number;
+    pricePerNight: number;
+    total: number;
+  }>;
+  extraGuests?: number;
+  extraPersonPrice?: number;
+  dogFeePerNight?: number;
+  localTaxPerNight?: number;
+  discountLabel?: string | null;
+  discountAmount?: number;
 }
 
 export interface BankDetails {
@@ -277,17 +290,88 @@ function bookingDetailsCard(booking: BookingData, apartment: Apartment): string 
 }
 
 function priceTable(booking: BookingData): string {
-  return `
-    <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
-      ${detailRow(
-        `${booking.nights} &times; \u00dcbernachtung`,
+  // Derive per-unit rates from booking data if not explicitly provided
+  const extraGuests = booking.extraGuests ?? 0;
+  const extraPersonPrice =
+    booking.extraPersonPrice ??
+    (extraGuests > 0 && booking.nights > 0
+      ? Math.round((booking.extraGuestsTotal / (extraGuests * booking.nights)) * 100) / 100
+      : 0);
+  const dogFeePerNight =
+    booking.dogFeePerNight ??
+    (booking.dogs > 0 && booking.nights > 0
+      ? Math.round((booking.dogsTotal / (booking.dogs * booking.nights)) * 100) / 100
+      : 0);
+  const localTaxPerNight =
+    booking.localTaxPerNight ??
+    (booking.adults > 0 && booking.nights > 0
+      ? Math.round((booking.localTaxTotal / (booking.adults * booking.nights)) * 100) / 100
+      : 0);
+
+  // Season rows: show breakdown if multiple seasons, else single "N Nächte × X €"
+  const seasons = booking.seasonBreakdown ?? [];
+  const hasMultipleSeasons = seasons.length > 1;
+
+  const accommodationRows = hasMultipleSeasons
+    ? seasons
+        .map((s) =>
+          detailRow(
+            `${s.nights} N&auml;chte &times; ${formatCurrency(s.pricePerNight)} (${escapeHtml(s.label)})`,
+            formatCurrency(s.total),
+            { alignRight: true }
+          )
+        )
+        .join("")
+    : detailRow(
+        `${booking.nights} N&auml;chte &times; ${formatCurrency(booking.pricePerNight)}`,
         formatCurrency(booking.pricePerNight * booking.nights),
         { alignRight: true }
-      )}
-      ${booking.extraGuestsTotal > 0 ? detailRow("Zusatzg\u00e4ste", formatCurrency(booking.extraGuestsTotal), { alignRight: true }) : ""}
-      ${booking.dogsTotal > 0 ? detailRow(`Hund${booking.dogs > 1 ? "e" : ""}`, formatCurrency(booking.dogsTotal), { alignRight: true }) : ""}
-      ${detailRow("Endreinigung", formatCurrency(booking.cleaningFee), { alignRight: true })}
-      ${booking.localTaxTotal > 0 ? detailRow("Ortstaxe", formatCurrency(booking.localTaxTotal), { alignRight: true }) : ""}
+      );
+
+  const extraGuestsRow =
+    booking.extraGuestsTotal > 0 && extraGuests > 0
+      ? detailRow(
+          `${extraGuests} Zusatzgast${extraGuests > 1 ? "e" : ""} &times; ${formatCurrency(extraPersonPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
+          formatCurrency(booking.extraGuestsTotal),
+          { alignRight: true }
+        )
+      : "";
+
+  const dogsRow =
+    booking.dogsTotal > 0 && booking.dogs > 0
+      ? detailRow(
+          `${booking.dogs} Hund${booking.dogs > 1 ? "e" : ""} &times; ${formatCurrency(dogFeePerNight)}/Nacht &times; ${booking.nights} N&auml;chte`,
+          formatCurrency(booking.dogsTotal),
+          { alignRight: true }
+        )
+      : "";
+
+  const localTaxRow =
+    booking.localTaxTotal > 0
+      ? detailRow(
+          `Ortstaxe &middot; ${booking.adults} Erw. &times; ${formatCurrency(localTaxPerNight)}/Nacht &times; ${booking.nights} N&auml;chte`,
+          formatCurrency(booking.localTaxTotal),
+          { alignRight: true }
+        )
+      : "";
+
+  const discountRow =
+    booking.discountAmount && booking.discountAmount > 0
+      ? detailRow(
+          `Rabatt${booking.discountLabel ? ` (${escapeHtml(booking.discountLabel)})` : ""}`,
+          `-${formatCurrency(booking.discountAmount)}`,
+          { alignRight: true }
+        )
+      : "";
+
+  return `
+    <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
+      ${accommodationRows}
+      ${extraGuestsRow}
+      ${dogsRow}
+      ${detailRow("Endreinigung (einmalig)", formatCurrency(booking.cleaningFee), { alignRight: true })}
+      ${localTaxRow}
+      ${discountRow}
       ${strongDivider()}
       <tr>
         <td style="padding:12px 0;font-weight:700;font-size:17px;color:${DARK};">Gesamtpreis</td>
@@ -295,7 +379,7 @@ function priceTable(booking: BookingData): string {
       </tr>
       ${booking.vatAmount > 0 ? `
       <tr>
-        <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;">Inkl. 10% MwSt.</td>
+        <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;">Davon 10% MwSt.</td>
         <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;text-align:right;">${formatCurrency(booking.vatAmount)}</td>
       </tr>` : ""}
     </table>`;
@@ -595,6 +679,60 @@ export async function sendContactNotification(message: {
     to: process.env.NOTIFICATION_EMAIL,
     replyTo: message.email,
     subject: `Kontaktanfrage: ${escapeHtml(message.subject || "Allgemeine Anfrage")} \u2013 ${escapeHtml(message.name)}`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
+// sendAdminNotesReminder — "Achtung, Buchung hat Notizen"
+// ---------------------------------------------------------------------------
+
+export async function sendAdminNotesReminder(
+  booking: BookingData,
+  apartment: Apartment,
+  daysUntilCheckin: 7 | 3
+): Promise<void> {
+  const notes = (booking.notes || "").trim();
+  if (!notes) return; // Nichts zu melden
+
+  const to = process.env.NOTIFICATION_EMAIL;
+  if (!to) {
+    console.warn("sendAdminNotesReminder: NOTIFICATION_EMAIL not set");
+    return;
+  }
+
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+  const arrivalStr = formatDate(booking.checkIn);
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      Erinnerung: Die Buchung <strong>${ref}</strong> hat eine hinterlegte Notiz.
+      Anreise ist in <strong>${daysUntilCheckin} Tagen</strong> (${arrivalStr}).
+    </p>
+
+    <div style="background:${CARD_BG};border-left:4px solid ${GOLD};border-radius:8px;padding:16px 20px;margin:0 0 20px;">
+      <p style="margin:0 0 6px;font-size:12px;color:${GRAY};text-transform:uppercase;letter-spacing:1px;font-weight:600;">Notiz zur Buchung</p>
+      <p style="margin:0;font-size:15px;color:${DARK};white-space:pre-wrap;line-height:1.6;">${escapeHtml(notes)}</p>
+    </div>
+
+    ${sectionHeading("Buchungs\u00fcbersicht")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.6;margin:16px 0 0;">
+      <a href="${BASE_URL}/admin/buchungen/${booking.id}" style="color:${GOLD};">Zur Buchung im Admin-Dashboard &rarr;</a>
+    </p>
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Notiz-Erinnerung: ${booking.firstName} ${booking.lastName} \u2013 Anreise in ${daysUntilCheckin} Tagen`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to,
+    subject: `Notiz-Erinnerung: ${ref} \u2013 Anreise in ${daysUntilCheckin} Tagen`,
     html,
   });
 }

@@ -156,7 +156,10 @@ export default function SettingsPanel({
   const bankInit = siteSettings.bank_details ?? {};
   const [bankIban, setBankIban] = useState(bankInit.iban ?? "");
   const [bankBic, setBankBic] = useState(bankInit.bic ?? "");
-  const [bankHolder, setBankHolder] = useState(bankInit.holder ?? "");
+  // Rückwärts-kompatibel: alte Datensätze nutzten "holder", neue "account_holder"
+  const [bankHolder, setBankHolder] = useState(
+    bankInit.account_holder ?? bankInit.holder ?? ""
+  );
   const [bankName, setBankName] = useState(bankInit.bank_name ?? "");
   const [bankLoading, setBankLoading] = useState(false);
   const [bankMessage, setBankMessage] = useState<string | null>(null);
@@ -528,7 +531,7 @@ export default function SettingsPanel({
     const result = await updateSiteSetting("bank_details", {
       iban: bankIban.trim(),
       bic: bankBic.trim(),
-      holder: bankHolder.trim(),
+      account_holder: bankHolder.trim(),
       bank_name: bankName.trim(),
     });
     setBankLoading(false);

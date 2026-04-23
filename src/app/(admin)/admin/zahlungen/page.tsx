@@ -73,14 +73,64 @@ export default async function ZahlungenPage({
                   <th className="py-3 px-4 font-medium">Zeitraum</th>
                   <SortHeader column="deposit_amount" label="Anzahlung" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="right" />
                   <SortHeader column="remainder_amount" label="Restbetrag" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="right" />
+                  <th className="py-3 px-4 font-medium text-right">Offen</th>
                   <SortHeader column="payment_status" label="Status" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="center" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-stone-50">
                 {bookings.map((b) => {
                   const apartmentName = nameMap.get(b.apartment_id) ?? b.apartment_id;
-                  const depositOverdue = b.deposit_due_date && b.deposit_due_date < today && !b.deposit_paid_at && Number(b.deposit_amount) > 0;
-                  const remainderOverdue = b.remainder_due_date && b.remainder_due_date < today && !b.remainder_paid_at && Number(b.remainder_amount) > 0;
+                  const depositAmount = Number(b.deposit_amount || 0);
+                  const remainderAmount = Number(b.remainder_amount || 0);
+                  const depositPaid = Number(b.deposit_paid_sum || 0);
+                  const remainderPaid = Number(b.remainder_paid_sum || 0);
+                  const depositOpen = Number(b.deposit_open || 0);
+                  const remainderOpen = Number(b.remainder_open || 0);
+                  const totalOpen = Number(b.total_open || 0);
+                  const depositDone = depositAmount === 0 || depositOpen <= 0.01 || !!b.deposit_paid_at;
+                  const remainderDone = remainderAmount === 0 || remainderOpen <= 0.01 || !!b.remainder_paid_at;
+                  const depositOverdue =
+                    b.deposit_due_date && b.deposit_due_date < today && !depositDone;
+                  const remainderOverdue =
+                    b.remainder_due_date && b.remainder_due_date < today && !remainderDone;
+
+                  const bucketCell = (
+                    amount: number,
+                    paid: number,
+                    done: boolean,
+                    overdue: boolean,
+                    dueDate: string | null | undefined
+                  ) => {
+                    if (amount === 0) return <span className="text-stone-300">&ndash;</span>;
+                    const hasPayments = paid > 0.01;
+                    return (
+                      <div>
+                        <div className="flex items-center justify-end gap-1.5">
+                          <span
+                            className={`font-medium ${
+                              done ? "text-emerald-600" : overdue ? "text-red-600" : "text-stone-900"
+                            }`}
+                          >
+                            {formatCurrency(paid)} / {formatCurrency(amount)}
+                          </span>
+                          {done && <span className="text-emerald-600">✓</span>}
+                          {!done && hasPayments && <span>🟠</span>}
+                        </div>
+                        {!done && dueDate && (
+                          <p
+                            className={`text-xs ${
+                              overdue ? "text-red-500" : "text-stone-400"
+                            }`}
+                          >
+                            bis {formatDate(dueDate)}
+                          </p>
+                        )}
+                        {done && paid > 0 && (
+                          <p className="text-xs text-emerald-500">bezahlt</p>
+                        )}
+                      </div>
+                    );
+                  };
 
                   return (
                     <tr key={b.id} className="hover:bg-stone-50">
@@ -94,55 +144,32 @@ export default async function ZahlungenPage({
                         {formatDate(b.check_in)} &ndash; {formatDate(b.check_out)}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {Number(b.deposit_amount) > 0 ? (
-                          <div>
-                            <span className={`font-medium ${b.deposit_paid_at ? "text-emerald-600" : depositOverdue ? "text-red-600" : "text-stone-900"}`}>
-                              {formatCurrency(Number(b.deposit_amount))}
-                            </span>
-                            {b.deposit_due_date && !b.deposit_paid_at && (
-                              <p className={`text-xs ${depositOverdue ? "text-red-500" : "text-stone-400"}`}>
-                                bis {formatDate(b.deposit_due_date)}
-                              </p>
-                            )}
-                            {b.deposit_paid_at && (
-                              <p className="text-xs text-emerald-500">bezahlt</p>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-stone-300">&ndash;</span>
-                        )}
+                        {bucketCell(depositAmount, depositPaid, depositDone, !!depositOverdue, b.deposit_due_date)}
                       </td>
                       <td className="py-3 px-4 text-right">
-                        {Number(b.remainder_amount) > 0 ? (
-                          <div>
-                            <span className={`font-medium ${b.remainder_paid_at ? "text-emerald-600" : remainderOverdue ? "text-red-600" : "text-stone-900"}`}>
-                              {formatCurrency(Number(b.remainder_amount))}
-                            </span>
-                            {b.remainder_due_date && !b.remainder_paid_at && (
-                              <p className={`text-xs ${remainderOverdue ? "text-red-500" : "text-stone-400"}`}>
-                                bis {formatDate(b.remainder_due_date)}
-                              </p>
-                            )}
-                            {b.remainder_paid_at && (
-                              <p className="text-xs text-emerald-500">bezahlt</p>
-                            )}
-                          </div>
+                        {bucketCell(remainderAmount, remainderPaid, remainderDone, !!remainderOverdue, b.remainder_due_date)}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        {totalOpen > 0.01 ? (
+                          <span className={`font-bold ${depositOverdue || remainderOverdue ? "text-red-600" : "text-stone-900"}`}>
+                            {formatCurrency(totalOpen)}
+                          </span>
                         ) : (
-                          <span className="text-stone-300">&ndash;</span>
+                          <span className="text-emerald-600 font-medium">0 €</span>
                         )}
                       </td>
                       <td className="py-3 px-4 text-center">
                         <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
                           b.payment_status === "paid"
                             ? "bg-emerald-100 text-emerald-700"
-                            : b.payment_status === "deposit_paid"
+                            : b.payment_status === "deposit_paid" || depositPaid > 0.01
                             ? "bg-amber-100 text-amber-700"
                             : (depositOverdue || remainderOverdue)
                             ? "bg-red-100 text-red-700"
                             : "bg-stone-100 text-stone-600"
                         }`}>
                           {b.payment_status === "paid" ? "Bezahlt"
-                            : b.payment_status === "deposit_paid" ? "Anzahlung"
+                            : b.payment_status === "deposit_paid" || depositPaid > 0.01 ? "Teilweise"
                             : (depositOverdue || remainderOverdue) ? "\u00dcberf\u00e4llig"
                             : "Offen"
                           }

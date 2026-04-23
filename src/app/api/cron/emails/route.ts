@@ -9,6 +9,7 @@ import {
   sendCheckinInfo,
   sendThankYou,
   sendLoyaltyEmail,
+  sendAdminNotesReminder,
   BankDetails,
   CheckinInfo,
 } from "@/lib/email";
@@ -315,6 +316,16 @@ async function processScheduledEmails() {
             failed++;
             continue;
           }
+          break;
+        }
+
+        case "admin_notes_7d": {
+          await sendAdminNotesReminder(bookingData, apartment, 7);
+          break;
+        }
+
+        case "admin_notes_3d": {
+          await sendAdminNotesReminder(bookingData, apartment, 3);
           break;
         }
 

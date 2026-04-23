@@ -70,9 +70,10 @@ export default function PriceSummary({
       {breakdown.localTaxTotal > 0 && (
         <div className="flex justify-between text-stone-600">
           <span>
-            {localTax.label}{" "}
+            Ortstaxe{" "}
             <span className="text-stone-400 text-xs">
-              ({formatCurrency(localTax.perPersonPerNight)}/Erw./Nacht)
+              ({formatCurrency(breakdown.localTaxPerNight ?? localTax.perPersonPerNight)}/Erw./Nacht,
+              Kinder unter {breakdown.localTaxExemptAge ?? localTax.exemptAge} Jahren frei)
             </span>
           </span>
           <span>{formatCurrency(breakdown.localTaxTotal)}</span>

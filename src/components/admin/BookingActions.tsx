@@ -18,7 +18,9 @@ const statusTransitions: Record<string, { label: string; next: string; className
     { label: "Abschließen", next: "completed", className: "bg-stone-800 hover:bg-stone-900 text-white" },
     { label: "Stornieren", next: "cancelled", className: "bg-red-100 hover:bg-red-200 text-red-700" },
   ],
-  completed: [],
+  completed: [
+    { label: "Wieder öffnen", next: "confirmed", className: "bg-amber-100 hover:bg-amber-200 text-amber-700" },
+  ],
   cancelled: [
     { label: "Wieder öffnen", next: "pending", className: "bg-amber-100 hover:bg-amber-200 text-amber-700" },
   ],
@@ -59,6 +61,12 @@ export default function BookingActions({
     if (
       newStatus === "cancelled" &&
       !confirm("Buchung wirklich stornieren?")
+    )
+      return;
+    if (
+      newStatus === "confirmed" &&
+      currentStatus === "completed" &&
+      !confirm("Abgeschlossene Buchung wieder öffnen? Sie erscheint dann wieder in den aktiven Listen.")
     )
       return;
 

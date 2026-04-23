@@ -70,6 +70,10 @@ export interface PriceBreakdown {
   cleaningFee: number;
   /** Ortstaxe total (adults only — children under 15 exempt) */
   localTaxTotal: number;
+  /** Ortstaxe rate per adult per night (dynamic, from config) */
+  localTaxPerNight: number;
+  /** Age below which Ortstaxe is waived (default 15) */
+  localTaxExemptAge: number;
   /** Subtotal before discount */
   subtotal: number;
   /** Discount applied */
@@ -344,6 +348,8 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
     dogsTotal,
     cleaningFee,
     localTaxTotal,
+    localTaxPerNight: usedLocalTaxPerNight,
+    localTaxExemptAge: localTax.exemptAge,
     subtotal: Math.round(subtotal * 100) / 100,
     discountLabel,
     discountAmount,

@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments } from "../../actions";
+import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments, getGuestRatingByEmail } from "../../actions";
 import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
@@ -96,6 +96,9 @@ export default async function BookingDetailPage({
   const apartment = apartmentPricing;
   const status = statusConfig[booking.status] ?? statusConfig.pending;
 
+  // Load admin rating from previous stays (for returning guests)
+  const guestRating = await getGuestRatingByEmail(booking.email || "");
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
       {/* Back link */}
@@ -138,6 +141,49 @@ export default async function BookingDetailPage({
           </span>
         </div>
       </div>
+
+      {/* Returning-guest banner (if rating exists) */}
+      {guestRating && (guestRating.admin_rating || guestRating.admin_notes) && (
+        <div className="mb-6 bg-amber-50 border border-amber-200 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <div className="shrink-0">
+              <Link
+                href={`/admin/gaeste/${guestRating.id}`}
+                className="inline-flex items-center gap-2 text-amber-700 hover:text-amber-800"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+              </Link>
+            </div>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-semibold text-amber-900 text-sm">
+                  Wiederkehrender Gast
+                </p>
+                {guestRating.admin_rating && (
+                  <span className="text-amber-400">
+                    {"★".repeat(guestRating.admin_rating)}
+                    <span className="text-amber-200">
+                      {"★".repeat(5 - guestRating.admin_rating)}
+                    </span>
+                  </span>
+                )}
+                {guestRating.total_stays && guestRating.total_stays > 1 && (
+                  <span className="text-xs text-amber-700">
+                    {guestRating.total_stays} Aufenthalte
+                  </span>
+                )}
+              </div>
+              {guestRating.admin_notes && (
+                <p className="text-sm text-amber-900 mt-1 whitespace-pre-wrap">
+                  {guestRating.admin_notes}
+                </p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main column */}

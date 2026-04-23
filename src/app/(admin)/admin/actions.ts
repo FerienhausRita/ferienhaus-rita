@@ -440,6 +440,23 @@ export async function updateBookingStatus(
           .single();
         const bankDetails = bankRow?.value as BankDetails | null;
 
+        // Recalculate full breakdown for detailed email line items
+        const { recalculateBookingPrices } = await import("@/lib/pricing-data");
+        const breakdown = await recalculateBookingPrices({
+          apartmentId: booking.apartment_id,
+          checkIn: booking.check_in,
+          checkOut: booking.check_out,
+          adults: booking.adults,
+          children: booking.children || 0,
+          dogs: booking.dogs || 0,
+        });
+
+        const nights = Math.ceil(
+          (new Date(booking.check_out).getTime() -
+            new Date(booking.check_in).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+
         const bookingEmailData = {
           id: booking.id,
           firstName: booking.first_name,
@@ -456,7 +473,7 @@ export async function updateBookingStatus(
           adults: booking.adults,
           children: booking.children || 0,
           dogs: booking.dogs || 0,
-          nights: Math.ceil((new Date(booking.check_out).getTime() - new Date(booking.check_in).getTime()) / (1000 * 60 * 60 * 24)),
+          nights,
           totalPrice: Number(booking.total_price),
           pricePerNight: Number(booking.price_per_night || 0),
           extraGuestsTotal: Number(booking.extra_guests_total || 0),
@@ -468,6 +485,27 @@ export async function updateBookingStatus(
           depositDueDate: updateData.deposit_due_date ? String(updateData.deposit_due_date) : undefined,
           remainderAmount: updateData.remainder_amount ? Number(updateData.remainder_amount) : undefined,
           remainderDueDate: updateData.remainder_due_date ? String(updateData.remainder_due_date) : undefined,
+          // Detailed breakdown for line-item email
+          seasonBreakdown: breakdown?.seasonBreakdown?.map((s) => ({
+            label: s.label,
+            nights: s.nights,
+            pricePerNight: s.pricePerNight,
+            total: s.total,
+          })),
+          extraGuests: breakdown?.extraGuests,
+          extraPersonPrice: breakdown
+            ? breakdown.extraGuests > 0 && nights > 0
+              ? Math.round((breakdown.extraGuestsTotal / (breakdown.extraGuests * nights)) * 100) / 100
+              : apartment.extraPersonPrice
+            : undefined,
+          dogFeePerNight: apartment.dogFee,
+          localTaxPerNight: breakdown
+            ? breakdown.localTaxTotal > 0 && booking.adults > 0 && nights > 0
+              ? Math.round((breakdown.localTaxTotal / (booking.adults * nights)) * 100) / 100
+              : undefined
+            : undefined,
+          discountLabel: breakdown?.discountLabel ?? null,
+          discountAmount: breakdown?.discountAmount ?? Number(booking.discount_amount || 0),
         };
 
         await sendBookingConfirmed(bookingEmailData, apartment, {
@@ -570,6 +608,32 @@ export async function updateBookingStatus(
         scheduled_for: loyaltyDate.toISOString(),
         status: "pending",
       });
+
+      // Admin notes reminders (7 + 3 days before check-in) — only if the
+      // booking has a non-empty notes field.
+      if ((booking.notes || "").trim().length > 0) {
+        const notes7d = new Date(ciDate.getTime() - 7 * 24 * 60 * 60 * 1000);
+        notes7d.setUTCHours(8, 0, 0, 0);
+        if (notes7d > now) {
+          scheduledEmails.push({
+            booking_id: bookingId,
+            email_type: "admin_notes_7d",
+            scheduled_for: notes7d.toISOString(),
+            status: "pending",
+          });
+        }
+
+        const notes3d = new Date(ciDate.getTime() - 3 * 24 * 60 * 60 * 1000);
+        notes3d.setUTCHours(8, 0, 0, 0);
+        if (notes3d > now) {
+          scheduledEmails.push({
+            booking_id: bookingId,
+            email_type: "admin_notes_3d",
+            scheduled_for: notes3d.toISOString(),
+            status: "pending",
+          });
+        }
+      }
 
       if (scheduledEmails.length > 0) {
         await supabase.from("email_schedule").insert(scheduledEmails);
@@ -1006,22 +1070,59 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
 
   const all = bookings ?? [];
 
-  const overdueDeposits = all.filter(
-    (b) => b.deposit_due_date && b.deposit_due_date < today && !b.deposit_paid_at && Number(b.deposit_amount) > 0
+  // Enrich each booking with sums from booking_payments (per bucket)
+  const bookingIds = all.map((b) => b.id);
+  let payments: { booking_id: string; applies_to: string; amount: number }[] = [];
+  if (bookingIds.length > 0) {
+    const { data } = await supabase
+      .from("booking_payments")
+      .select("booking_id, applies_to, amount")
+      .in("booking_id", bookingIds);
+    payments = (data ?? []).map((p) => ({
+      booking_id: p.booking_id,
+      applies_to: p.applies_to,
+      amount: Number(p.amount || 0),
+    }));
+  }
+
+  const paidSums = new Map<string, { deposit: number; remainder: number }>();
+  for (const p of payments) {
+    const cur = paidSums.get(p.booking_id) ?? { deposit: 0, remainder: 0 };
+    if (p.applies_to === "deposit") cur.deposit += p.amount;
+    else if (p.applies_to === "remainder") cur.remainder += p.amount;
+    paidSums.set(p.booking_id, cur);
+  }
+
+  const enriched = all.map((b) => {
+    const paid = paidSums.get(b.id) ?? { deposit: 0, remainder: 0 };
+    const depositAmount = Number(b.deposit_amount || 0);
+    const remainderAmount = Number(b.remainder_amount || 0);
+    const depositOpen = Math.max(0, depositAmount - paid.deposit);
+    const remainderOpen = Math.max(0, remainderAmount - paid.remainder);
+    return {
+      ...b,
+      deposit_paid_sum: Math.round(paid.deposit * 100) / 100,
+      remainder_paid_sum: Math.round(paid.remainder * 100) / 100,
+      deposit_open: Math.round(depositOpen * 100) / 100,
+      remainder_open: Math.round(remainderOpen * 100) / 100,
+      total_open: Math.round((depositOpen + remainderOpen) * 100) / 100,
+    };
+  });
+
+  const overdueDeposits = enriched.filter(
+    (b) => b.deposit_due_date && b.deposit_due_date < today && b.deposit_open > 0.01
   );
-  const overdueRemainders = all.filter(
-    (b) => b.remainder_due_date && b.remainder_due_date < today && !b.remainder_paid_at && Number(b.remainder_amount) > 0
+  const overdueRemainders = enriched.filter(
+    (b) => b.remainder_due_date && b.remainder_due_date < today && b.remainder_open > 0.01
   );
 
-  const totalOutstanding = all.reduce((sum, b) => {
-    let amount = 0;
-    if (!b.deposit_paid_at && Number(b.deposit_amount) > 0) amount += Number(b.deposit_amount);
-    if (!b.remainder_paid_at && Number(b.remainder_amount) > 0) amount += Number(b.remainder_amount);
-    return sum + amount;
-  }, 0);
+  const totalOutstanding = enriched.reduce(
+    (sum, b) => sum + b.total_open,
+    0
+  );
 
   return {
-    bookings: all,
+    bookings: enriched,
     overdueCount: overdueDeposits.length + overdueRemainders.length,
     totalOutstanding,
   };
@@ -1247,6 +1348,8 @@ export async function getCalendarDataForYear(year: number) {
   const start = `${year}-01-01`;
   const end = `${year}-12-31`;
 
+  // Explicit large range to avoid Supabase's default 1000-row limit —
+  // iCal sync can produce thousands of blocked_dates entries per year.
   const [bookingsResult, blockedResult] = await Promise.all([
     supabase
       .from("bookings")
@@ -1256,14 +1359,23 @@ export async function getCalendarDataForYear(year: number) {
       .neq("status", "cancelled")
       .lte("check_in", end)
       .gte("check_out", start)
-      .order("check_in", { ascending: true }),
+      .order("check_in", { ascending: true })
+      .range(0, 9999),
     supabase
       .from("blocked_dates")
       .select("id, apartment_id, start_date, end_date, reason")
       .lte("start_date", end)
       .gte("end_date", start)
-      .order("start_date", { ascending: true }),
+      .order("start_date", { ascending: true })
+      .range(0, 9999),
   ]);
+
+  if (bookingsResult.error) {
+    console.error("getCalendarDataForYear bookings error:", bookingsResult.error);
+  }
+  if (blockedResult.error) {
+    console.error("getCalendarDataForYear blocks error:", blockedResult.error);
+  }
 
   return {
     bookings: bookingsResult.data ?? [],
@@ -1457,6 +1569,35 @@ export async function markMessageRead(messageId: string) {
 
   revalidatePath("/admin/nachrichten");
   revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Delete a contact message permanently.
+ */
+export async function deleteContactMessage(messageId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("contact_messages")
+    .delete()
+    .eq("id", messageId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/nachrichten");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Delete a chat conversation (and all messages via ON DELETE CASCADE).
+ */
+export async function deleteChatConversation(conversationId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("chat_conversations")
+    .delete()
+    .eq("id", conversationId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/chat");
   return { success: true };
 }
 
@@ -2635,6 +2776,44 @@ export async function getGuestById(id: string) {
   }
 
   return data;
+}
+
+/**
+ * Update admin-only rating + notes for a guest.
+ * Rating is 1-5 (or null to clear).
+ */
+export async function updateGuestRating(
+  guestId: string,
+  { rating, notes }: { rating: number | null; notes: string }
+) {
+  const supabase = createServerClient();
+  const payload: Record<string, unknown> = {
+    admin_rating: rating,
+    admin_notes: notes.trim() || null,
+  };
+  const { error } = await supabase
+    .from("guests")
+    .update(payload)
+    .eq("id", guestId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath(`/admin/gaeste/${guestId}`);
+  revalidatePath("/admin/buchungen");
+  return { success: true };
+}
+
+/**
+ * Lookup a guest's admin rating + notes by their email address.
+ * Returns null if no guest record exists or no rating has been set.
+ */
+export async function getGuestRatingByEmail(email: string) {
+  if (!email) return null;
+  const supabase = createServerClient();
+  const { data } = await supabase
+    .from("guests")
+    .select("id, admin_rating, admin_notes, total_stays")
+    .eq("email", email.toLowerCase().trim())
+    .maybeSingle();
+  return data ?? null;
 }
 
 export async function getGuestsFromDB(search?: string) {

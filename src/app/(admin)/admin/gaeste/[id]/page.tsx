@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getGuestById, getGuestBookings } from "../../actions";
+import GuestRatingEditor from "@/components/admin/GuestRatingEditor";
 import { getApartmentNameMap } from "@/lib/pricing-data";
 
 export const metadata: Metadata = {
@@ -141,6 +142,13 @@ export default async function GuestDetailPage({
 
         {/* Sidebar */}
         <div className="space-y-6">
+          {/* Admin rating + notes */}
+          <GuestRatingEditor
+            guestId={guest.id}
+            initialRating={guest.admin_rating ?? null}
+            initialNotes={guest.admin_notes ?? ""}
+          />
+
           {/* Stats */}
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
             <div className="px-5 py-4 border-b border-stone-100">

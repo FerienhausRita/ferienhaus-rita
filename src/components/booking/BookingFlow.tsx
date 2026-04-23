@@ -13,6 +13,7 @@ import Container from "@/components/ui/Container";
 import PriceSummary from "@/components/booking/PriceSummary";
 import AvailabilityCalendar from "@/components/booking/AvailabilityCalendar";
 import DateRangePicker from "@/components/booking/DateRangePicker";
+import AddressAutocomplete from "@/components/booking/AddressAutocomplete";
 
 type Step = "search" | "details" | "confirmation";
 
@@ -545,7 +546,32 @@ export default function BookingFlow({
                   <h2 className="text-lg font-semibold text-stone-900 mb-6">Adresse</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="sm:col-span-2">
-                      <InputField label="Straße & Hausnummer" value={guest.street} onChange={(v) => setGuest({ ...guest, street: v })} error={errors.street} required />
+                      <AddressAutocomplete
+                        value={guest.street}
+                        onChange={(v) => setGuest({ ...guest, street: v })}
+                        onSelect={(addr) => {
+                          const countryCode =
+                            addr.country.toLowerCase().includes("österreich") ||
+                            addr.country.toLowerCase().includes("austria")
+                              ? "AT"
+                              : addr.country.toLowerCase().includes("deutschland") ||
+                                addr.country.toLowerCase().includes("germany")
+                              ? "DE"
+                              : addr.country.toLowerCase().includes("schweiz") ||
+                                addr.country.toLowerCase().includes("switzerland")
+                              ? "CH"
+                              : guest.country;
+                          setGuest({
+                            ...guest,
+                            street: addr.street,
+                            zip: addr.zip,
+                            city: addr.city,
+                            country: countryCode,
+                          });
+                        }}
+                        error={errors.street}
+                        required
+                      />
                     </div>
                     <InputField label="PLZ" value={guest.zip} onChange={(v) => setGuest({ ...guest, zip: v })} error={errors.zip} required />
                     <InputField label="Ort" value={guest.city} onChange={(v) => setGuest({ ...guest, city: v })} error={errors.city} required />

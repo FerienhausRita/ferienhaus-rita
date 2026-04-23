@@ -1,4 +1,5 @@
 import { Metadata } from "next";
+import Link from "next/link";
 import { getCleaningSchedule } from "../actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
 
@@ -16,10 +17,24 @@ function formatDate(dateStr: string) {
   });
 }
 
-export default async function ReinigungPage() {
+const RANGE_OPTIONS = [
+  { days: 14, label: "14 Tage" },
+  { days: 30, label: "1 Monat" },
+  { days: 90, label: "3 Monate" },
+  { days: 365, label: "Jahr" },
+] as const;
+
+export default async function ReinigungPage({
+  searchParams,
+}: {
+  searchParams: { days?: string };
+}) {
+  const daysParam = Number(searchParams.days ?? 14);
+  const days = [14, 30, 90, 365].includes(daysParam) ? daysParam : 14;
+
   const today = new Date();
   const start = today.toISOString().split("T")[0];
-  const endDate = new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
+  const endDate = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
   const end = endDate.toISOString().split("T")[0];
 
   const [{ departures, arrivals }, nameMap] = await Promise.all([
@@ -46,18 +61,36 @@ export default async function ReinigungPage() {
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Reinigungsplan</h1>
           <p className="text-sm text-stone-500 mt-1">
-            N&auml;chste 14 Tage &middot; {formatDate(start)} &ndash; {formatDate(end)}
+            {formatDate(start)} &ndash; {formatDate(end)}
           </p>
+        </div>
+        <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-xl p-1">
+          {RANGE_OPTIONS.map((opt) => {
+            const active = opt.days === days;
+            return (
+              <Link
+                key={opt.days}
+                href={`/admin/reinigung?days=${opt.days}`}
+                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                  active
+                    ? "bg-[#c8a96e] text-white"
+                    : "text-stone-600 hover:bg-stone-50"
+                }`}
+              >
+                {opt.label}
+              </Link>
+            );
+          })}
         </div>
       </div>
 
       {sortedDates.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
-          <p className="text-stone-500">Keine Abreisen in den n&auml;chsten 14 Tagen</p>
+          <p className="text-stone-500">Keine Abreisen im gew&auml;hlten Zeitraum</p>
         </div>
       ) : (
         <div className="space-y-6">
