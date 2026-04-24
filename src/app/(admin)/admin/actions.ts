@@ -2678,7 +2678,8 @@ export async function updateBookingDetails(
         payload.cleaning_fee = breakdown.cleaningFee;
         payload.local_tax_total = breakdown.localTaxTotal;
         payload.total_price = breakdown.total;
-        payload.vat_amount = breakdown.vatAmount;
+        // Hinweis: `vat_amount` existiert nicht als Spalte — MwSt wird bei
+        // Bedarf on-the-fly aus total_price & local_tax_total berechnet.
       }
     } catch (e) {
       console.error("Recalculate on detail update failed:", e);
