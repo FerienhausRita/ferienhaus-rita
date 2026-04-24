@@ -17,6 +17,10 @@ export type { SeasonConfig, SeasonPeriod, SpecialPeriod } from "@/data/seasons";
 
 export interface TaxConfig {
   localTaxPerNight: number;
+  /** Whether Kurtaxe is included in total_price (false = charged separately on site) */
+  localTaxIncluded: boolean;
+  /** Age below which Kurtaxe is waived */
+  localTaxExemptAge: number;
   vatRate: number;
 }
 
@@ -172,29 +176,37 @@ export async function getSeasonPeriodsFromDB(): Promise<SeasonPeriod[]> {
  * Get tax config from DB.
  */
 export async function getTaxConfigFromDB(): Promise<TaxConfig> {
+  const fallback: TaxConfig = {
+    localTaxPerNight: staticLocalTax.perPersonPerNight,
+    localTaxIncluded: staticLocalTax.includedInTotal,
+    localTaxExemptAge: staticLocalTax.exemptAge,
+    vatRate: staticVat.rate,
+  };
   try {
     const supabase = createServerClient();
     const { data } = await supabase
       .from("tax_config")
-      .select("key, rate");
+      .select("key, rate, included");
 
     if (!data || data.length === 0) {
-      return {
-        localTaxPerNight: staticLocalTax.perPersonPerNight,
-        vatRate: staticVat.rate,
-      };
+      return fallback;
     }
 
-    const configMap = new Map(data.map((r) => [r.key, Number(r.rate)]));
+    const byKey = new Map(data.map((r) => [r.key, r]));
+    const local = byKey.get("local_tax");
+    const vat = byKey.get("vat");
+
     return {
-      localTaxPerNight: configMap.get("local_tax") ?? staticLocalTax.perPersonPerNight,
-      vatRate: configMap.get("vat") ?? staticVat.rate,
+      localTaxPerNight: local ? Number(local.rate) : fallback.localTaxPerNight,
+      localTaxIncluded:
+        local && local.included !== null && local.included !== undefined
+          ? Boolean(local.included)
+          : fallback.localTaxIncluded,
+      localTaxExemptAge: staticLocalTax.exemptAge,
+      vatRate: vat ? Number(vat.rate) : fallback.vatRate,
     };
   } catch {
-    return {
-      localTaxPerNight: staticLocalTax.perPersonPerNight,
-      vatRate: staticVat.rate,
-    };
+    return fallback;
   }
 }
 
@@ -234,6 +246,8 @@ export async function recalculateBookingPrices(params: {
     overrides: {
       specialPeriods,
       localTaxPerNight: taxConfig.localTaxPerNight,
+      localTaxIncluded: taxConfig.localTaxIncluded,
+      localTaxExemptAge: taxConfig.localTaxExemptAge,
       vatRate: taxConfig.vatRate,
     },
   });

@@ -362,7 +362,19 @@ export async function updateBookingStatus(
   // When confirming: calculate deposit/remainder amounts
   const updateData: Record<string, unknown> = { status };
 
-  if (status === "confirmed" && booking.status !== "confirmed") {
+  // Externe Kanäle (Booking.com, Airbnb, Smoobu, ...) laufen komplett über
+  // die Plattform. Keine Anzahlungslogik, keine automatischen Mails, keine
+  // Reminder. Zahlung wird direkt auf "paid" gesetzt.
+  const bookingChannel = (booking.source_channel as string | null) ?? "Website";
+  const isExternalBooking = bookingChannel !== "Website";
+
+  if (status === "confirmed" && booking.status !== "confirmed" && isExternalBooking) {
+    updateData.payment_status = "paid";
+    updateData.deposit_amount = 0;
+    updateData.remainder_amount = 0;
+  }
+
+  if (status === "confirmed" && booking.status !== "confirmed" && !isExternalBooking) {
     try {
       const { data: depositConfigRow } = await supabase
         .from("site_settings")
@@ -428,7 +440,8 @@ export async function updateBookingStatus(
   }
 
   // When confirming: send confirmation email + schedule automated emails
-  if (status === "confirmed" && booking.status !== "confirmed") {
+  // (NUR für Website-Buchungen — externe Kanäle machen das selbst)
+  if (status === "confirmed" && booking.status !== "confirmed" && !isExternalBooking) {
     try {
       const apartment = await getApartmentWithPricing(booking.apartment_id);
       if (apartment) {
@@ -499,11 +512,9 @@ export async function updateBookingStatus(
               : apartment.extraPersonPrice
             : undefined,
           dogFeePerNight: apartment.dogFee,
-          localTaxPerNight: breakdown
-            ? breakdown.localTaxTotal > 0 && booking.adults > 0 && nights > 0
-              ? Math.round((breakdown.localTaxTotal / (booking.adults * nights)) * 100) / 100
-              : undefined
-            : undefined,
+          localTaxPerNight: breakdown?.localTaxPerNight,
+          localTaxIncluded: breakdown?.localTaxIncluded,
+          localTaxExemptAge: breakdown?.localTaxExemptAge,
           discountLabel: breakdown?.discountLabel ?? null,
           discountAmount: breakdown?.discountAmount ?? Number(booking.discount_amount || 0),
         };
@@ -2560,6 +2571,136 @@ export async function deleteSpecialPeriod(id: string) {
 /**
  * Create a booking manually from admin
  */
+/**
+ * Update core booking details (dates, apartment, occupancy, notes).
+ * Recalculates price-related fields when anything relevant changes.
+ */
+export async function updateBookingDetails(
+  bookingId: string,
+  updates: {
+    apartment_id?: string;
+    check_in?: string;
+    check_out?: string;
+    adults?: number;
+    children?: number;
+    dogs?: number;
+    notes?: string;
+  }
+) {
+  const supabase = createServerClient();
+
+  const { data: booking, error: fetchErr } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .single();
+  if (fetchErr || !booking) return { success: false, error: "Buchung nicht gefunden" };
+
+  const merged = {
+    apartment_id: updates.apartment_id ?? booking.apartment_id,
+    check_in: updates.check_in ?? booking.check_in,
+    check_out: updates.check_out ?? booking.check_out,
+    adults: updates.adults ?? booking.adults,
+    children: updates.children ?? booking.children,
+    dogs: updates.dogs ?? booking.dogs,
+  };
+
+  if (merged.check_in >= merged.check_out) {
+    return { success: false, error: "Abreise muss nach Anreise liegen" };
+  }
+
+  // Availability check if apartment or dates changed
+  const datesOrApartmentChanged =
+    merged.apartment_id !== booking.apartment_id ||
+    merged.check_in !== booking.check_in ||
+    merged.check_out !== booking.check_out;
+
+  if (datesOrApartmentChanged) {
+    const { data: conflicts } = await supabase
+      .from("bookings")
+      .select("id")
+      .eq("apartment_id", merged.apartment_id)
+      .neq("status", "cancelled")
+      .neq("id", bookingId)
+      .lt("check_in", merged.check_out)
+      .gt("check_out", merged.check_in)
+      .limit(1);
+    if (conflicts && conflicts.length > 0) {
+      return {
+        success: false,
+        error: "Überschneidung mit einer bestehenden Buchung in dieser Wohnung",
+      };
+    }
+  }
+
+  // Only external bookings retain manual pricing — don't recalculate
+  const bookingChannel = (booking.source_channel as string | null) ?? "Website";
+  const isExternal = bookingChannel !== "Website";
+
+  const payload: Record<string, unknown> = {
+    apartment_id: merged.apartment_id,
+    check_in: merged.check_in,
+    check_out: merged.check_out,
+    adults: merged.adults,
+    children: merged.children,
+    dogs: merged.dogs,
+    notes: updates.notes ?? booking.notes,
+  };
+
+  // Recalculate price for Website bookings whenever anything price-relevant changed
+  const priceRelevantChanged =
+    datesOrApartmentChanged ||
+    merged.adults !== booking.adults ||
+    merged.children !== booking.children ||
+    merged.dogs !== booking.dogs;
+
+  if (!isExternal && priceRelevantChanged) {
+    try {
+      const { recalculateBookingPrices } = await import("@/lib/pricing-data");
+      const breakdown = await recalculateBookingPrices({
+        apartmentId: merged.apartment_id,
+        checkIn: merged.check_in,
+        checkOut: merged.check_out,
+        adults: merged.adults,
+        children: merged.children,
+        dogs: merged.dogs,
+      });
+      if (breakdown) {
+        payload.nights = breakdown.nights;
+        payload.price_per_night = breakdown.basePrice;
+        payload.extra_guests_total = breakdown.extraGuestsTotal;
+        payload.dogs_total = breakdown.dogsTotal;
+        payload.cleaning_fee = breakdown.cleaningFee;
+        payload.local_tax_total = breakdown.localTaxTotal;
+        payload.total_price = breakdown.total;
+        payload.vat_amount = breakdown.vatAmount;
+      }
+    } catch (e) {
+      console.error("Recalculate on detail update failed:", e);
+    }
+  } else if (datesOrApartmentChanged) {
+    // nights updaten auch für externe Kanäle
+    const nights = Math.ceil(
+      (new Date(merged.check_out).getTime() -
+        new Date(merged.check_in).getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
+    payload.nights = nights;
+  }
+
+  const { error: updateError } = await supabase
+    .from("bookings")
+    .update(payload)
+    .eq("id", bookingId);
+
+  if (updateError) return { success: false, error: updateError.message };
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
 export async function createManualBooking(data: {
   apartment_id: string;
   check_in: string;
@@ -2578,6 +2719,9 @@ export async function createManualBooking(data: {
   notes?: string;
   status: "pending" | "confirmed";
   send_confirmation?: boolean;
+  source_channel?: string;
+  manual_total_price?: number;
+  manual_cleaning_fee?: number;
 }) {
   const supabase = createServerClient();
 
@@ -2599,20 +2743,41 @@ export async function createManualBooking(data: {
 
   if (nights <= 0) return { success: false, error: "Ungültiger Zeitraum" };
 
-  const breakdown = calculatePrice({
-    apartment,
-    checkIn,
-    checkOut,
-    adults: data.adults,
-    children: data.children,
-    dogs: data.dogs,
-    overrides: {
-      seasonConfigs,
-      seasonPeriods,
-      localTaxPerNight: taxConfig.localTaxPerNight,
-      vatRate: taxConfig.vatRate,
-    },
-  });
+  const sourceChannel = data.source_channel ?? "Website";
+  const isExternalChannel = sourceChannel !== "Website";
+
+  // Für externe Kanäle: manueller Preis, kein calculatePrice
+  const manualTotal = Number(data.manual_total_price || 0);
+  const manualCleaning = Number(data.manual_cleaning_fee || 0);
+
+  const breakdown = isExternalChannel
+    ? {
+        basePrice: nights > 0 ? Math.round(((manualTotal - manualCleaning) / nights) * 100) / 100 : 0,
+        basePriceTotal: manualTotal - manualCleaning,
+        extraGuestsTotal: 0,
+        dogsTotal: 0,
+        cleaningFee: manualCleaning,
+        localTaxTotal: 0,
+        subtotal: manualTotal,
+        total: manualTotal,
+        vatAmount: 0,
+      }
+    : calculatePrice({
+        apartment,
+        checkIn,
+        checkOut,
+        adults: data.adults,
+        children: data.children,
+        dogs: data.dogs,
+        overrides: {
+          seasonConfigs,
+          seasonPeriods,
+          localTaxPerNight: taxConfig.localTaxPerNight,
+          localTaxIncluded: taxConfig.localTaxIncluded,
+          localTaxExemptAge: taxConfig.localTaxExemptAge,
+          vatRate: taxConfig.vatRate,
+        },
+      });
 
   // Upsert guest (only if email provided)
   let guestData: { id: string; total_stays: number | null; total_revenue: number | null } | null = null;
@@ -2668,6 +2833,11 @@ export async function createManualBooking(data: {
       total_price: breakdown.total,
       status: data.status,
       guest_id: guestData?.id ?? null,
+      source_channel: sourceChannel,
+      // Externe Kanäle: Zahlung läuft über Plattform → als bezahlt markieren
+      payment_status: isExternalChannel ? "paid" : "unpaid",
+      deposit_amount: 0,
+      remainder_amount: 0,
     })
     .select("id")
     .single();
@@ -2688,8 +2858,8 @@ export async function createManualBooking(data: {
       .eq("id", guestData.id);
   }
 
-  // Schedule automated emails (only if guest has email)
-  if (booking && emailTrimmed) {
+  // Schedule automated emails (only for Website/direct bookings with email)
+  if (booking && emailTrimmed && !isExternalChannel) {
     try {
       await scheduleBookingEmails(booking.id, data.check_in, data.check_out);
     } catch (scheduleError) {
@@ -2698,8 +2868,8 @@ export async function createManualBooking(data: {
     }
   }
 
-  // Optionally send confirmation (only if guest has email)
-  if (data.send_confirmation && booking && emailTrimmed) {
+  // Optionally send confirmation (only for Website/direct with email)
+  if (data.send_confirmation && booking && emailTrimmed && !isExternalChannel) {
     try {
       const { sendBookingConfirmed } = await import("@/lib/email");
       const { data: bankRow } = await supabase

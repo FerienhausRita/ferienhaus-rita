@@ -2,9 +2,10 @@ import { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { apartments } from "@/data/apartments";
-import { getAllApartmentsWithPricing, getApartmentBySlugWithPricing } from "@/lib/pricing-data";
+import { getAllApartmentsWithPricing, getApartmentBySlugWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import { formatCurrency } from "@/lib/pricing";
 import Container from "@/components/ui/Container";
+import LocalTaxHint from "@/components/booking/LocalTaxHint";
 import JsonLd from "@/components/seo/JsonLd";
 import ImageGallery from "@/components/ui/ImageGallery";
 import AvailabilityPreview from "@/components/apartments/AvailabilityPreview";
@@ -35,7 +36,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function ApartmentDetailPage({ params }: Props) {
-  const apartment = await getApartmentBySlugWithPricing(params.slug);
+  const [apartment, taxConfig] = await Promise.all([
+    getApartmentBySlugWithPricing(params.slug),
+    getTaxConfigFromDB(),
+  ]);
   if (!apartment) notFound();
 
   return (
@@ -189,6 +193,16 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   </span>
                 </div>
               </div>
+
+              {!taxConfig.localTaxIncluded && taxConfig.localTaxPerNight > 0 && (
+                <div className="mb-4">
+                  <LocalTaxHint
+                    rate={taxConfig.localTaxPerNight}
+                    exemptAge={taxConfig.localTaxExemptAge}
+                    variant="compact"
+                  />
+                </div>
+              )}
 
               <Link
                 href={`/buchen?apartment=${apartment.slug}`}

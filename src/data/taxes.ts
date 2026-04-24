@@ -7,13 +7,19 @@
 
 export const localTax = {
   /** Tax per person per night in EUR */
-  perPersonPerNight: 2.5,
+  perPersonPerNight: 2.60,
   /** Children below this age are exempt */
   exemptAge: 15,
   /** Label displayed to guests */
-  label: "Ortstaxe",
+  label: "Kurtaxe",
   /** Description */
-  description: "Ortstaxe der Gemeinde Kals am Großglockner",
+  description: "Kurtaxe der Gemeinde Kals am Großglockner",
+  /**
+   * Ist die Kurtaxe im Buchungs-Gesamtpreis enthalten?
+   * - true: Kurtaxe wird in total_price eingerechnet (Altbestand)
+   * - false: Kurtaxe wird vor Ort separat abgerechnet, Hinweistext bleibt
+   */
+  includedInTotal: false,
 } as const;
 
 export type LocalTaxConfig = typeof localTax;

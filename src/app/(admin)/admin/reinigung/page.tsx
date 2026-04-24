@@ -51,11 +51,31 @@ export default async function ReinigungPage({
   }
 
   // Build arrival map: apartment_id → next arrival after a departure
+  // Zusätzlich: chronologisch sortierte Anreise-Liste pro Wohnung,
+  // damit wir für jede Abreise die nächste Anreise finden (auch in X Tagen).
   const arrivalMap = new Map<string, (typeof arrivals)[0]>();
+  const arrivalsByApt = new Map<string, typeof arrivals>();
   for (const a of arrivals) {
     const key = `${a.apartment_id}-${a.check_in}`;
     arrivalMap.set(key, a);
+    const list = arrivalsByApt.get(a.apartment_id) ?? [];
+    list.push(a);
+    arrivalsByApt.set(a.apartment_id, list);
   }
+  // pre-sort (defensive)
+  for (const list of arrivalsByApt.values()) {
+    list.sort((x, y) => x.check_in.localeCompare(y.check_in));
+  }
+  const findNextArrival = (apartmentId: string, afterDate: string) => {
+    const list = arrivalsByApt.get(apartmentId) ?? [];
+    return list.find((a) => a.check_in >= afterDate);
+  };
+  const daysBetween = (from: string, to: string) =>
+    Math.round(
+      (new Date(to + "T00:00:00").getTime() -
+        new Date(from + "T00:00:00").getTime()) /
+        (1000 * 60 * 60 * 24)
+    );
 
   const sortedDates = [...byDate.keys()].sort();
 
@@ -121,15 +141,24 @@ export default async function ReinigungPage({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   {deps.map((dep) => {
                     const apartmentName = nameMap.get(dep.apartment_id) ?? dep.apartment_id;
-                    // Find next arrival for same apartment on this date
-                    const nextArrival = arrivalMap.get(`${dep.apartment_id}-${dep.check_out}`);
-                    const isTurnover = !!nextArrival;
+                    // Turnover: Anreise am selben Tag (check_in === check_out)
+                    const sameDayArrival = arrivalMap.get(`${dep.apartment_id}-${dep.check_out}`);
+                    // Sonst: nächste Anreise danach (für "Puffer-Zeit")
+                    const nextArrival =
+                      sameDayArrival ??
+                      findNextArrival(dep.apartment_id, dep.check_out);
+                    const isTurnover = !!sameDayArrival;
+                    const daysUntilNext = nextArrival
+                      ? daysBetween(dep.check_out, nextArrival.check_in)
+                      : null;
 
                     return (
                       <div
                         key={dep.id}
                         className={`rounded-xl border p-4 ${
                           isTurnover
+                            ? "border-red-200 bg-red-50/50"
+                            : nextArrival && daysUntilNext !== null && daysUntilNext <= 2
                             ? "border-amber-200 bg-amber-50/50"
                             : "border-stone-200 bg-white"
                         }`}
@@ -140,8 +169,8 @@ export default async function ReinigungPage({
                               {apartmentName}
                             </p>
                             {isTurnover && (
-                              <span className="text-xs font-medium text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded">
-                                Wechsel
+                              <span className="text-xs font-medium text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
+                                Wechsel heute!
                               </span>
                             )}
                           </div>
@@ -162,16 +191,56 @@ export default async function ReinigungPage({
                           <span className="text-stone-400 text-xs">Abreise</span>
                         </div>
 
-                        {/* Arriving guest (if turnover) */}
-                        {nextArrival && (
-                          <div className="flex items-center gap-2 text-sm">
-                            <svg className="w-4 h-4 text-emerald-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+                        {/* Next arrival — immer anzeigen, wenn im Zeitraum */}
+                        {nextArrival ? (
+                          <div className="flex items-center gap-2 text-sm pt-1">
+                            <svg
+                              className={`w-4 h-4 shrink-0 ${
+                                isTurnover
+                                  ? "text-red-500"
+                                  : daysUntilNext !== null && daysUntilNext <= 2
+                                  ? "text-amber-500"
+                                  : "text-emerald-500"
+                              }`}
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={1.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
+                              />
                             </svg>
                             <span className="text-stone-700">
                               {nextArrival.first_name} {nextArrival.last_name}
                             </span>
-                            <span className="text-stone-400 text-xs">Anreise</span>
+                            <span className="text-stone-400 text-xs ml-auto">
+                              {isTurnover
+                                ? "heute"
+                                : daysUntilNext === 1
+                                ? "morgen"
+                                : `in ${daysUntilNext} Tagen`}{" "}
+                              ({formatDate(nextArrival.check_in)})
+                            </span>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 text-xs pt-1 text-stone-400">
+                            <svg
+                              className="w-3.5 h-3.5 shrink-0"
+                              fill="none"
+                              viewBox="0 0 24 24"
+                              stroke="currentColor"
+                              strokeWidth={1.5}
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                              />
+                            </svg>
+                            <span>Keine weitere Buchung im Zeitraum</span>
                           </div>
                         )}
                       </div>

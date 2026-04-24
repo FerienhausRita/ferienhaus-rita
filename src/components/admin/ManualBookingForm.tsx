@@ -60,6 +60,14 @@ export default function ManualBookingForm({
   const [status, setStatus] = useState<"pending" | "confirmed">("confirmed");
   const [sendConfirmation, setSendConfirmation] = useState(false);
 
+  // Buchungsquelle (Website = Standard-Berechnung + Mails; externe Kanäle = manuell)
+  const [sourceChannel, setSourceChannel] = useState<string>("Website");
+  const isExternalChannel = sourceChannel !== "Website";
+
+  // Manuelle Preiseingabe (nur bei externen Kanälen)
+  const [manualTotal, setManualTotal] = useState<string>("");
+  const [manualCleaning, setManualCleaning] = useState<string>("");
+
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -152,8 +160,15 @@ export default function ManualBookingForm({
         city: city.trim(),
         country,
         notes: notes.trim() || undefined,
-        status,
-        send_confirmation: sendConfirmation,
+        status: isExternalChannel ? "confirmed" : status,
+        send_confirmation: isExternalChannel ? false : sendConfirmation,
+        source_channel: sourceChannel,
+        manual_total_price: isExternalChannel && manualTotal
+          ? Number(manualTotal)
+          : undefined,
+        manual_cleaning_fee: isExternalChannel && manualCleaning
+          ? Number(manualCleaning)
+          : undefined,
       });
 
       if (result.success && result.bookingId) {
@@ -170,6 +185,36 @@ export default function ManualBookingForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-6">
+      {/* Buchungsquelle */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 space-y-3">
+        <h2 className="text-lg font-semibold text-stone-900">Buchungsquelle</h2>
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1.5">
+            Quelle <span className="text-red-400">*</span>
+          </label>
+          <select
+            value={sourceChannel}
+            onChange={(e) => setSourceChannel(e.target.value)}
+            className={inputClasses}
+          >
+            <option value="Website">Website (Direktbuchung)</option>
+            <option value="Booking.com">Booking.com</option>
+            <option value="Airbnb">Airbnb</option>
+            <option value="Smoobu">Smoobu</option>
+            <option value="Andere">Andere Plattform</option>
+          </select>
+        </div>
+        {isExternalChannel && (
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
+            <strong>Externer Kanal:</strong> Für Buchungen über {sourceChannel}
+            werden <strong>keine automatischen E-Mails</strong> versendet und{" "}
+            <strong>keine Anzahlungslogik</strong> angewendet. Die Preise werden
+            manuell eingetragen (siehe Preisabschnitt unten). Zahlung und
+            Gastkommunikation laufen direkt über {sourceChannel}.
+          </div>
+        )}
+      </div>
+
       {/* Apartment & Dates */}
       <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 space-y-4">
         <h2 className="text-lg font-semibold text-stone-900">Aufenthalt</h2>
@@ -396,7 +441,7 @@ export default function ManualBookingForm({
           </div>
         </div>
 
-        {email.trim() && (
+        {email.trim() && !isExternalChannel && (
           <label className="flex items-center gap-2.5 cursor-pointer">
             <input
               type="checkbox"
@@ -411,8 +456,60 @@ export default function ManualBookingForm({
         )}
       </div>
 
-      {/* Price Preview */}
-      {priceBreakdown && (
+      {/* Manual Price Entry (externe Kanäle) */}
+      {isExternalChannel && (
+        <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6 space-y-4">
+          <div>
+            <h2 className="text-lg font-semibold text-stone-900">Preis (manuell)</h2>
+            <p className="text-xs text-stone-500 mt-0.5">
+              Bitte die Beträge wie auf {sourceChannel} eingegeben eintragen.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                Gesamtpreis <span className="text-red-400">*</span>
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={manualTotal}
+                  onChange={(e) => setManualTotal(e.target.value)}
+                  placeholder="0,00"
+                  className={`${inputClasses} pr-10 text-base font-semibold`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm pointer-events-none">
+                  €
+                </span>
+              </div>
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-stone-700 mb-1.5">
+                davon Endreinigung (optional)
+              </label>
+              <div className="relative">
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={manualCleaning}
+                  onChange={(e) => setManualCleaning(e.target.value)}
+                  placeholder="0,00"
+                  className={`${inputClasses} pr-10`}
+                />
+                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-stone-400 text-sm pointer-events-none">
+                  €
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Price Preview (nur Website / Direktbuchung) */}
+      {!isExternalChannel && priceBreakdown && (
         <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6">
           <h2 className="text-lg font-semibold text-stone-900 mb-4">
             Preisvorschau

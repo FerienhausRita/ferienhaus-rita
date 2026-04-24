@@ -2,7 +2,9 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments, getGuestRatingByEmail } from "../../actions";
-import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
+import { formatAdminDateTime } from "@/lib/format-datetime";
+import { getApartmentWithPricing, getTaxConfigFromDB, getAllApartmentsWithPricing } from "@/lib/pricing-data";
+import BookingDetailsEditor from "@/components/admin/BookingDetailsEditor";
 import BookingActions from "@/components/admin/BookingActions";
 import BookingNotes from "@/components/admin/BookingNotes";
 import EmailCompose from "@/components/admin/EmailCompose";
@@ -35,15 +37,7 @@ function formatCurrency(amount: number) {
   }).format(amount);
 }
 
-function formatDateTime(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString("de-AT", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+const formatDateTime = formatAdminDateTime;
 
 const statusConfig: Record<
   string,
@@ -92,7 +86,15 @@ export default async function BookingDetailPage({
   }
 
   // Load apartment with DB overrides (name + pricing)
-  const apartmentPricing = await getApartmentWithPricing(booking.apartment_id);
+  const [apartmentPricing, allApartments] = await Promise.all([
+    getApartmentWithPricing(booking.apartment_id),
+    getAllApartmentsWithPricing(),
+  ]);
+  const detailApartments = allApartments.map((a) => ({
+    id: a.id,
+    name: a.name,
+    maxGuests: a.maxGuests,
+  }));
   const apartment = apartmentPricing;
   const status = statusConfig[booking.status] ?? statusConfig.pending;
 
@@ -185,6 +187,37 @@ export default async function BookingDetailPage({
         </div>
       )}
 
+      {/* External channel banner */}
+      {booking.source_channel && booking.source_channel !== "Website" && (
+        <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
+          <div className="flex items-start gap-3">
+            <svg
+              className="w-5 h-5 text-blue-600 shrink-0 mt-0.5"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M13.19 8.688a4.5 4.5 0 011.242 7.244l-4.5 4.5a4.5 4.5 0 01-6.364-6.364l1.757-1.757m13.35-.622l1.757-1.757a4.5 4.5 0 00-6.364-6.364l-4.5 4.5a4.5 4.5 0 001.242 7.244"
+              />
+            </svg>
+            <div className="flex-1">
+              <p className="font-semibold text-blue-900 text-sm">
+                Buchung über {booking.source_channel}
+              </p>
+              <p className="text-xs text-blue-800 mt-0.5">
+                Zahlung und Gastkommunikation laufen direkt über{" "}
+                {booking.source_channel}. Es werden <strong>keine automatischen
+                E-Mails</strong> versendet und keine Anzahlung berechnet.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Main column */}
         <div className="lg:col-span-2 space-y-6">
@@ -260,6 +293,18 @@ export default async function BookingDetailPage({
                 </div>
               )}
             </div>
+            <BookingDetailsEditor
+              bookingId={booking.id}
+              apartments={detailApartments}
+              initialApartmentId={booking.apartment_id}
+              initialCheckIn={booking.check_in}
+              initialCheckOut={booking.check_out}
+              initialAdults={booking.adults}
+              initialChildren={booking.children || 0}
+              initialDogs={booking.dogs || 0}
+              initialNotes={booking.notes || ""}
+              isExternalChannel={!!booking.source_channel && booking.source_channel !== "Website"}
+            />
           </div>
 
           {/* Guest Contact – inline editable */}
@@ -419,10 +464,7 @@ export default async function BookingDetailPage({
                     <span>
                       Akzeptiert am{" "}
                       <span className="font-medium text-stone-900">
-                        {new Date(booking.consent_accepted_at).toLocaleString("de-AT", {
-                          day: "2-digit", month: "2-digit", year: "numeric",
-                          hour: "2-digit", minute: "2-digit",
-                        })}
+                        {formatAdminDateTime(booking.consent_accepted_at)}
                       </span>
                     </span>
                   </div>
@@ -450,10 +492,7 @@ export default async function BookingDetailPage({
                   <span>
                     AGB zugestellt am{" "}
                     <span className="font-medium text-stone-900">
-                      {new Date(booking.terms_sent_at).toLocaleString("de-AT", {
-                        day: "2-digit", month: "2-digit", year: "numeric",
-                        hour: "2-digit", minute: "2-digit",
-                      })}
+                      {formatAdminDateTime(booking.terms_sent_at)}
                     </span>
                   </span>
                 </div>
@@ -461,6 +500,7 @@ export default async function BookingDetailPage({
             </div>
           </div>
 
+          {(!booking.source_channel || booking.source_channel === "Website") && (
           <DepositTracker
             bookingId={booking.id}
             totalPrice={Number(booking.total_price)}
@@ -480,6 +520,7 @@ export default async function BookingDetailPage({
               note: p.note,
             }))}
           />
+          )}
 
           <BookingActions
             bookingId={booking.id}

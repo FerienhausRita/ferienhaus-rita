@@ -28,6 +28,10 @@ export interface PricingOverrides {
   /** Special periods with surcharges (new system) */
   specialPeriods?: SpecialPeriod[];
   localTaxPerNight?: number;
+  /** Whether Kurtaxe is included in total_price (false = info-only, charged on site) */
+  localTaxIncluded?: boolean;
+  /** Age below which Kurtaxe is waived (default 15) */
+  localTaxExemptAge?: number;
   vatRate?: number;
   /** Override min nights for summer */
   minNightsSummer?: number;
@@ -68,12 +72,19 @@ export interface PriceBreakdown {
   dogsPricePerNight: number;
   dogsTotal: number;
   cleaningFee: number;
-  /** Ortstaxe total (adults only — children under 15 exempt) */
+  /** Kurtaxe total — only non-zero when localTaxIncluded = true (Legacy) */
   localTaxTotal: number;
-  /** Ortstaxe rate per adult per night (dynamic, from config) */
+  /** Kurtaxe rate per adult per night (dynamic, from config) */
   localTaxPerNight: number;
-  /** Age below which Ortstaxe is waived (default 15) */
+  /** Age below which Kurtaxe is waived (default 15) */
   localTaxExemptAge: number;
+  /** Whether Kurtaxe is included in the total_price */
+  localTaxIncluded: boolean;
+  /**
+   * Informational Kurtaxe amount (adults × nights × rate) — always calculated,
+   * used by hint texts even when the tax is not included in the total.
+   */
+  localTaxHint: number;
   /** Subtotal before discount */
   subtotal: number;
   /** Discount applied */
@@ -225,6 +236,10 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
 
   // Use overrides if provided
   const usedLocalTaxPerNight = overrides?.localTaxPerNight ?? localTax.perPersonPerNight;
+  const usedLocalTaxIncluded =
+    overrides?.localTaxIncluded ?? localTax.includedInTotal;
+  const usedLocalTaxExemptAge =
+    overrides?.localTaxExemptAge ?? localTax.exemptAge;
   const usedVatRate = overrides?.vatRate ?? vat.rate;
 
   // Day-by-day seasonal price calculation
@@ -312,8 +327,13 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
 
   const cleaningFee = apartment.cleaningFee;
 
-  // Ortstaxe: adults only (children under 15 exempt)
-  const localTaxTotal = adults * nights * usedLocalTaxPerNight;
+  // Kurtaxe: only adults pay (children below exempt age are waived).
+  // The hint amount is ALWAYS computed for display purposes.
+  const localTaxHint =
+    Math.round(adults * nights * usedLocalTaxPerNight * 100) / 100;
+
+  // Legacy bookings include Kurtaxe in the total — new bookings don't.
+  const localTaxTotal = usedLocalTaxIncluded ? localTaxHint : 0;
 
   const subtotal =
     basePriceTotal + extraGuestsTotal + dogsTotal + cleaningFee + localTaxTotal;
@@ -332,7 +352,7 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const total = Math.round((subtotal - discountAmount) * 100) / 100;
 
   // VAT: extracted from gross amounts that are subject to VAT.
-  // Ortstaxe is a public levy and NOT subject to VAT.
+  // Kurtaxe (when included in legacy bookings) is a public levy and not subject to VAT.
   const vatLiableGross = total - localTaxTotal;
   const vatAmount = Math.round((vatLiableGross / (1 + usedVatRate) * usedVatRate) * 100) / 100;
 
@@ -348,8 +368,10 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
     dogsTotal,
     cleaningFee,
     localTaxTotal,
+    localTaxHint,
     localTaxPerNight: usedLocalTaxPerNight,
-    localTaxExemptAge: localTax.exemptAge,
+    localTaxExemptAge: usedLocalTaxExemptAge,
+    localTaxIncluded: usedLocalTaxIncluded,
     subtotal: Math.round(subtotal * 100) / 100,
     discountLabel,
     discountAmount,

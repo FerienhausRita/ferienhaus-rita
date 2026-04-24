@@ -6,8 +6,9 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 import { verifyGuestToken } from "@/lib/guest-auth";
 import { createServerClient } from "@/lib/supabase/server";
-import { getApartmentWithPricing } from "@/lib/pricing-data";
+import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import { formatCurrency, formatDate } from "@/lib/pricing";
+import LocalTaxHint from "@/components/booking/LocalTaxHint";
 import WeatherWidget from "@/components/guest/WeatherWidget";
 import RebookButton from "@/components/guest/RebookButton";
 import ChatSection from "@/components/guest/ChatSection";
@@ -149,6 +150,9 @@ export default async function BookingOverviewPage({
     (depositCfgRow?.value as { deposit_percent?: number } | null)?.deposit_percent ?? 30
   );
   const remainderPercent = 100 - depositPercent;
+
+  // --- Load current tax config for Kurtaxe hint ---
+  const taxConfig = await getTaxConfigFromDB();
 
   // --- Chat gating: only from check-in date onwards ---
   const todayIso = new Date().toISOString().split("T")[0];
@@ -334,11 +338,11 @@ export default async function BookingOverviewPage({
                 </span>
               </div>
 
-              {/* Ortstaxe */}
+              {/* Legacy: Altbuchungen hatten Kurtaxe im Gesamtpreis */}
               {localTaxTotal > 0 && (
                 <div className="flex justify-between items-start gap-4">
                   <div className="min-w-0">
-                    <p className="text-stone-700">Ortstaxe</p>
+                    <p className="text-stone-700">Kurtaxe</p>
                     <p className="text-xs text-stone-400">
                       {Number(booking.adults)} Erw. &times;{" "}
                       {formatCurrency(localTaxPerNightPerAdult)}/Nacht &times;{" "}
@@ -370,8 +374,27 @@ export default async function BookingOverviewPage({
                 <span>{formatCurrency(Number(booking.total_price || 0))}</span>
               </div>
               <p className="text-[11px] text-stone-400 text-right">
-                Alle Preise inkl. 10 % MwSt. (außer Ortstaxe, öffentliche Abgabe)
+                Alle Preise inkl. 10 % MwSt.
               </p>
+
+              {/* Kurtaxe-Hinweis bei neuen Buchungen (nicht included) */}
+              {!taxConfig.localTaxIncluded && taxConfig.localTaxPerNight > 0 && (
+                <div className="mt-3">
+                  <LocalTaxHint
+                    rate={taxConfig.localTaxPerNight}
+                    exemptAge={taxConfig.localTaxExemptAge}
+                    variant="default"
+                    estimate={
+                      Math.round(
+                        Number(booking.adults || 0) *
+                          nights *
+                          taxConfig.localTaxPerNight *
+                          100
+                      ) / 100
+                    }
+                  />
+                </div>
+              )}
             </div>
 
             {/* Deposit / Remainder details */}

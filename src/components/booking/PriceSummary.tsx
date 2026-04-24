@@ -1,5 +1,6 @@
 import { PriceBreakdown, formatCurrency } from "@/lib/pricing";
 import { localTax } from "@/data/taxes";
+import LocalTaxHint from "@/components/booking/LocalTaxHint";
 
 interface PriceSummaryProps {
   breakdown: PriceBreakdown;
@@ -67,10 +68,11 @@ export default function PriceSummary({
         <span>{formatCurrency(breakdown.cleaningFee)}</span>
       </div>
 
+      {/* Legacy: bei Altbuchungen war Kurtaxe im Gesamtpreis */}
       {breakdown.localTaxTotal > 0 && (
         <div className="flex justify-between text-stone-600">
           <span>
-            Ortstaxe{" "}
+            Kurtaxe{" "}
             <span className="text-stone-400 text-xs">
               ({formatCurrency(breakdown.localTaxPerNight ?? localTax.perPersonPerNight)}/Erw./Nacht,
               Kinder unter {breakdown.localTaxExemptAge ?? localTax.exemptAge} Jahren frei)
@@ -96,6 +98,18 @@ export default function PriceSummary({
         <div className="flex justify-between text-stone-400 text-xs">
           <span>Inkl. 10% MwSt</span>
           <span>{formatCurrency(breakdown.vatAmount)}</span>
+        </div>
+      )}
+
+      {/* Kurtaxe-Hinweis wenn separat (neue Buchungen) */}
+      {breakdown.localTaxIncluded === false && breakdown.localTaxPerNight > 0 && (
+        <div className="pt-2">
+          <LocalTaxHint
+            rate={breakdown.localTaxPerNight}
+            exemptAge={breakdown.localTaxExemptAge ?? localTax.exemptAge}
+            variant="default"
+            estimate={breakdown.localTaxHint}
+          />
         </div>
       )}
 

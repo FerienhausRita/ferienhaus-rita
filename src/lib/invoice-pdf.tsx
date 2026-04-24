@@ -500,7 +500,13 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
   const extraGuestsTotal = extraGuests * apartment.extraPersonPrice * nights;
   const dogsTotal = booking.dogs * apartment.dogFee * nights;
   const cleaningFee = apartment.cleaningFee;
-  const localTaxTotal = booking.adults * nights * LOCAL_TAX_PER_PERSON_PER_NIGHT;
+
+  // Legacy-Detection: Wenn total_price höher ist als die errechneten Positionen
+  // zzgl. möglicher Kurtaxe, nehmen wir an, dass die Kurtaxe included war.
+  const positionsSum = accommodationTotal + extraGuestsTotal + dogsTotal + cleaningFee;
+  const implicitLocalTax = Math.max(0, booking.total_price - positionsSum);
+  const localTaxTotal =
+    implicitLocalTax > 0.5 ? Math.round(implicitLocalTax * 100) / 100 : 0;
 
   const vatLiableGross = booking.total_price - localTaxTotal;
   const vatAmount =
@@ -535,11 +541,18 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
     formula: "einmalig pauschal",
     amount: cleaningFee,
   });
-  positions.push({
-    title: "Ortstaxe",
-    formula: `${booking.adults} Erw. × ${fmtCurrency(LOCAL_TAX_PER_PERSON_PER_NIGHT)}/Nacht × ${nights} Nächte`,
-    amount: localTaxTotal,
-  });
+  // Kurtaxe nur bei Altbuchungen (wenn sie im total_price steckt)
+  if (localTaxTotal > 0) {
+    const legacyRate =
+      booking.adults > 0 && nights > 0
+        ? Math.round((localTaxTotal / (booking.adults * nights)) * 100) / 100
+        : LOCAL_TAX_PER_PERSON_PER_NIGHT;
+    positions.push({
+      title: "Kurtaxe",
+      formula: `${booking.adults} Erw. × ${fmtCurrency(legacyRate)}/Nacht × ${nights} Nächte`,
+      amount: localTaxTotal,
+    });
+  }
 
   return (
     <Document>
@@ -664,9 +677,16 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
               {fmtCurrency(booking.total_price)}
             </Text>
           </View>
-          <Text style={styles.totalHint}>
-            Ortstaxe ist eine öffentliche Abgabe und nicht umsatzsteuerpflichtig.
-          </Text>
+          {localTaxTotal > 0 ? (
+            <Text style={styles.totalHint}>
+              Kurtaxe ist eine öffentliche Abgabe und nicht umsatzsteuerpflichtig.
+            </Text>
+          ) : (
+            <Text style={styles.totalHint}>
+              Die Kurtaxe wurde bzw. wird vor Ort separat abgerechnet
+              und ist nicht im Gesamtbetrag enthalten.
+            </Text>
+          )}
         </View>
 
         {/* Payment info */}

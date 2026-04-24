@@ -59,6 +59,9 @@ interface BookingData {
   extraPersonPrice?: number;
   dogFeePerNight?: number;
   localTaxPerNight?: number;
+  /** If true, Kurtaxe was included in totalPrice (legacy). If false, add a hint. */
+  localTaxIncluded?: boolean;
+  localTaxExemptAge?: number;
   discountLabel?: string | null;
   discountAmount?: number;
 }
@@ -382,7 +385,17 @@ function priceTable(booking: BookingData): string {
         <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;">Davon 10% MwSt.</td>
         <td style="padding:2px 0;color:${LIGHT_GRAY};font-size:12px;text-align:right;">${formatCurrency(booking.vatAmount)}</td>
       </tr>` : ""}
-    </table>`;
+    </table>
+    ${
+      // Kurtaxe-Hinweis bei neuen Buchungen (nicht im Gesamtpreis)
+      booking.localTaxIncluded === false && booking.localTaxPerNight && booking.localTaxPerNight > 0
+        ? `<div style="margin-top:16px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:${GRAY};line-height:1.5;">
+            <strong style="color:${DARK};">Kurtaxe:</strong>
+            ${formatCurrency(booking.localTaxPerNight)} pro Person ab ${booking.localTaxExemptAge ?? 15} Jahren pro Nacht.
+            Wird <strong>separat vor Ort</strong> abgerechnet und ist <strong>nicht im Gesamtpreis</strong> enthalten.
+          </div>`
+        : ""
+    }`;
 }
 
 function bankDetailsBlock(bankDetails: BankDetails, reference: string, amount?: number): string {

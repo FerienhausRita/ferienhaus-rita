@@ -57,18 +57,33 @@ export default function BookingActions({
     text: string;
   } | null>(null);
 
+  const statusLabels: Record<string, string> = {
+    pending: "Offen/Anfrage",
+    confirmed: "Bestätigt",
+    completed: "Abgeschlossen",
+    cancelled: "Storniert",
+  };
+
   const handleStatusChange = async (newStatus: string) => {
-    if (
-      newStatus === "cancelled" &&
-      !confirm("Buchung wirklich stornieren?")
-    )
+    // Doppelte Bestätigung für jede Statusänderung
+    const fromLabel = statusLabels[currentStatus] ?? currentStatus;
+    const toLabel = statusLabels[newStatus] ?? newStatus;
+
+    if (!confirm(`Status wirklich von "${fromLabel}" auf "${toLabel}" ändern?`)) {
       return;
-    if (
-      newStatus === "confirmed" &&
-      currentStatus === "completed" &&
-      !confirm("Abgeschlossene Buchung wieder öffnen? Sie erscheint dann wieder in den aktiven Listen.")
-    )
-      return;
+    }
+    let secondPrompt = "Die Änderung wird sofort angewendet. Fortfahren?";
+    if (newStatus === "cancelled") {
+      secondPrompt =
+        "ACHTUNG: Die Buchung wird storniert. Zugehörige Reminder werden gestoppt. Wirklich fortfahren?";
+    } else if (newStatus === "confirmed" && currentStatus === "pending") {
+      secondPrompt =
+        "Die Buchung wird bestätigt. Bestätigungsmail und Zahlungs-Reminder werden automatisch versendet. Fortfahren?";
+    } else if (newStatus === "confirmed" && currentStatus === "completed") {
+      secondPrompt =
+        "Abgeschlossene Buchung wird wieder geöffnet und erscheint in den aktiven Listen. Fortfahren?";
+    }
+    if (!confirm(secondPrompt)) return;
 
     setLoading(`status-${newStatus}`);
     setMessage(null);
@@ -86,7 +101,30 @@ export default function BookingActions({
     }
   };
 
+  const paymentLabels: Record<string, string> = {
+    unpaid: "Offen",
+    deposit_paid: "Anzahlung bezahlt",
+    paid: "Vollständig bezahlt",
+    refunded: "Erstattet",
+  };
+
   const handlePaymentChange = async (newStatus: string) => {
+    const fromLabel = paymentLabels[currentPaymentStatus] ?? currentPaymentStatus;
+    const toLabel = paymentLabels[newStatus] ?? newStatus;
+
+    if (
+      !confirm(
+        `Zahlungsstatus von "${fromLabel}" auf "${toLabel}" ändern?`
+      )
+    )
+      return;
+    if (
+      !confirm(
+        "Die Änderung wird sofort gespeichert und kann das Rechnungs-/Reminder-Verhalten beeinflussen. Fortfahren?"
+      )
+    )
+      return;
+
     setLoading("payment");
     setMessage(null);
 

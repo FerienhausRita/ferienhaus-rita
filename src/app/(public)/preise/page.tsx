@@ -281,17 +281,18 @@ export default async function PreisePage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
               <div className="bg-white border border-stone-200 rounded-2xl p-6">
                 <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-stone-900">Ortstaxe</h3>
+                  <h3 className="font-semibold text-stone-900">Kurtaxe</h3>
                   <span className="text-xl font-bold text-[var(--color-gold)]">
                     {formatCurrency(taxConfig.localTaxPerNight)}
                   </span>
                 </div>
                 <p className="text-sm text-stone-600 leading-relaxed">
-                  Pro Person &amp; Nacht. Wird zusätzlich zur
-                  Unterkunft berechnet und an die Gemeinde abgeführt.
+                  Pro Person ab {taxConfig.localTaxExemptAge} Jahren &amp; Nacht.
+                  Wird bei Anreise <strong>separat vor Ort</strong> abgerechnet
+                  und ist nicht im Buchungspreis enthalten.
                 </p>
                 <p className="text-xs text-stone-400 mt-2">
-                  Kinder unter 15 Jahren sind von der Ortstaxe befreit.
+                  Kinder unter {taxConfig.localTaxExemptAge} Jahren sind von der Kurtaxe befreit.
                 </p>
               </div>
               <div className="bg-white border border-stone-200 rounded-2xl p-6">
