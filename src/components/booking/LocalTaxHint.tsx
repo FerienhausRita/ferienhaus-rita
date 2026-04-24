@@ -25,7 +25,7 @@ export default function LocalTaxHint({
   if (variant === "subtle") {
     return (
       <p className="text-[11px] text-stone-400 italic leading-relaxed">
-        Hinweis: Kurtaxe ({rateText}) wird separat vor Ort abgerechnet und
+        Hinweis: Kurtaxe ({rateText}) wird separat abgerechnet und
         ist nicht im Gesamtpreis enthalten.
       </p>
     );
@@ -35,7 +35,7 @@ export default function LocalTaxHint({
     return (
       <div className="text-xs text-stone-500 bg-stone-50 border border-stone-200 rounded-md px-2.5 py-1.5">
         <strong className="text-stone-700">Kurtaxe:</strong> {rateText}.
-        Separat vor Ort zu bezahlen.
+        Wird separat abgerechnet.
       </div>
     );
   }
@@ -58,7 +58,7 @@ export default function LocalTaxHint({
         </svg>
         <div>
           <strong className="text-stone-800">Kurtaxe</strong> (
-          {rateText}) wird <strong>separat vor Ort</strong> abgerechnet und ist
+          {rateText}) wird <strong>separat</strong> abgerechnet und ist
           nicht im Gesamtpreis enthalten.
           {typeof estimate === "number" && estimate > 0 && (
             <>

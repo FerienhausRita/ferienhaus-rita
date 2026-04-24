@@ -489,7 +489,14 @@ function PositionRow({
 // ---------------------------------------------------------------------------
 
 function InvoicePdf({ data }: { data: InvoiceData }) {
-  const { booking, apartment, bankDetails, contact } = data;
+  const { booking, apartment, bankDetails: rawBankDetails, contact } = data;
+  // Defensive fallback: Legacy-Datensätze hatten `holder` statt `account_holder`.
+  const bankDetails: BankDetails = {
+    ...rawBankDetails,
+    account_holder:
+      (rawBankDetails.account_holder && rawBankDetails.account_holder.trim()) ||
+      ((rawBankDetails as unknown as { holder?: string }).holder ?? "").trim(),
+  };
 
   const nights = calculateNights(booking.check_in, booking.check_out);
   const totalGuests = booking.adults + booking.children;
@@ -683,7 +690,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
             </Text>
           ) : (
             <Text style={styles.totalHint}>
-              Die Kurtaxe wurde bzw. wird vor Ort separat abgerechnet
+              Die Kurtaxe wurde bzw. wird separat abgerechnet
               und ist nicht im Gesamtbetrag enthalten.
             </Text>
           )}

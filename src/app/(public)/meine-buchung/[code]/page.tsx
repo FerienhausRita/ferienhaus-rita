@@ -6,6 +6,7 @@ import Link from "next/link";
 import Container from "@/components/ui/Container";
 import { verifyGuestToken } from "@/lib/guest-auth";
 import { createServerClient } from "@/lib/supabase/server";
+import { normalizeBankDetails } from "@/lib/bank-details";
 import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import LocalTaxHint from "@/components/booking/LocalTaxHint";
@@ -125,12 +126,9 @@ export default async function BookingOverviewPage({
     .eq("key", "bank_details")
     .single();
 
-  const bankDetails = bankRow?.value as {
-    iban?: string;
-    bic?: string;
-    account_holder?: string;
-    bank_name?: string;
-  } | null;
+  const bankDetails = normalizeBankDetails(
+    bankRow?.value as Record<string, unknown> | null | undefined
+  );
 
   // --- Derived data ---
   const checkIn = new Date(booking.check_in);

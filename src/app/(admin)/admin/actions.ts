@@ -4,6 +4,7 @@ import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { createServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendBookingConfirmed, sendCustomEmail, type BankDetails } from "@/lib/email";
+import { normalizeBankDetails } from "@/lib/bank-details";
 import { getApartmentWithPricing } from "@/lib/pricing-data";
 
 /**
@@ -451,7 +452,9 @@ export async function updateBookingStatus(
           .select("value")
           .eq("key", "bank_details")
           .single();
-        const bankDetails = bankRow?.value as BankDetails | null;
+        const bankDetails = normalizeBankDetails(
+          bankRow?.value as Record<string, unknown> | null | undefined
+        ) as BankDetails | null;
 
         // Recalculate full breakdown for detailed email line items
         const { recalculateBookingPrices } = await import("@/lib/pricing-data");
@@ -1262,7 +1265,9 @@ export async function resendConfirmation(bookingId: string) {
       .select("value")
       .eq("key", "bank_details")
       .single();
-    const bankDetails = bankRow?.value as BankDetails | null;
+    const bankDetails = normalizeBankDetails(
+      bankRow?.value as Record<string, unknown> | null | undefined
+    ) as BankDetails | null;
 
     await sendBookingConfirmed(
       {
@@ -2877,7 +2882,9 @@ export async function createManualBooking(data: {
         .select("value")
         .eq("key", "bank_details")
         .single();
-      const manualBankDetails = bankRow?.value as BankDetails | null;
+      const manualBankDetails = normalizeBankDetails(
+        bankRow?.value as Record<string, unknown> | null | undefined
+      ) as BankDetails | null;
 
       await sendBookingConfirmed(
         {

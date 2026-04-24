@@ -288,7 +288,7 @@ export default async function PreisePage() {
                 </div>
                 <p className="text-sm text-stone-600 leading-relaxed">
                   Pro Person ab {taxConfig.localTaxExemptAge} Jahren &amp; Nacht.
-                  Wird bei Anreise <strong>separat vor Ort</strong> abgerechnet
+                  Wird <strong>separat</strong> abgerechnet
                   und ist nicht im Buchungspreis enthalten.
                 </p>
                 <p className="text-xs text-stone-400 mt-2">

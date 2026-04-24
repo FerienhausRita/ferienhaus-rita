@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments, getGuestRatingByEmail } from "../../actions";
 import { formatAdminDateTime } from "@/lib/format-datetime";
+import { normalizeBankDetails } from "@/lib/bank-details";
 import { getApartmentWithPricing, getTaxConfigFromDB, getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import BookingDetailsEditor from "@/components/admin/BookingDetailsEditor";
 import BookingActions from "@/components/admin/BookingActions";
@@ -399,7 +400,7 @@ export default async function BookingDetailPage({
             checkIn={booking.check_in}
             checkOut={booking.check_out}
             apartmentName={apartment?.name || ""}
-            bankDetails={bankDetails as { iban?: string; bic?: string; account_holder?: string; bank_name?: string } | null}
+            bankDetails={normalizeBankDetails(bankDetails as Record<string, unknown> | null | undefined)}
           />
 
           {/* Internal Notes */}

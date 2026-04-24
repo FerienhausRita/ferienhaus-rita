@@ -389,21 +389,39 @@ function priceTable(booking: BookingData): string {
     ${
       // Kurtaxe-Hinweis bei neuen Buchungen (nicht im Gesamtpreis)
       booking.localTaxIncluded === false && booking.localTaxPerNight && booking.localTaxPerNight > 0
-        ? `<div style="margin-top:16px;padding:12px 16px;background:#fffbeb;border:1px solid #fde68a;border-radius:8px;font-size:13px;color:${GRAY};line-height:1.5;">
-            <strong style="color:${DARK};">Kurtaxe:</strong>
-            ${formatCurrency(booking.localTaxPerNight)} pro Person ab ${booking.localTaxExemptAge ?? 15} Jahren pro Nacht.
-            Wird <strong>separat vor Ort</strong> abgerechnet und ist <strong>nicht im Gesamtpreis</strong> enthalten.
-          </div>`
+        ? (() => {
+            const estimate =
+              Math.round(
+                (booking.adults || 0) * booking.nights * booking.localTaxPerNight! * 100
+              ) / 100;
+            return `<div style="margin-top:16px;padding:14px 18px;background:#fffbeb;border:1px solid #fde68a;border-radius:10px;font-size:13px;color:${GRAY};line-height:1.6;">
+              <p style="margin:0 0 6px;font-weight:700;color:${DARK};">ℹ️ Hinweis: zusätzliche Ortstaxe</p>
+              <p style="margin:0 0 6px;">
+                Zusätzlich zum oben ausgewiesenen Gesamtpreis wird die gesetzliche Ortstaxe
+                <strong>separat</strong> abgerechnet:
+                <strong>${formatCurrency(booking.localTaxPerNight!)} pro Person ab ${booking.localTaxExemptAge ?? 15} Jahren pro Nacht</strong>.
+              </p>
+              ${
+                estimate > 0
+                  ? `<p style="margin:0;">Beispiel für diese Buchung: ca. <strong>${formatCurrency(estimate)}</strong> (abhängig vom tatsächlichen Alter der Gäste).</p>`
+                  : ""
+              }
+            </div>`;
+          })()
         : ""
     }`;
 }
 
 function bankDetailsBlock(bankDetails: BankDetails, reference: string, amount?: number): string {
+  // Defensive fallback: falls Legacy-Datensatz noch `holder` statt `account_holder` mitbringt
+  const holder =
+    (bankDetails.account_holder && bankDetails.account_holder.trim()) ||
+    ((bankDetails as unknown as { holder?: string }).holder ?? "").trim();
   return `
     <div style="background:${CARD_BG};border-radius:10px;padding:20px 24px;margin:16px 0;border-left:4px solid ${GOLD};">
       <p style="margin:0 0 12px;font-size:14px;font-weight:700;color:${DARK};">Bankverbindung</p>
       <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
-        ${bankDetails.account_holder ? detailRow("Empfänger", escapeHtml(bankDetails.account_holder), { bold: true }) : ""}
+        ${holder ? detailRow("Empfänger", escapeHtml(holder), { bold: true }) : ""}
         ${bankDetails.iban ? detailRow("IBAN", escapeHtml(bankDetails.iban), { bold: true }) : ""}
         ${bankDetails.bic ? detailRow("BIC", escapeHtml(bankDetails.bic), { bold: true }) : ""}
         ${bankDetails.bank_name ? detailRow("Bank", escapeHtml(bankDetails.bank_name), { bold: true }) : ""}

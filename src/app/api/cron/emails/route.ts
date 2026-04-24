@@ -108,7 +108,21 @@ async function loadSiteSetting<T>(
     .select("value")
     .eq("key", key)
     .single();
-  return (data?.value as T) ?? null;
+  if (!data?.value) return null;
+  // Apply defensive normalizer for bank_details (account_holder ?? holder)
+  if (key === "bank_details") {
+    const raw = data.value as Record<string, unknown>;
+    const holder =
+      (((raw.account_holder as string | undefined) ?? "").trim()) ||
+      (((raw.holder as string | undefined) ?? "").trim());
+    return {
+      iban: ((raw.iban as string) ?? "").trim(),
+      bic: ((raw.bic as string) ?? "").trim(),
+      bank_name: ((raw.bank_name as string) ?? "").trim(),
+      account_holder: holder,
+    } as T;
+  }
+  return (data.value as T) ?? null;
 }
 
 // ---------------------------------------------------------------------------

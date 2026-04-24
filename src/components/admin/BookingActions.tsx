@@ -16,6 +16,7 @@ const statusTransitions: Record<string, { label: string; next: string; className
   ],
   confirmed: [
     { label: "Abschließen", next: "completed", className: "bg-stone-800 hover:bg-stone-900 text-white" },
+    { label: "Zurück zu Offen", next: "pending", className: "bg-amber-100 hover:bg-amber-200 text-amber-700" },
     { label: "Stornieren", next: "cancelled", className: "bg-red-100 hover:bg-red-200 text-red-700" },
   ],
   completed: [
@@ -82,6 +83,9 @@ export default function BookingActions({
     } else if (newStatus === "confirmed" && currentStatus === "completed") {
       secondPrompt =
         "Abgeschlossene Buchung wird wieder geöffnet und erscheint in den aktiven Listen. Fortfahren?";
+    } else if (newStatus === "pending" && currentStatus === "confirmed") {
+      secondPrompt =
+        "Status auf 'Offen' zurücksetzen? Es werden KEINE erneuten Bestätigungsmails oder Anzahlungsrechnungen ausgelöst, Zahlungsstatus bleibt unverändert. Fortfahren?";
     }
     if (!confirm(secondPrompt)) return;
 

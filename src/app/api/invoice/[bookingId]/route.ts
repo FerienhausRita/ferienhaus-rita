@@ -4,6 +4,7 @@ import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentWithPricing } from "@/lib/pricing-data";
 import { contact } from "@/data/contact";
 import { generateInvoicePdf } from "@/lib/invoice-pdf";
+import { normalizeBankDetails } from "@/lib/bank-details";
 import { verifyGuestToken } from "@/lib/guest-auth";
 
 /**
@@ -139,7 +140,9 @@ export async function GET(
     .eq("key", "bank_details")
     .single();
 
-  const bankDetails = bankRow?.value ?? {};
+  const bankDetails = normalizeBankDetails(
+    bankRow?.value as Record<string, unknown> | null | undefined
+  ) ?? { iban: "", bic: "", account_holder: "", bank_name: "" };
 
   // --- Generate PDF ---
   try {
