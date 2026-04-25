@@ -377,46 +377,19 @@ export async function updateBookingStatus(
 
   if (status === "confirmed" && booking.status !== "confirmed" && !isExternalBooking) {
     try {
-      const { data: depositConfigRow } = await supabase
-        .from("site_settings")
-        .select("value")
-        .eq("key", "deposit_config")
-        .single();
-
-      const depositConfig = depositConfigRow?.value as {
-        deposit_percent?: number;
-        deposit_due_days?: number;
-        remainder_days_before_checkin?: number;
-      } | null;
-
-      const depositPercent = depositConfig?.deposit_percent ?? 30;
-      const depositDueDays = depositConfig?.deposit_due_days ?? 14;
-      const remainderDaysBefore = depositConfig?.remainder_days_before_checkin ?? 30;
-
-      const totalPrice = Number(booking.total_price || 0);
-      const now = new Date();
-      const ciDate = new Date(booking.check_in + "T00:00:00Z");
-      const daysUntilCheckin = Math.ceil((ciDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-
-      if (daysUntilCheckin > remainderDaysBefore) {
-        // Split payment: deposit now, remainder later
-        const depositAmount = Math.round(totalPrice * (depositPercent / 100) * 100) / 100;
-        const remainderAmount = Math.round((totalPrice - depositAmount) * 100) / 100;
-
-        const depositDueDate = new Date(now.getTime() + depositDueDays * 24 * 60 * 60 * 1000);
-        const remainderDueDate = new Date(ciDate.getTime() - remainderDaysBefore * 24 * 60 * 60 * 1000);
-
-        updateData.deposit_amount = depositAmount;
-        updateData.deposit_due_date = depositDueDate.toISOString().split("T")[0];
-        updateData.remainder_amount = remainderAmount;
-        updateData.remainder_due_date = remainderDueDate.toISOString().split("T")[0];
-      } else {
-        // Full payment due immediately (check-in too close for split)
-        updateData.deposit_amount = totalPrice;
-        updateData.deposit_due_date = new Date(now.getTime() + depositDueDays * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
-        updateData.remainder_amount = 0;
-        updateData.remainder_due_date = null;
-      }
+      const { getDepositConfig, computeDepositSplit } = await import(
+        "@/lib/deposit-config"
+      );
+      const cfg = await getDepositConfig();
+      const split = computeDepositSplit({
+        totalPrice: Number(booking.total_price || 0),
+        checkIn: booking.check_in as string,
+        config: cfg,
+      });
+      updateData.deposit_amount = split.deposit_amount;
+      updateData.deposit_due_date = split.deposit_due_date;
+      updateData.remainder_amount = split.remainder_amount;
+      updateData.remainder_due_date = split.remainder_due_date;
     } catch (depositError) {
       console.error("Error calculating deposit:", depositError);
     }
@@ -2724,6 +2697,28 @@ export async function updateBookingDetails(
           payload.price_per_night = breakdown.basePrice;
           payload.cleaning_fee = breakdown.cleaningFee;
           payload.total_price = breakdown.total;
+
+          // Anzahlung & Restbetrag mit dem neuen Total proportional anpassen —
+          // aber nur, wenn noch nichts bezahlt ist und die Buchung schon
+          // bestätigt war (sonst werden die Werte erst beim Bestätigen gesetzt).
+          const nothingPaid =
+            !booking.deposit_paid_at && !booking.remainder_paid_at;
+          const wasConfirmed = booking.status === "confirmed";
+          if (nothingPaid && wasConfirmed) {
+            const { getDepositConfig, computeDepositSplit } = await import(
+              "@/lib/deposit-config"
+            );
+            const cfg = await getDepositConfig();
+            const split = computeDepositSplit({
+              totalPrice: breakdown.total,
+              checkIn: merged.check_in,
+              config: cfg,
+            });
+            payload.deposit_amount = split.deposit_amount;
+            payload.deposit_due_date = split.deposit_due_date;
+            payload.remainder_amount = split.remainder_amount;
+            payload.remainder_due_date = split.remainder_due_date;
+          }
         }
       } else if (datesOrApartmentChanged) {
         // Fallback: zumindest nights mitziehen, falls recalc null lieferte
@@ -3648,21 +3643,31 @@ export async function updateBookingPrices(
   // Update deposit/remainder proportionally if they exist
   const { data: booking } = await supabase
     .from("bookings")
-    .select("deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status")
+    .select("deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status, check_in")
     .eq("id", bookingId)
     .single();
 
   if (booking && booking.deposit_amount && !booking.deposit_paid_at && !booking.remainder_paid_at) {
-    // Recalculate deposit/remainder split only if nothing paid yet
-    const { getDepositConfig } = await import("@/lib/deposit-config");
+    // Recalculate deposit/remainder mit Anreise-Check — bei Anreise innerhalb
+    // der Restbetrag-Frist gibt es keine Anzahlung mehr, sondern Volldeposition.
+    const { getDepositConfig, computeDepositSplit } = await import(
+      "@/lib/deposit-config"
+    );
     const depositCfg = await getDepositConfig();
-    const depositAmount =
-      Math.round(totalPrice * (depositCfg.deposit_percent / 100) * 100) / 100;
-    const remainderAmount = Math.round((totalPrice - depositAmount) * 100) / 100;
+    const split = computeDepositSplit({
+      totalPrice,
+      checkIn: booking.check_in as string,
+      config: depositCfg,
+    });
 
     await supabase
       .from("bookings")
-      .update({ deposit_amount: depositAmount, remainder_amount: remainderAmount })
+      .update({
+        deposit_amount: split.deposit_amount,
+        deposit_due_date: split.deposit_due_date,
+        remainder_amount: split.remainder_amount,
+        remainder_due_date: split.remainder_due_date,
+      })
       .eq("id", bookingId);
   }
 
