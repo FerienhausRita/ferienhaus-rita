@@ -15,8 +15,12 @@ interface ApartmentPricingData {
   summer_price: number;
   winter_price: number;
   extra_person_price: number;
+  extra_adult_price?: number;
+  extra_child_price?: number;
   cleaning_fee: number;
   dog_fee: number;
+  first_dog_fee?: number;
+  additional_dog_fee?: number;
   min_nights_summer: number;
   min_nights_winter: number;
 }
@@ -70,9 +74,13 @@ function ApartmentPricingCard({
 }) {
   const [summerPrice, setSummerPrice] = useState(apt.summer_price);
   const [winterPrice, setWinterPrice] = useState(apt.winter_price);
-  const [extraPersonPrice, setExtraPersonPrice] = useState(apt.extra_person_price);
+  const [extraAdultPrice, setExtraAdultPrice] = useState(
+    apt.extra_adult_price ?? apt.extra_person_price
+  );
+  const [extraChildPrice, setExtraChildPrice] = useState(apt.extra_child_price ?? 20);
   const [cleaningFee, setCleaningFee] = useState(apt.cleaning_fee);
-  const [dogFee, setDogFee] = useState(apt.dog_fee);
+  const [firstDogFee, setFirstDogFee] = useState(apt.first_dog_fee ?? apt.dog_fee);
+  const [additionalDogFee, setAdditionalDogFee] = useState(apt.additional_dog_fee ?? 7.5);
   const [minNightsSummer, setMinNightsSummer] = useState(apt.min_nights_summer);
   const [minNightsWinter, setMinNightsWinter] = useState(apt.min_nights_winter);
   const [saving, setSaving] = useState(false);
@@ -88,9 +96,13 @@ function ApartmentPricingCard({
       summer_price: summerPrice,
       winter_price: winterPrice,
       base_price: summerPrice, // Keep base_price synced for legacy compatibility
-      extra_person_price: extraPersonPrice,
+      extra_person_price: extraAdultPrice, // Legacy-Feld auf Erw.-Preis spiegeln
+      extra_adult_price: extraAdultPrice,
+      extra_child_price: extraChildPrice,
       cleaning_fee: cleaningFee,
-      dog_fee: dogFee,
+      dog_fee: firstDogFee, // Legacy-Feld auf 1.-Hund-Preis spiegeln
+      first_dog_fee: firstDogFee,
+      additional_dog_fee: additionalDogFee,
       min_nights_summer: minNightsSummer,
       min_nights_winter: minNightsWinter,
     });
@@ -174,17 +186,30 @@ function ApartmentPricingCard({
       </div>
 
       {/* Fixed fees */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-1">
-            Zusatzperson/Nacht
+            Zusatz-Erw./Nacht
           </label>
           <input
             type="number"
             step="0.01"
             min="0"
-            value={extraPersonPrice}
-            onChange={(e) => setExtraPersonPrice(Number(e.target.value))}
+            value={extraAdultPrice}
+            onChange={(e) => setExtraAdultPrice(Number(e.target.value))}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-stone-500 mb-1">
+            Kind bis 12 J./Nacht
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={extraChildPrice}
+            onChange={(e) => setExtraChildPrice(Number(e.target.value))}
             className={inputClass}
           />
         </div>
@@ -203,14 +228,27 @@ function ApartmentPricingCard({
         </div>
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-1">
-            Hundegebühr/Nacht
+            1. Hund/Nacht
           </label>
           <input
             type="number"
             step="0.01"
             min="0"
-            value={dogFee}
-            onChange={(e) => setDogFee(Number(e.target.value))}
+            value={firstDogFee}
+            onChange={(e) => setFirstDogFee(Number(e.target.value))}
+            className={inputClass}
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-stone-500 mb-1">
+            jeder weitere Hund/Nacht
+          </label>
+          <input
+            type="number"
+            step="0.01"
+            min="0"
+            value={additionalDogFee}
+            onChange={(e) => setAdditionalDogFee(Number(e.target.value))}
             className={inputClass}
           />
         </div>

@@ -377,7 +377,7 @@ export default function BookingFlow({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-2">Kinder</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">Kinder (bis 12 J.)</label>
                   <select value={search.children}
                     onChange={(e) => setSearch({ ...search, children: parseInt(e.target.value) })}
                     className={inputClasses}>

@@ -37,7 +37,20 @@ export default async function PreisePage() {
   );
   const editorApartments = allApartments.map((a) => {
     const dbRow = pricingMap.get(a.id) as
-      | { base_price: number; summer_price: number; winter_price: number; extra_person_price: number; cleaning_fee: number; dog_fee: number; min_nights_summer: number; min_nights_winter: number }
+      | {
+          base_price: number;
+          summer_price: number;
+          winter_price: number;
+          extra_person_price: number;
+          extra_adult_price?: number;
+          extra_child_price?: number;
+          cleaning_fee: number;
+          dog_fee: number;
+          first_dog_fee?: number;
+          additional_dog_fee?: number;
+          min_nights_summer: number;
+          min_nights_winter: number;
+        }
       | undefined;
     return {
       id: a.id,
@@ -45,8 +58,24 @@ export default async function PreisePage() {
       summer_price: dbRow?.summer_price ? Number(dbRow.summer_price) : a.summerPrice,
       winter_price: dbRow?.winter_price ? Number(dbRow.winter_price) : a.winterPrice,
       extra_person_price: dbRow ? Number(dbRow.extra_person_price) : a.extraPersonPrice,
+      extra_adult_price:
+        dbRow?.extra_adult_price != null
+          ? Number(dbRow.extra_adult_price)
+          : a.extraAdultPrice ?? a.extraPersonPrice,
+      extra_child_price:
+        dbRow?.extra_child_price != null
+          ? Number(dbRow.extra_child_price)
+          : a.extraChildPrice ?? 20,
       cleaning_fee: dbRow ? Number(dbRow.cleaning_fee) : a.cleaningFee,
       dog_fee: dbRow ? Number(dbRow.dog_fee) : a.dogFee,
+      first_dog_fee:
+        dbRow?.first_dog_fee != null
+          ? Number(dbRow.first_dog_fee)
+          : a.firstDogFee ?? a.dogFee,
+      additional_dog_fee:
+        dbRow?.additional_dog_fee != null
+          ? Number(dbRow.additional_dog_fee)
+          : a.additionalDogFee ?? 7.5,
       min_nights_summer: dbRow?.min_nights_summer ? Number(dbRow.min_nights_summer) : a.minNightsSummer,
       min_nights_winter: dbRow?.min_nights_winter ? Number(dbRow.min_nights_winter) : a.minNightsWinter,
     };

@@ -190,7 +190,7 @@ export default function BookingDetailsEditor({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Kinder</label>
+            <label className="block text-xs text-stone-500 mb-1">Kinder (bis 12 J.)</label>
             <input
               type="number"
               min={0}

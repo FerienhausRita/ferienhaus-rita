@@ -175,9 +175,15 @@ export default async function ApartmentDetailPage({ params }: Props) {
 
               <div className="space-y-3 mb-6 text-sm text-stone-600">
                 <div className="flex justify-between">
-                  <span>Weitere Person</span>
+                  <span>Weitere Person (Erw.)</span>
                   <span className="font-medium">
-                    +{formatCurrency(apartment.extraPersonPrice)} / Nacht
+                    +{formatCurrency(apartment.extraAdultPrice ?? apartment.extraPersonPrice)} / Nacht
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>Kind (bis 12 J.)</span>
+                  <span className="font-medium">
+                    +{formatCurrency(apartment.extraChildPrice ?? 20)} / Nacht
                   </span>
                 </div>
                 <div className="flex justify-between">
@@ -187,9 +193,15 @@ export default async function ApartmentDetailPage({ params }: Props) {
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Hund</span>
+                  <span>1. Hund</span>
                   <span className="font-medium">
-                    +{formatCurrency(apartment.dogFee)} / Nacht
+                    +{formatCurrency(apartment.firstDogFee ?? apartment.dogFee)} / Nacht
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span>jeder weitere Hund</span>
+                  <span className="font-medium">
+                    +{formatCurrency(apartment.additionalDogFee ?? 7.5)} / Nacht
                   </span>
                 </div>
               </div>

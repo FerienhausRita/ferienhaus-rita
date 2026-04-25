@@ -17,9 +17,19 @@ export interface Apartment {
   summerPrice: number;
   /** Winter price per night (Dec 1 – Apr 30) */
   winterPrice: number;
+  /** @deprecated — fallback only. Use extraAdultPrice / extraChildPrice. */
   extraPersonPrice: number;
+  /** Aufpreis je zusätzlichem Erwachsenen / Nacht. */
+  extraAdultPrice: number;
+  /** Aufpreis je Kind (bis 12 Jahre) / Nacht. */
+  extraChildPrice: number;
   cleaningFee: number;
+  /** @deprecated — fallback only. Use firstDogFee / additionalDogFee. */
   dogFee: number;
+  /** Gebühr 1. Hund / Nacht. */
+  firstDogFee: number;
+  /** Gebühr ab 2. Hund / Nacht. */
+  additionalDogFee: number;
   /** Min nights in summer season */
   minNightsSummer: number;
   /** Min nights in winter season */
@@ -55,9 +65,13 @@ export const apartments: Apartment[] = [
     basePrice: 170,
     summerPrice: 170,
     winterPrice: 170,
-    extraPersonPrice: 20,
+    extraPersonPrice: 30,
+    extraAdultPrice: 30,
+    extraChildPrice: 20,
     cleaningFee: 100,
     dogFee: 15,
+    firstDogFee: 15,
+    additionalDogFee: 7.50,
     minNightsSummer: 3,
     minNightsWinter: 5,
     features: [
@@ -150,9 +164,13 @@ export const apartments: Apartment[] = [
     basePrice: 170,
     summerPrice: 170,
     winterPrice: 170,
-    extraPersonPrice: 20,
+    extraPersonPrice: 30,
+    extraAdultPrice: 30,
+    extraChildPrice: 20,
     cleaningFee: 100,
     dogFee: 15,
+    firstDogFee: 15,
+    additionalDogFee: 7.50,
     minNightsSummer: 3,
     minNightsWinter: 5,
     features: [
@@ -247,9 +265,13 @@ export const apartments: Apartment[] = [
     basePrice: 90,
     summerPrice: 90,
     winterPrice: 90,
-    extraPersonPrice: 20,
+    extraPersonPrice: 30,
+    extraAdultPrice: 30,
+    extraChildPrice: 20,
     cleaningFee: 50,
     dogFee: 15,
+    firstDogFee: 15,
+    additionalDogFee: 7.50,
     minNightsSummer: 3,
     minNightsWinter: 5,
     features: [
@@ -329,9 +351,13 @@ export const apartments: Apartment[] = [
     basePrice: 90,
     summerPrice: 90,
     winterPrice: 90,
-    extraPersonPrice: 20,
+    extraPersonPrice: 30,
+    extraAdultPrice: 30,
+    extraChildPrice: 20,
     cleaningFee: 50,
     dogFee: 15,
+    firstDogFee: 15,
+    additionalDogFee: 7.50,
     minNightsSummer: 3,
     minNightsWinter: 5,
     features: [

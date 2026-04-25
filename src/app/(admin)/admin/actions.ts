@@ -390,7 +390,7 @@ export async function updateBookingStatus(
       } | null;
 
       const depositPercent = depositConfig?.deposit_percent ?? 30;
-      const depositDueDays = depositConfig?.deposit_due_days ?? 7;
+      const depositDueDays = depositConfig?.deposit_due_days ?? 14;
       const remainderDaysBefore = depositConfig?.remainder_days_before_checkin ?? 30;
 
       const totalPrice = Number(booking.total_price || 0);
@@ -514,7 +514,15 @@ export async function updateBookingStatus(
               ? Math.round((breakdown.extraGuestsTotal / (breakdown.extraGuests * nights)) * 100) / 100
               : apartment.extraPersonPrice
             : undefined,
+          extraAdults: breakdown?.extraAdults,
+          extraAdultsTotal: breakdown?.extraAdultsTotal,
+          extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+          extraChildren: breakdown?.extraChildren,
+          extraChildrenTotal: breakdown?.extraChildrenTotal,
+          extraChildPrice: apartment.extraChildPrice ?? apartment.extraPersonPrice,
           dogFeePerNight: apartment.dogFee,
+          firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
+          additionalDogFee: apartment.additionalDogFee ?? apartment.dogFee,
           localTaxPerNight: breakdown?.localTaxPerNight,
           localTaxIncluded: breakdown?.localTaxIncluded,
           localTaxExemptAge: breakdown?.localTaxExemptAge,
@@ -550,7 +558,7 @@ export async function updateBookingStatus(
         thankyou_days?: number;
       } | null;
 
-      const paymentDays = timing?.payment_reminder_days ?? 7;
+      const paymentDays = timing?.payment_reminder_days ?? 14;
       const checkinDays = timing?.checkin_info_days ?? 3;
       const thankyouDays = timing?.thankyou_days ?? 1;
 
@@ -579,6 +587,19 @@ export async function updateBookingStatus(
             status: "pending",
           });
         }
+      }
+
+      // Admin-Payment-Check 7 Tage nach Bestätigung — interner Reminder,
+      // damit Admin manuell prüft, ob Anzahlung eingegangen ist.
+      const adminPaymentCheck = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      adminPaymentCheck.setUTCHours(8, 0, 0, 0);
+      if (adminPaymentCheck > now) {
+        scheduledEmails.push({
+          booking_id: bookingId,
+          email_type: "admin_payment_check_7d",
+          scheduled_for: adminPaymentCheck.toISOString(),
+          status: "pending",
+        });
       }
 
       // Schedule remainder reminder (if split payment)
@@ -1293,6 +1314,17 @@ export async function resendConfirmation(bookingId: string) {
         dogsTotal: Number(booking.dogs_total),
         cleaningFee: Number(booking.cleaning_fee),
         localTaxTotal: Number(booking.local_tax_total || 0),
+        // Aufgespaltene Zusatzgast-Werte (von tatsächlicher Personenzahl + Apartment-Preisen abgeleitet)
+        extraAdults: Math.max(0, booking.adults - apartment.baseGuests),
+        extraChildren: Math.max(
+          0,
+          booking.adults + (booking.children || 0) - apartment.baseGuests -
+            Math.max(0, booking.adults - apartment.baseGuests)
+        ),
+        extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+        extraChildPrice: apartment.extraChildPrice ?? 20,
+        firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
+        additionalDogFee: apartment.additionalDogFee ?? 7.5,
         vatAmount,
         depositAmount: booking.deposit_amount ? Number(booking.deposit_amount) : undefined,
         depositDueDate: booking.deposit_due_date || undefined,
@@ -2352,8 +2384,12 @@ export async function updateApartmentPricing(
     winter_price?: number;
     base_price?: number;
     extra_person_price: number;
+    extra_adult_price?: number;
+    extra_child_price?: number;
     cleaning_fee: number;
     dog_fee: number;
+    first_dog_fee?: number;
+    additional_dog_fee?: number;
     min_nights_summer?: number;
     min_nights_winter?: number;
   }
@@ -2659,7 +2695,12 @@ export async function updateBookingDetails(
     merged.children !== booking.children ||
     merged.dogs !== booking.dogs;
 
-  if (!isExternal && priceRelevantChanged) {
+  // Personenzahl/Hund/Datum/Wohnung wirken sich immer auf die ABHÄNGIGEN
+  // Positionen (extra_guests_total, dogs_total, local_tax_total, nights) aus —
+  // die müssen mitwandern, damit Anzeige und gespeicherter Stand übereinstimmen.
+  // Den Gesamtpreis (manuell eingetragen bei externen Channels) lassen wir bei
+  // Plattform-Buchungen unangetastet.
+  if (priceRelevantChanged) {
     try {
       const { recalculateBookingPrices } = await import("@/lib/pricing-data");
       const breakdown = await recalculateBookingPrices({
@@ -2671,27 +2712,31 @@ export async function updateBookingDetails(
         dogs: merged.dogs,
       });
       if (breakdown) {
+        // Personen-/Datum-abhängige Positionen → immer recalcen
         payload.nights = breakdown.nights;
-        payload.price_per_night = breakdown.basePrice;
         payload.extra_guests_total = breakdown.extraGuestsTotal;
         payload.dogs_total = breakdown.dogsTotal;
-        payload.cleaning_fee = breakdown.cleaningFee;
         payload.local_tax_total = breakdown.localTaxTotal;
-        payload.total_price = breakdown.total;
-        // Hinweis: `vat_amount` existiert nicht als Spalte — MwSt wird bei
-        // Bedarf on-the-fly aus total_price & local_tax_total berechnet.
+
+        // Apartment-spezifische Felder + Gesamtpreis nur für Website-Buchungen.
+        // Externe Channels behalten ihren manuell eingetragenen Total.
+        if (!isExternal) {
+          payload.price_per_night = breakdown.basePrice;
+          payload.cleaning_fee = breakdown.cleaningFee;
+          payload.total_price = breakdown.total;
+        }
+      } else if (datesOrApartmentChanged) {
+        // Fallback: zumindest nights mitziehen, falls recalc null lieferte
+        const nights = Math.ceil(
+          (new Date(merged.check_out).getTime() -
+            new Date(merged.check_in).getTime()) /
+            (1000 * 60 * 60 * 24)
+        );
+        payload.nights = nights;
       }
     } catch (e) {
       console.error("Recalculate on detail update failed:", e);
     }
-  } else if (datesOrApartmentChanged) {
-    // nights updaten auch für externe Kanäle
-    const nights = Math.ceil(
-      (new Date(merged.check_out).getTime() -
-        new Date(merged.check_in).getTime()) /
-        (1000 * 60 * 60 * 24)
-    );
-    payload.nights = nights;
   }
 
   const { error: updateError } = await supabase
@@ -2761,6 +2806,10 @@ export async function createManualBooking(data: {
         basePrice: nights > 0 ? Math.round(((manualTotal - manualCleaning) / nights) * 100) / 100 : 0,
         basePriceTotal: manualTotal - manualCleaning,
         extraGuestsTotal: 0,
+        extraAdults: 0,
+        extraAdultsTotal: 0,
+        extraChildren: 0,
+        extraChildrenTotal: 0,
         dogsTotal: 0,
         cleaningFee: manualCleaning,
         localTaxTotal: 0,
@@ -2912,6 +2961,14 @@ export async function createManualBooking(data: {
           cleaningFee: breakdown.cleaningFee,
           localTaxTotal: breakdown.localTaxTotal || 0,
           vatAmount: breakdown.vatAmount,
+          extraAdults: breakdown.extraAdults,
+          extraAdultsTotal: breakdown.extraAdultsTotal,
+          extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+          extraChildren: breakdown.extraChildren,
+          extraChildrenTotal: breakdown.extraChildrenTotal,
+          extraChildPrice: apartment.extraChildPrice ?? 20,
+          firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
+          additionalDogFee: apartment.additionalDogFee ?? 7.5,
         },
         apartment,
         { bankDetails: manualBankDetails || undefined }
@@ -3100,7 +3157,7 @@ export async function scheduleBookingEmails(bookingId: string, checkIn: string, 
     thankyou_days: number
   } | null;
 
-  const paymentDays = timing?.payment_reminder_days ?? 7;
+  const paymentDays = timing?.payment_reminder_days ?? 14;
   const checkinDays = timing?.checkin_info_days ?? 3;
   const thankyouDays = timing?.thankyou_days ?? 1;
 

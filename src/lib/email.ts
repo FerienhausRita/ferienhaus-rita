@@ -2,6 +2,7 @@ import nodemailer from "nodemailer";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import { Apartment } from "@/data/apartments";
 import { contact } from "@/data/contact";
+import { greeting } from "@/lib/salutation";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -57,7 +58,16 @@ interface BookingData {
   }>;
   extraGuests?: number;
   extraPersonPrice?: number;
+  /** Aufgespaltene Zusatzpersonen (neue Pricing-Engine) */
+  extraAdults?: number;
+  extraAdultPrice?: number;
+  extraAdultsTotal?: number;
+  extraChildren?: number;
+  extraChildPrice?: number;
+  extraChildrenTotal?: number;
   dogFeePerNight?: number;
+  firstDogFee?: number;
+  additionalDogFee?: number;
   localTaxPerNight?: number;
   /** If true, Kurtaxe was included in totalPrice (legacy). If false, add a hint. */
   localTaxIncluded?: boolean;
@@ -331,23 +341,51 @@ function priceTable(booking: BookingData): string {
         { alignRight: true }
       );
 
-  const extraGuestsRow =
-    booking.extraGuestsTotal > 0 && extraGuests > 0
-      ? detailRow(
-          `${extraGuests} Zusatzgast${extraGuests > 1 ? "e" : ""} &times; ${formatCurrency(extraPersonPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
-          formatCurrency(booking.extraGuestsTotal),
-          { alignRight: true }
-        )
-      : "";
+  // Zusatzgäste: aufgespalten Erwachsene/Kinder, falls neue Felder vorhanden
+  const extraAdults = booking.extraAdults ?? 0;
+  const extraChildren = booking.extraChildren ?? 0;
+  const splitAvailable = (extraAdults > 0 || extraChildren > 0) &&
+    (booking.extraAdultPrice != null || booking.extraChildPrice != null);
 
-  const dogsRow =
-    booking.dogsTotal > 0 && booking.dogs > 0
-      ? detailRow(
-          `${booking.dogs} Hund${booking.dogs > 1 ? "e" : ""} &times; ${formatCurrency(dogFeePerNight)}/Nacht &times; ${booking.nights} N&auml;chte`,
-          formatCurrency(booking.dogsTotal),
-          { alignRight: true }
-        )
-      : "";
+  let extraGuestsRow = "";
+  if (splitAvailable) {
+    const adultPrice = booking.extraAdultPrice ?? extraPersonPrice;
+    const childPrice = booking.extraChildPrice ?? extraPersonPrice;
+    const adultTotal = booking.extraAdultsTotal ?? extraAdults * adultPrice * booking.nights;
+    const childTotal = booking.extraChildrenTotal ?? extraChildren * childPrice * booking.nights;
+    if (extraAdults > 0) {
+      extraGuestsRow += detailRow(
+        `${extraAdults} Zusatz-Erwachsene &times; ${formatCurrency(adultPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
+        formatCurrency(adultTotal),
+        { alignRight: true }
+      );
+    }
+    if (extraChildren > 0) {
+      extraGuestsRow += detailRow(
+        `${extraChildren} Zusatz-Kind${extraChildren === 1 ? "" : "er"} (bis 12 J.) &times; ${formatCurrency(childPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
+        formatCurrency(childTotal),
+        { alignRight: true }
+      );
+    }
+  } else if (booking.extraGuestsTotal > 0 && extraGuests > 0) {
+    // Legacy: alte Buchungen ohne Aufspaltung
+    extraGuestsRow = detailRow(
+      `${extraGuests} Zusatzgast${extraGuests > 1 ? "e" : ""} &times; ${formatCurrency(extraPersonPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
+      formatCurrency(booking.extraGuestsTotal),
+      { alignRight: true }
+    );
+  }
+
+  // Hunde: mit Staffel-Hinweis falls > 1 Hund
+  let dogsRow = "";
+  if (booking.dogsTotal > 0 && booking.dogs > 0) {
+    const first = booking.firstDogFee ?? dogFeePerNight;
+    const additional = booking.additionalDogFee ?? dogFeePerNight;
+    const desc = booking.dogs === 1
+      ? `1 Hund &times; ${formatCurrency(first)}/Nacht &times; ${booking.nights} N&auml;chte`
+      : `${booking.dogs} Hunde (1&times;${formatCurrency(first)} + ${booking.dogs - 1}&times;${formatCurrency(additional)}/Nacht) &times; ${booking.nights} N&auml;chte`;
+    dogsRow = detailRow(desc, formatCurrency(booking.dogsTotal), { alignRight: true });
+  }
 
   const localTaxRow =
     booking.localTaxTotal > 0
@@ -453,7 +491,7 @@ export async function sendInquiryConfirmation(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       vielen Dank f\u00fcr Ihre Anfrage! Wir pr\u00fcfen die Verf\u00fcgbarkeit und melden uns
@@ -571,7 +609,7 @@ export async function sendBookingConfirmed(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       <strong>Gro\u00dfartige Neuigkeiten!</strong> Ihre Buchung im Ferienhaus Rita ist best\u00e4tigt.
@@ -769,6 +807,68 @@ export async function sendAdminNotesReminder(
 }
 
 // ---------------------------------------------------------------------------
+// sendAdminPaymentCheck — "Bitte prüfen, ob Anzahlung eingegangen ist"
+// 7 Tage nach Bestätigung; nur wenn payment_status weiterhin unpaid ist.
+// ---------------------------------------------------------------------------
+
+export async function sendAdminPaymentCheck(
+  booking: BookingData,
+  apartment: Apartment
+): Promise<void> {
+  const to = process.env.NOTIFICATION_EMAIL;
+  if (!to) {
+    console.warn("sendAdminPaymentCheck: NOTIFICATION_EMAIL not set");
+    return;
+  }
+
+  const transporter = createTransporter();
+  const ref = paymentReference(booking.id);
+  const arrivalStr = formatDate(booking.checkIn);
+  const depositAmount = booking.depositAmount ?? 0;
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      Erinnerung: Buchung <strong>${ref}</strong> ist seit 7 Tagen bestätigt
+      und der Zahlungsstatus steht weiterhin auf <strong>offen</strong>.
+    </p>
+
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      Bitte am Bankkonto prüfen, ob die Anzahlung in Höhe von
+      <strong style="color:${DARK};">${formatCurrency(depositAmount)}</strong>
+      bereits eingegangen ist:
+    </p>
+
+    <ul style="font-size:14px;color:${GRAY};line-height:1.8;margin:0 0 20px;padding-left:20px;">
+      <li>Wenn <strong>ja</strong>: Im Admin-Dashboard Zahlungsstatus auf <em>„Anzahlung bezahlt"</em> setzen.</li>
+      <li>Wenn <strong>nein</strong>: Gast freundlich erinnern oder Frist verlängern.</li>
+    </ul>
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.6;margin:0 0 16px;">
+      Anreise: <strong>${arrivalStr}</strong>
+    </p>
+
+    ${sectionHeading("Buchungs\u00fcbersicht")}
+    ${bookingDetailsCard(booking, apartment)}
+
+    <p style="font-size:13px;color:${GRAY};line-height:1.6;margin:16px 0 0;">
+      <a href="${BASE_URL}/admin/buchungen/${booking.id}" style="color:${GOLD};">Zur Buchung im Admin-Dashboard &rarr;</a>
+    </p>
+  `;
+
+  const html = emailBaseLayout(
+    content,
+    `Anzahlung pr\u00fcfen: ${booking.firstName} ${booking.lastName} (${ref})`
+  );
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to,
+    subject: `Anzahlung pr\u00fcfen: ${ref}`,
+    html,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // sendCustomEmail
 // ---------------------------------------------------------------------------
 
@@ -812,7 +912,7 @@ export async function sendPaymentReminder(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       wir freuen uns auf Ihren Besuch im Ferienhaus Rita! Gerne m\u00f6chten wir Sie
@@ -875,7 +975,7 @@ export async function sendDepositReminder(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       wir freuen uns auf Ihren Besuch im Ferienhaus Rita! Gerne m\u00f6chten wir Sie
@@ -940,7 +1040,7 @@ export async function sendRemainderReminder(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
     <p style="font-size:14px;color:${DARK};line-height:1.7;margin:0 0 8px;">
       vielen Dank f\u00fcr Ihre Anzahlung! Gerne m\u00f6chten wir Sie an den
@@ -1000,7 +1100,7 @@ export async function sendCheckinInfo(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
 
     <h2 style="margin:0 0 8px;font-size:20px;color:${DARK};">In wenigen Tagen geht&rsquo;s los!</h2>
@@ -1089,7 +1189,7 @@ export async function sendThankYou(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
 
     <h2 style="margin:0 0 12px;font-size:20px;color:${DARK};">Vielen Dank f\u00fcr Ihren Besuch!</h2>
@@ -1141,7 +1241,7 @@ export async function sendLoyaltyEmail(
 
   const content = `
     <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
-      Hallo ${escapeHtml(booking.firstName)},
+      ${escapeHtml(greeting(booking.firstName, booking.lastName))},
     </p>
 
     <h2 style="margin:0 0 12px;font-size:20px;color:${DARK};">Ein Geschenk f\u00fcr Stammg\u00e4ste</h2>

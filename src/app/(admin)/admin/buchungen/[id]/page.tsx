@@ -344,7 +344,11 @@ export default async function BookingDetailPage({
                   amount: Number(li.amount),
                 }))}
                 dogFeePerNight={apartmentPricing?.dogFee ?? 15}
-                extraPersonPrice={apartmentPricing?.extraPersonPrice ?? 20}
+                extraPersonPrice={apartmentPricing?.extraPersonPrice ?? 30}
+                extraAdultPrice={apartmentPricing?.extraAdultPrice ?? apartmentPricing?.extraPersonPrice ?? 30}
+                extraChildPrice={apartmentPricing?.extraChildPrice ?? 20}
+                firstDogFee={apartmentPricing?.firstDogFee ?? apartmentPricing?.dogFee ?? 15}
+                additionalDogFee={apartmentPricing?.additionalDogFee ?? 7.5}
                 localTaxPerNight={taxConfig.localTaxPerNight}
               />
 
@@ -393,6 +397,7 @@ export default async function BookingDetailPage({
             guestEmail={booking.email}
             guestName={`${booking.first_name} ${booking.last_name}`}
             guestFirstName={booking.first_name}
+            guestLastName={booking.last_name}
             bookingRef={`FR-${booking.id.slice(0, 8).toUpperCase()}`}
             totalPrice={Number(booking.total_price)}
             depositAmount={Number(booking.deposit_amount || 0)}

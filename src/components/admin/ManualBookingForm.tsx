@@ -98,6 +98,16 @@ export default function ManualBookingForm({
         winterPrice: selectedApartment.winterPrice ?? selectedApartment.basePrice,
         minNightsSummer: selectedApartment.minNightsSummer ?? 3,
         minNightsWinter: selectedApartment.minNightsWinter ?? 5,
+        extraAdultPrice:
+          (selectedApartment as { extraAdultPrice?: number }).extraAdultPrice ??
+          selectedApartment.extraPersonPrice,
+        extraChildPrice:
+          (selectedApartment as { extraChildPrice?: number }).extraChildPrice ?? 20,
+        firstDogFee:
+          (selectedApartment as { firstDogFee?: number }).firstDogFee ??
+          selectedApartment.dogFee,
+        additionalDogFee:
+          (selectedApartment as { additionalDogFee?: number }).additionalDogFee ?? 7.5,
       } as Apartment;
 
       return calculatePrice({
@@ -290,7 +300,7 @@ export default function ManualBookingForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Kinder
+              Kinder (bis 12 J.)
             </label>
             <select
               value={children}

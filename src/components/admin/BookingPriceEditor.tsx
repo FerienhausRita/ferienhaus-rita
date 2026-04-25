@@ -28,6 +28,10 @@ interface BookingPriceEditorProps {
   // Unit prices for breakdown display
   dogFeePerNight: number;
   extraPersonPrice: number;
+  extraAdultPrice: number;
+  extraChildPrice: number;
+  firstDogFee: number;
+  additionalDogFee: number;
   localTaxPerNight: number;
 }
 
@@ -59,6 +63,10 @@ export default function BookingPriceEditor({
   lineItems: initialLineItems,
   dogFeePerNight,
   extraPersonPrice,
+  extraAdultPrice,
+  extraChildPrice,
+  firstDogFee,
+  additionalDogFee,
   localTaxPerNight,
 }: BookingPriceEditorProps) {
   const [editing, setEditing] = useState(false);
@@ -235,45 +243,84 @@ export default function BookingPriceEditor({
               </td>
             </tr>
 
-            {/* Zusatzgäste */}
+            {/* Zusatzgäste — aufgeteilt nach Erwachsenen und Kindern (bis 12 J.) */}
             {(() => {
               const totalGuests = adults + children;
-              const extraGuests = Math.max(0, totalGuests - baseGuests);
-              if (extraGuests > 0 || initialEG > 0) {
-                return (
-                  <tr>
+              const extraTotal = Math.max(0, totalGuests - baseGuests);
+              const extraAdults = Math.max(0, adults - baseGuests);
+              const extraChildren = Math.max(0, extraTotal - extraAdults);
+              const adultPart = round2(extraAdults * extraAdultPrice * nights);
+              const childPart = round2(extraChildren * extraChildPrice * nights);
+              const rows = [];
+              if (extraAdults > 0) {
+                rows.push(
+                  <tr key="extra-adults">
                     <td className="py-2">
-                      <span className="text-stone-900">Zusatzgäste</span>
+                      <span className="text-stone-900">Zusatz-Erwachsene</span>
                       <span className="block text-xs text-stone-400">
-                        {extraGuests > 0
-                          ? `${extraGuests} Zusatzgast${extraGuests > 1 ? "\u00e4ste" : ""} × ${formatCurrency(extraPersonPrice)}/Nacht × ${nights} Nächte`
-                          : `Keine (${totalGuests} Gäste, ${baseGuests} inkl.)`
-                        }
+                        {extraAdults} × {formatCurrency(extraAdultPrice)}/Nacht × {nights} Nächte
                       </span>
                     </td>
                     <td className="py-2 text-right font-medium text-stone-900">
-                      {formatCurrency(initialEG)}
+                      {formatCurrency(adultPart)}
                     </td>
                   </tr>
                 );
               }
-              return null;
+              if (extraChildren > 0) {
+                rows.push(
+                  <tr key="extra-children">
+                    <td className="py-2">
+                      <span className="text-stone-900">Zusatz-Kinder (bis 12 J.)</span>
+                      <span className="block text-xs text-stone-400">
+                        {extraChildren} × {formatCurrency(extraChildPrice)}/Nacht × {nights} Nächte
+                      </span>
+                    </td>
+                    <td className="py-2 text-right font-medium text-stone-900">
+                      {formatCurrency(childPart)}
+                    </td>
+                  </tr>
+                );
+              }
+              // Falls in DB ein abweichender Betrag steht (manuelle Übersteuerung)
+              const computed = adultPart + childPart;
+              if (Math.abs(computed - initialEG) > 0.02 && initialEG > 0) {
+                rows.push(
+                  <tr key="extra-diff">
+                    <td className="py-1 text-[11px] text-amber-600 italic">
+                      gespeicherter Zusatzgäste-Total weicht ab: {formatCurrency(initialEG)}
+                    </td>
+                    <td></td>
+                  </tr>
+                );
+              }
+              return rows;
             })()}
 
-            {/* Hunde */}
-            {(dogsCount > 0 || initialDogs > 0) && (
-              <tr>
-                <td className="py-2">
-                  <span className="text-stone-900">{dogsCount === 1 ? "Hund" : "Hunde"}</span>
-                  <span className="block text-xs text-stone-400">
-                    {dogsCount} × {formatCurrency(dogFeePerNight)}/Nacht × {nights} Nächte
-                  </span>
-                </td>
-                <td className="py-2 text-right font-medium text-stone-900">
-                  {formatCurrency(initialDogs)}
-                </td>
-              </tr>
-            )}
+            {/* Hunde — mit Staffelung */}
+            {(dogsCount > 0 || initialDogs > 0) && (() => {
+              const dogsPerNight = dogsCount === 0
+                ? 0
+                : firstDogFee + Math.max(0, dogsCount - 1) * additionalDogFee;
+              const dogsCalc = round2(dogsPerNight * nights);
+              return (
+                <tr>
+                  <td className="py-2">
+                    <span className="text-stone-900">{dogsCount === 1 ? "Hund" : "Hunde"}</span>
+                    <span className="block text-xs text-stone-400">
+                      {dogsCount === 0
+                        ? `0 Hunde`
+                        : dogsCount === 1
+                        ? `1 × ${formatCurrency(firstDogFee)}/Nacht × ${nights} Nächte`
+                        : `1×${formatCurrency(firstDogFee)} + ${dogsCount - 1}×${formatCurrency(additionalDogFee)}/Nacht × ${nights} Nächte`}
+                    </span>
+                  </td>
+                  <td className="py-2 text-right font-medium text-stone-900">
+                    {formatCurrency(initialDogs > 0 ? initialDogs : dogsCalc)}
+                  </td>
+                </tr>
+              );
+            })()}
 
             {/* Endreinigung */}
             <tr>

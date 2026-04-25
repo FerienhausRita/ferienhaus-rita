@@ -10,6 +10,7 @@ import {
   sendThankYou,
   sendLoyaltyEmail,
   sendAdminNotesReminder,
+  sendAdminPaymentCheck,
   BankDetails,
   CheckinInfo,
 } from "@/lib/email";
@@ -67,10 +68,19 @@ interface BookingRow {
   payment_status: string;
 }
 
-function buildBookingData(row: BookingRow) {
+function buildBookingData(
+  row: BookingRow,
+  apartment?: import("@/data/apartments").Apartment
+) {
   const total = Number(row.total_price);
   const localTax = Number(row.local_tax_total || 0);
   const vatAmount = ((total - localTax) / 1.1) * 0.1;
+  const baseGuests = apartment?.baseGuests ?? 2;
+  const extraAdults = Math.max(0, row.adults - baseGuests);
+  const extraChildren = Math.max(
+    0,
+    row.adults + row.children - baseGuests - extraAdults
+  );
 
   return {
     id: row.id,
@@ -96,6 +106,12 @@ function buildBookingData(row: BookingRow) {
     cleaningFee: Number(row.cleaning_fee),
     localTaxTotal: Number(row.local_tax_total || 0),
     vatAmount,
+    extraAdults,
+    extraChildren,
+    extraAdultPrice: apartment?.extraAdultPrice ?? apartment?.extraPersonPrice,
+    extraChildPrice: apartment?.extraChildPrice ?? 20,
+    firstDogFee: apartment?.firstDogFee ?? apartment?.dogFee,
+    additionalDogFee: apartment?.additionalDogFee ?? 7.5,
   };
 }
 
@@ -216,7 +232,7 @@ async function processScheduledEmails() {
         continue;
       }
 
-      const bookingData = buildBookingData(booking as BookingRow);
+      const bookingData = buildBookingData(booking as BookingRow, apartment);
 
       // Send the appropriate email
       switch (entry.email_type) {
@@ -340,6 +356,23 @@ async function processScheduledEmails() {
 
         case "admin_notes_3d": {
           await sendAdminNotesReminder(bookingData, apartment, 3);
+          break;
+        }
+
+        case "admin_payment_check_7d": {
+          // Nur senden, wenn Anzahlung weiterhin offen ist.
+          if (booking.payment_status !== "unpaid") {
+            await supabase
+              .from("email_schedule")
+              .update({
+                status: "skipped",
+                sent_at: new Date().toISOString(),
+                error: `payment_status=${booking.payment_status}`,
+              })
+              .eq("id", entry.id);
+            continue;
+          }
+          await sendAdminPaymentCheck(bookingData, apartment);
           break;
         }
 

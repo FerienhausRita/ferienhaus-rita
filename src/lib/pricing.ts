@@ -69,8 +69,18 @@ export interface PriceBreakdown {
   extraGuests: number;
   extraGuestsPricePerNight: number;
   extraGuestsTotal: number;
+  /** Anzahl zusätzlicher Erwachsener (über baseGuests hinaus) */
+  extraAdults: number;
+  extraAdultsTotal: number;
+  /** Anzahl zusätzlicher Kinder (über baseGuests hinaus) */
+  extraChildren: number;
+  extraChildrenTotal: number;
   dogsPricePerNight: number;
   dogsTotal: number;
+  /** Anzahl Hunde (für Anzeige der Staffel) */
+  dogsCount: number;
+  firstDogFee: number;
+  additionalDogFee: number;
   cleaningFee: number;
   /** Kurtaxe total — only non-zero when localTaxIncluded = true (Legacy) */
   localTaxTotal: number;
@@ -318,12 +328,30 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const basePrice =
     nights > 0 ? Math.round((basePriceTotal / nights) * 100) / 100 : apartment.basePrice;
 
-  // Extra guests & dogs (flat rate, not seasonal)
-  const extraGuestsPricePerNight = extraGuests * apartment.extraPersonPrice;
-  const extraGuestsTotal = extraGuestsPricePerNight * nights;
+  // Extra guests: differenziert nach Erwachsenen (höherer Tarif) und
+  // Kindern (vergünstigt). Erwachsene "verbrauchen" zuerst die Basisplätze
+  // → Kinder werden bevorzugt zur Zusatzperson, was den Gast preislich
+  // begünstigt.
+  const extraAdultPrice =
+    apartment.extraAdultPrice ?? apartment.extraPersonPrice;
+  const extraChildPrice =
+    apartment.extraChildPrice ?? apartment.extraPersonPrice;
+  const extraAdults = Math.max(0, adults - apartment.baseGuests);
+  const extraChildren = Math.max(0, extraGuests - extraAdults);
+  const extraAdultsTotal =
+    Math.round(extraAdults * extraAdultPrice * nights * 100) / 100;
+  const extraChildrenTotal =
+    Math.round(extraChildren * extraChildPrice * nights * 100) / 100;
+  const extraGuestsTotal = extraAdultsTotal + extraChildrenTotal;
+  const extraGuestsPricePerNight =
+    extraGuests > 0 ? extraGuestsTotal / nights : 0;
 
-  const dogsPricePerNight = dogs * apartment.dogFee;
-  const dogsTotal = dogsPricePerNight * nights;
+  // Hunde-Staffelung: 1. Hund volle Gebühr, ab dem 2. ermäßigt.
+  const firstDogFee = apartment.firstDogFee ?? apartment.dogFee;
+  const additionalDogFee = apartment.additionalDogFee ?? apartment.dogFee;
+  const dogsPricePerNight =
+    dogs === 0 ? 0 : firstDogFee + Math.max(0, dogs - 1) * additionalDogFee;
+  const dogsTotal = Math.round(dogsPricePerNight * nights * 100) / 100;
 
   const cleaningFee = apartment.cleaningFee;
 
@@ -364,8 +392,15 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
     extraGuests,
     extraGuestsPricePerNight,
     extraGuestsTotal,
+    extraAdults,
+    extraAdultsTotal,
+    extraChildren,
+    extraChildrenTotal,
     dogsPricePerNight,
     dogsTotal,
+    dogsCount: dogs,
+    firstDogFee,
+    additionalDogFee,
     cleaningFee,
     localTaxTotal,
     localTaxHint,

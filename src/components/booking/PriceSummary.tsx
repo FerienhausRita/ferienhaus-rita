@@ -42,21 +42,39 @@ export default function PriceSummary({
         </div>
       )}
 
-      {breakdown.extraGuests > 0 && (
+      {breakdown.extraAdults > 0 && (
         <div className="flex justify-between text-stone-600">
           <span>
-            {breakdown.extraGuests} zusätzliche{" "}
-            {breakdown.extraGuests === 1 ? "Person" : "Personen"} ×{" "}
+            {breakdown.extraAdults} zusätzliche{" "}
+            {breakdown.extraAdults === 1 ? "Person" : "Personen"} (Erw.) ×{" "}
             {breakdown.nights} {breakdown.nights === 1 ? "Nacht" : "Nächte"}
           </span>
-          <span>{formatCurrency(breakdown.extraGuestsTotal)}</span>
+          <span>{formatCurrency(breakdown.extraAdultsTotal)}</span>
+        </div>
+      )}
+
+      {breakdown.extraChildren > 0 && (
+        <div className="flex justify-between text-stone-600">
+          <span>
+            {breakdown.extraChildren}{" "}
+            {breakdown.extraChildren === 1 ? "Kind" : "Kinder"} (bis 12 J.) ×{" "}
+            {breakdown.nights} {breakdown.nights === 1 ? "Nacht" : "Nächte"}
+          </span>
+          <span>{formatCurrency(breakdown.extraChildrenTotal)}</span>
         </div>
       )}
 
       {breakdown.dogsTotal > 0 && (
         <div className="flex justify-between text-stone-600">
           <span>
-            {dogs} {dogs === 1 ? "Hund" : "Hunde"} × {breakdown.nights}{" "}
+            {dogs} {dogs === 1 ? "Hund" : "Hunde"}
+            {dogs > 1 && (
+              <span className="text-stone-400 text-xs">
+                {" "}(1×{formatCurrency(breakdown.firstDogFee)} +{" "}
+                {dogs - 1}×{formatCurrency(breakdown.additionalDogFee)})
+              </span>
+            )}
+            {" "}× {breakdown.nights}{" "}
             {breakdown.nights === 1 ? "Nacht" : "Nächte"}
           </span>
           <span>{formatCurrency(breakdown.dogsTotal)}</span>

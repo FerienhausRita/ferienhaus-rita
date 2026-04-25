@@ -33,7 +33,7 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
     const supabase = createServerClient();
     const { data: pricing } = await supabase
       .from("apartment_pricing")
-      .select("apartment_id, name_override, base_price, summer_price, winter_price, extra_person_price, cleaning_fee, dog_fee, min_nights_summer, min_nights_winter");
+      .select("apartment_id, name_override, base_price, summer_price, winter_price, extra_person_price, extra_adult_price, extra_child_price, cleaning_fee, dog_fee, first_dog_fee, additional_dog_fee, min_nights_summer, min_nights_winter");
 
     if (!pricing || pricing.length === 0) {
       return apartments;
@@ -45,15 +45,27 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
       const dbPrice = pricingMap.get(apt.id);
       if (!dbPrice) return apt;
       const override = (dbPrice as { name_override?: string | null }).name_override;
+      const extra = dbPrice as {
+        extra_adult_price?: number | null;
+        extra_child_price?: number | null;
+        first_dog_fee?: number | null;
+        additional_dog_fee?: number | null;
+      };
+      const extraPerson = Number(dbPrice.extra_person_price);
+      const dogFeeRaw = Number(dbPrice.dog_fee);
       return {
         ...apt,
         name: override && override.trim() ? override.trim() : apt.name,
         basePrice: Number(dbPrice.base_price),
         summerPrice: Number(dbPrice.summer_price ?? dbPrice.base_price),
         winterPrice: Number(dbPrice.winter_price ?? dbPrice.base_price),
-        extraPersonPrice: Number(dbPrice.extra_person_price),
+        extraPersonPrice: extraPerson,
+        extraAdultPrice: extra.extra_adult_price != null ? Number(extra.extra_adult_price) : extraPerson,
+        extraChildPrice: extra.extra_child_price != null ? Number(extra.extra_child_price) : 20,
         cleaningFee: Number(dbPrice.cleaning_fee),
-        dogFee: Number(dbPrice.dog_fee),
+        dogFee: dogFeeRaw,
+        firstDogFee: extra.first_dog_fee != null ? Number(extra.first_dog_fee) : dogFeeRaw,
+        additionalDogFee: extra.additional_dog_fee != null ? Number(extra.additional_dog_fee) : 7.50,
         minNightsSummer: Number(dbPrice.min_nights_summer ?? apt.minNightsSummer),
         minNightsWinter: Number(dbPrice.min_nights_winter ?? apt.minNightsWinter),
       };

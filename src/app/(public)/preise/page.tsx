@@ -167,17 +167,33 @@ export default async function PreisePage() {
                       </div>
                       <div className="flex justify-between">
                         <dt className="text-stone-500">
-                          Zusatzgast (ab Person {apt.baseGuests + 1})
+                          Zusatzperson Erw. (ab Person {apt.baseGuests + 1})
                         </dt>
                         <dd className="text-stone-900 font-medium">
-                          {formatCurrency(apt.extraPersonPrice)}
+                          {formatCurrency(apt.extraAdultPrice ?? apt.extraPersonPrice)}
                           <span className="text-xs text-stone-400"> /Nacht</span>
                         </dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt className="text-stone-500">Hund</dt>
+                        <dt className="text-stone-500">
+                          Zusatzperson Kind (bis 12 J.)
+                        </dt>
                         <dd className="text-stone-900 font-medium">
-                          {formatCurrency(apt.dogFee)}
+                          {formatCurrency(apt.extraChildPrice ?? 20)}
+                          <span className="text-xs text-stone-400"> /Nacht</span>
+                        </dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt className="text-stone-500">1. Hund</dt>
+                        <dd className="text-stone-900 font-medium">
+                          {formatCurrency(apt.firstDogFee ?? apt.dogFee)}
+                          <span className="text-xs text-stone-400"> /Nacht</span>
+                        </dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt className="text-stone-500">jeder weitere Hund</dt>
+                        <dd className="text-stone-900 font-medium">
+                          {formatCurrency(apt.additionalDogFee ?? 7.5)}
                           <span className="text-xs text-stone-400"> /Nacht</span>
                         </dd>
                       </div>

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { sendGuestEmail } from "@/app/(admin)/admin/actions";
+import { greeting } from "@/lib/salutation";
 
 interface BankDetails {
   iban?: string;
@@ -15,6 +16,7 @@ interface EmailComposeProps {
   guestEmail: string;
   guestName: string;
   guestFirstName: string;
+  guestLastName: string;
   bookingRef: string;
   totalPrice: number;
   depositAmount: number;
@@ -59,6 +61,7 @@ export default function EmailCompose({
   guestEmail,
   guestName,
   guestFirstName,
+  guestLastName,
   bookingRef,
   totalPrice,
   depositAmount,
@@ -68,6 +71,7 @@ export default function EmailCompose({
   apartmentName,
   bankDetails,
 }: EmailComposeProps) {
+  const salute = greeting(guestFirstName, guestLastName);
   const hasDeposit = depositAmount > 0 && depositAmount < totalPrice;
   const depositPct =
     totalPrice > 0 ? Math.round((depositAmount / totalPrice) * 100) : 30;
@@ -77,7 +81,7 @@ export default function EmailCompose({
     {
       label: "Anreise-Informationen",
       subject: `Anreise-Informationen – ${apartmentName} – ${formatDate(checkIn)}`,
-      body: `Hallo ${guestFirstName},
+      body: `${salute},
 
 wir freuen uns auf Ihren bevorstehenden Aufenthalt im Ferienhaus Rita!
 
@@ -97,7 +101,7 @@ Bei Fragen stehen wir Ihnen gerne zur Verfügung.`,
       label: "Zahlungserinnerung",
       subject: `Zahlungserinnerung – Buchung ${bookingRef} – Ferienhaus Rita`,
       body: hasDeposit
-        ? `Hallo ${guestFirstName},
+        ? `${salute},
 
 wir möchten Sie freundlich an die ausstehende Zahlung für Ihre Buchung erinnern.
 
@@ -113,7 +117,7 @@ Bitte überweisen Sie den fälligen Betrag auf folgendes Konto:
 ${buildBankBlock(bankDetails, bookingRef)}
 
 Sollte sich Ihre Zahlung mit dieser Erinnerung überschnitten haben, bitten wir Sie, diese Nachricht als gegenstandslos zu betrachten.`
-        : `Hallo ${guestFirstName},
+        : `${salute},
 
 wir möchten Sie freundlich an die ausstehende Zahlung für Ihre Buchung erinnern.
 
@@ -131,7 +135,7 @@ Sollte sich Ihre Zahlung mit dieser Erinnerung überschnitten haben, bitten wir 
     {
       label: "Stornierungsbestätigung",
       subject: `Stornierungsbestätigung – Buchung ${bookingRef} – Ferienhaus Rita`,
-      body: `Hallo ${guestFirstName},
+      body: `${salute},
 
 hiermit bestätigen wir die Stornierung Ihrer Buchung.
 
@@ -144,7 +148,7 @@ Wir würden uns freuen, Sie ein anderes Mal bei uns begrüßen zu dürfen.`,
     {
       label: "Freitext",
       subject: "",
-      body: `Hallo ${guestFirstName},
+      body: `${salute},
 
 `,
     },

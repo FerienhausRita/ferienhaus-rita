@@ -504,8 +504,22 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 
   const basePricePerNight = apartment.basePrice;
   const accommodationTotal = basePricePerNight * nights;
-  const extraGuestsTotal = extraGuests * apartment.extraPersonPrice * nights;
-  const dogsTotal = booking.dogs * apartment.dogFee * nights;
+  // Aufgespaltene Zusatzgäste: Erw. (extraAdultPrice) vs. Kinder bis 12 (extraChildPrice)
+  const extraAdultPrice = apartment.extraAdultPrice ?? apartment.extraPersonPrice;
+  const extraChildPrice = apartment.extraChildPrice ?? apartment.extraPersonPrice;
+  const extraAdults = Math.max(0, booking.adults - apartment.baseGuests);
+  const extraChildren = Math.max(0, extraGuests - extraAdults);
+  const extraAdultsTotal = extraAdults * extraAdultPrice * nights;
+  const extraChildrenTotal = extraChildren * extraChildPrice * nights;
+  const extraGuestsTotal = extraAdultsTotal + extraChildrenTotal;
+  // Hunde-Staffel: 1. Hund volle Gebühr, ab 2. ermäßigt
+  const firstDogFee = apartment.firstDogFee ?? apartment.dogFee;
+  const additionalDogFee = apartment.additionalDogFee ?? apartment.dogFee;
+  const dogsPerNight =
+    booking.dogs === 0
+      ? 0
+      : firstDogFee + Math.max(0, booking.dogs - 1) * additionalDogFee;
+  const dogsTotal = dogsPerNight * nights;
   const cleaningFee = apartment.cleaningFee;
 
   // Legacy-Detection: Wenn total_price höher ist als die errechneten Positionen
@@ -529,17 +543,28 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
     formula: `${nights} ${nights === 1 ? "Nacht" : "Nächte"} × ${fmtCurrency(basePricePerNight)}/Nacht`,
     amount: accommodationTotal,
   });
-  if (extraGuests > 0) {
+  if (extraAdults > 0) {
     positions.push({
-      title: `Zusatzpersonen (${extraGuests} ${extraGuests === 1 ? "Person" : "Personen"})`,
-      formula: `${extraGuests} × ${fmtCurrency(apartment.extraPersonPrice)}/Nacht × ${nights} Nächte`,
-      amount: extraGuestsTotal,
+      title: `Zusatz-Erwachsene (${extraAdults} ${extraAdults === 1 ? "Person" : "Personen"})`,
+      formula: `${extraAdults} × ${fmtCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`,
+      amount: extraAdultsTotal,
+    });
+  }
+  if (extraChildren > 0) {
+    positions.push({
+      title: `Zusatz-Kinder bis 12 J. (${extraChildren} ${extraChildren === 1 ? "Kind" : "Kinder"})`,
+      formula: `${extraChildren} × ${fmtCurrency(extraChildPrice)}/Nacht × ${nights} Nächte`,
+      amount: extraChildrenTotal,
     });
   }
   if (booking.dogs > 0) {
+    const dogFormula =
+      booking.dogs === 1
+        ? `1 × ${fmtCurrency(firstDogFee)}/Nacht × ${nights} Nächte`
+        : `1×${fmtCurrency(firstDogFee)} + ${booking.dogs - 1}×${fmtCurrency(additionalDogFee)}/Nacht × ${nights} Nächte`;
     positions.push({
       title: booking.dogs === 1 ? "Hund" : `${booking.dogs} Hunde`,
-      formula: `${booking.dogs} × ${fmtCurrency(apartment.dogFee)}/Nacht × ${nights} Nächte`,
+      formula: dogFormula,
       amount: dogsTotal,
     });
   }

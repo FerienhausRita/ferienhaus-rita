@@ -8,7 +8,7 @@ import { createServerClient } from "@/lib/supabase/server";
 export interface DepositConfig {
   /** Percentage 0-100 (default 30) */
   deposit_percent: number;
-  /** Days after confirmation when deposit is due (default 7) */
+  /** Days after confirmation when deposit is due (default 14) */
   deposit_due_days: number;
   /** Days before check-in when remainder is due (default 30) */
   remainder_days_before_checkin: number;
@@ -16,7 +16,7 @@ export interface DepositConfig {
 
 export const DEPOSIT_DEFAULTS: DepositConfig = {
   deposit_percent: 30,
-  deposit_due_days: 7,
+  deposit_due_days: 14,
   remainder_days_before_checkin: 30,
 };
 
