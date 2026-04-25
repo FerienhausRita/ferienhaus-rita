@@ -33,20 +33,16 @@ CREATE POLICY "Service role full access on waitlist"
   USING (auth.role() = 'service_role')
   WITH CHECK (auth.role() = 'service_role');
 
--- Admin (eingeloggt mit profile-Eintrag) darf lesen + verwalten
+-- Admin (eingeloggt mit admin_profiles-Eintrag) darf lesen + verwalten
 CREATE POLICY "Admins can manage waitlist"
   ON public.waitlist FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('admin', 'editor')
+      SELECT 1 FROM public.admin_profiles WHERE id = auth.uid()
     )
   )
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM public.profiles
-      WHERE profiles.id = auth.uid()
-        AND profiles.role IN ('admin', 'editor')
+      SELECT 1 FROM public.admin_profiles WHERE id = auth.uid()
     )
   );
