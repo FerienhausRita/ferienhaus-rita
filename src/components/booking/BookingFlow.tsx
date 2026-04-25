@@ -11,6 +11,7 @@ import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
 import Image from "next/image";
 import Container from "@/components/ui/Container";
 import PriceSummary from "@/components/booking/PriceSummary";
+import WaitlistCard from "@/components/booking/WaitlistCard";
 import AvailabilityCalendar from "@/components/booking/AvailabilityCalendar";
 import DateRangePicker from "@/components/booking/DateRangePicker";
 import AddressAutocomplete from "@/components/booking/AddressAutocomplete";
@@ -453,6 +454,18 @@ export default function BookingFlow({
                     );
                   })}
                 </div>
+
+                {/* Warteliste-Card erscheint, wenn keine Wohnung verfügbar ist */}
+                {!checkingAvailability && availableApartments.length === 0 && (
+                  <WaitlistCard
+                    checkIn={search.checkIn}
+                    checkOut={search.checkOut}
+                    apartmentsData={(apartmentsData ?? []).map((a) => ({
+                      id: a.id,
+                      name: a.name,
+                    }))}
+                  />
+                )}
 
                 {selectedApartment && priceBreakdown && (
                   <div ref={priceSectionRef} className="mt-8 bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8">

@@ -802,6 +802,66 @@ export async function updatePaymentStatus(
 }
 
 /**
+ * Manually override deposit & remainder amounts and due dates.
+ * Only updates the four fields, doesn't touch payments/status.
+ */
+export async function updateBookingDeposit(
+  bookingId: string,
+  values: {
+    deposit_amount: number;
+    deposit_due_date: string | null;
+    remainder_amount: number;
+    remainder_due_date: string | null;
+  }
+) {
+  const supabase = createServerClient();
+
+  // Sanity: total = deposit + remainder (warn but don't enforce — admin override)
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("total_price, deposit_paid_at, remainder_paid_at")
+    .eq("id", bookingId)
+    .single();
+  if (!booking) {
+    return { success: false, error: "Buchung nicht gefunden" };
+  }
+
+  // Verhindern, dass schon bezahlte Beträge nachträglich „kleiner" gesetzt werden.
+  // (Z.B. Anzahlung schon eingegangen, dann darf deposit_amount nicht 0 werden.)
+  if (booking.deposit_paid_at && values.deposit_amount <= 0) {
+    return {
+      success: false,
+      error: "Anzahlung wurde bereits als bezahlt markiert — Betrag darf nicht 0 sein.",
+    };
+  }
+  if (booking.remainder_paid_at && values.remainder_amount <= 0) {
+    return {
+      success: false,
+      error: "Restbetrag wurde bereits als bezahlt markiert — Betrag darf nicht 0 sein.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      deposit_amount: Math.round(values.deposit_amount * 100) / 100,
+      deposit_due_date: values.deposit_due_date,
+      remainder_amount: Math.round(values.remainder_amount * 100) / 100,
+      remainder_due_date: values.remainder_due_date,
+    })
+    .eq("id", bookingId);
+
+  if (error) {
+    return { success: false, error: error.message };
+  }
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
  * Mark deposit as paid
  */
 export async function markDepositPaid(bookingId: string) {
@@ -3781,5 +3841,222 @@ export async function updateBookingGuestData(
 
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin/buchungen");
+  return { success: true };
+}
+
+
+// ---------------------------------------------------------------------------
+// Test-Mails: Sendet einen synthetischen Mail-Typ an die Admin-Adresse, damit
+// das Layout schnell überprüft werden kann ohne echte Buchung anzulegen.
+// ---------------------------------------------------------------------------
+
+export type TestEmailType =
+  | "inquiry_confirmation"
+  | "booking_confirmed"
+  | "deposit_reminder"
+  | "remainder_reminder"
+  | "payment_reminder"
+  | "checkin_info"
+  | "thankyou"
+  | "admin_payment_check_7d"
+  | "admin_notes_7d";
+
+export async function sendTestEmail(emailType: TestEmailType) {
+  const adminEmail = process.env.NOTIFICATION_EMAIL;
+  if (!adminEmail) {
+    return { success: false, error: "NOTIFICATION_EMAIL nicht gesetzt" };
+  }
+
+  const supabase = createServerClient();
+
+  // Neueste Buchung als Vorlage holen (echte Apartment-Daten + Preise)
+  const { data: latestBooking } = await supabase
+    .from("bookings")
+    .select("*")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  const apartment = latestBooking
+    ? await getApartmentWithPricing(latestBooking.apartment_id)
+    : null;
+
+  if (!latestBooking || !apartment) {
+    return {
+      success: false,
+      error: "Keine bestehende Buchung gefunden — Test braucht ein Vorlagen-Buchung.",
+    };
+  }
+
+  // Bank- und Check-in-Daten laden
+  const { data: bankRow } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "bank_details")
+    .single();
+  const bankDetails =
+    (normalizeBankDetails(
+      bankRow?.value as Record<string, unknown> | null | undefined
+    ) as BankDetails | null) ?? {
+      iban: "AT00 0000 0000 0000 0000",
+      bic: "BICTEST",
+      account_holder: "Ferienhaus Rita",
+      bank_name: "Test-Bank",
+    };
+
+  // Synthetic BookingData mit Admin-Email als Empfänger
+  const baseGuests = apartment.baseGuests;
+  const adults = Number(latestBooking.adults || 2);
+  const children = Number(latestBooking.children || 0);
+  const dogs = Number(latestBooking.dogs || 0);
+  const nights = Number(latestBooking.nights || 3);
+  const totalPrice = Number(latestBooking.total_price || 500);
+  const extraAdults = Math.max(0, adults - baseGuests);
+  const extraChildren = Math.max(0, adults + children - baseGuests - extraAdults);
+
+  const synthetic = {
+    id: latestBooking.id,
+    firstName: "Test",
+    lastName: "Empfänger",
+    email: adminEmail,
+    phone: "+43 0000 000000",
+    street: "Teststraße 1",
+    zip: "5733",
+    city: "Bramberg",
+    country: "AT",
+    notes: "(Beispiel-Notiz für die Test-Mail)",
+    checkIn: new Date(latestBooking.check_in),
+    checkOut: new Date(latestBooking.check_out),
+    adults,
+    children,
+    dogs,
+    nights,
+    totalPrice,
+    pricePerNight: Number(latestBooking.price_per_night || 100),
+    extraGuestsTotal: Number(latestBooking.extra_guests_total || 0),
+    dogsTotal: Number(latestBooking.dogs_total || 0),
+    cleaningFee: Number(latestBooking.cleaning_fee || 0),
+    localTaxTotal: Number(latestBooking.local_tax_total || 0),
+    vatAmount: Math.round((totalPrice / 1.1) * 0.1 * 100) / 100,
+    depositAmount: Number(latestBooking.deposit_amount || totalPrice * 0.3),
+    depositDueDate: latestBooking.deposit_due_date as string | undefined,
+    remainderAmount: Number(latestBooking.remainder_amount || totalPrice * 0.7),
+    remainderDueDate: latestBooking.remainder_due_date as string | undefined,
+    extraAdults,
+    extraChildren,
+    extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+    extraChildPrice: apartment.extraChildPrice ?? 20,
+    firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
+    additionalDogFee: apartment.additionalDogFee ?? 7.5,
+    localTaxIncluded: false,
+    localTaxPerNight: 2.6,
+    localTaxExemptAge: 15,
+  };
+
+  try {
+    const email = await import("@/lib/email");
+    switch (emailType) {
+      case "inquiry_confirmation":
+        await email.sendInquiryConfirmation(synthetic, apartment);
+        break;
+      case "booking_confirmed":
+        await email.sendBookingConfirmed(synthetic, apartment, {
+          bankDetails,
+        });
+        break;
+      case "deposit_reminder":
+        await email.sendDepositReminder(
+          synthetic,
+          apartment,
+          bankDetails,
+          synthetic.depositAmount,
+          synthetic.depositDueDate ?? new Date().toISOString().split("T")[0]
+        );
+        break;
+      case "remainder_reminder":
+        await email.sendRemainderReminder(
+          synthetic,
+          apartment,
+          bankDetails,
+          synthetic.remainderAmount,
+          synthetic.remainderDueDate ?? new Date().toISOString().split("T")[0]
+        );
+        break;
+      case "payment_reminder":
+        await email.sendPaymentReminder(
+          synthetic,
+          apartment,
+          bankDetails,
+          synthetic.totalPrice
+        );
+        break;
+      case "checkin_info":
+        await email.sendCheckinInfo(synthetic, apartment, {
+          key_handoff: "Schlüsselübergabe vor Ort um 16 Uhr",
+          address: "Teststraße 1, 5733 Bramberg",
+          parking: "Direkt am Haus",
+          house_rules: "Keine Schuhe in der Wohnung.",
+          directions: "Folgen Sie der Beschilderung.",
+        });
+        break;
+      case "thankyou":
+        await email.sendThankYou(synthetic, apartment);
+        break;
+      case "admin_payment_check_7d":
+        await email.sendAdminPaymentCheck(synthetic, apartment);
+        break;
+      case "admin_notes_7d":
+        await email.sendAdminNotesReminder(synthetic, apartment, 7);
+        break;
+      default:
+        return { success: false, error: "Unbekannter Typ" };
+    }
+    return { success: true, sentTo: adminEmail };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: msg };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Warteliste (Admin)
+// ---------------------------------------------------------------------------
+
+export async function getWaitlistEntries(filterStatus?: string) {
+  const supabase = createServerClient();
+  let query = supabase
+    .from("waitlist")
+    .select("*")
+    .order("created_at", { ascending: false });
+  if (filterStatus && filterStatus !== "all") {
+    query = query.eq("status", filterStatus);
+  }
+  const { data, error } = await query;
+  if (error) {
+    console.error("getWaitlistEntries:", error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function updateWaitlistStatus(
+  id: string,
+  status: "active" | "notified" | "booked" | "expired" | "cancelled"
+) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("waitlist")
+    .update({ status })
+    .eq("id", id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/warteliste");
+  return { success: true };
+}
+
+export async function deleteWaitlistEntry(id: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase.from("waitlist").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/warteliste");
   return { success: true };
 }

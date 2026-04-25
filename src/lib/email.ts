@@ -1393,3 +1393,101 @@ export async function sendTaskReminder(
     html,
   });
 }
+
+// ---------------------------------------------------------------------------
+// Warteliste-Mails
+// ---------------------------------------------------------------------------
+
+export interface WaitlistEntry {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  phone: string;
+  preferredCheckIn: string;
+  preferredCheckOut: string;
+  apartmentId: string | null;
+  notificationToken: string;
+}
+
+/** Bestätigung an den Gast: „Du stehst auf der Warteliste". */
+export async function sendWaitlistConfirmation(
+  entry: WaitlistEntry,
+  apartmentName?: string
+): Promise<void> {
+  const transporter = createTransporter();
+  const ci = formatDate(new Date(entry.preferredCheckIn + "T00:00:00Z"));
+  const co = formatDate(new Date(entry.preferredCheckOut + "T00:00:00Z"));
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      ${escapeHtml(greeting(entry.firstName, entry.lastName))},
+    </p>
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      vielen Dank f&uuml;r Ihre Anfrage. Sie stehen jetzt auf unserer Warteliste:
+    </p>
+    <div style="background:${CARD_BG};border-left:4px solid ${GOLD};border-radius:8px;padding:16px 20px;margin:0 0 20px;">
+      <p style="margin:0 0 4px;font-size:13px;color:${GRAY};">Wunsch-Zeitraum</p>
+      <p style="margin:0;font-size:15px;color:${DARK};font-weight:600;">${ci} &ndash; ${co}</p>
+      ${apartmentName ? `<p style="margin:8px 0 0;font-size:13px;color:${GRAY};">Wohnung: <strong style="color:${DARK};">${escapeHtml(apartmentName)}</strong></p>` : `<p style="margin:8px 0 0;font-size:13px;color:${GRAY};">Wohnung: <strong style="color:${DARK};">egal</strong></p>`}
+    </div>
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      Sobald sich in diesem Zeitraum eine passende Wohnung freigibt, senden wir Ihnen
+      umgehend eine E-Mail mit einem direkten Buchungslink.
+    </p>
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(content, "Sie stehen auf der Warteliste");
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: entry.email,
+    subject: "Warteliste – Ferienhaus Rita",
+    html,
+  });
+}
+
+/** Notify an den Gast: „Wohnung ist frei!" */
+export async function sendWaitlistNotification(
+  entry: WaitlistEntry,
+  apartmentName: string,
+  apartmentSlug: string
+): Promise<void> {
+  const transporter = createTransporter();
+  const ci = formatDate(new Date(entry.preferredCheckIn + "T00:00:00Z"));
+  const co = formatDate(new Date(entry.preferredCheckOut + "T00:00:00Z"));
+
+  // Buchungslink mit Vorausfüllung der Wunschdaten
+  const bookingUrl = `${BASE_URL}/buchen?apartment=${encodeURIComponent(apartmentSlug)}&checkin=${entry.preferredCheckIn}&checkout=${entry.preferredCheckOut}&waitlist=${entry.notificationToken}`;
+
+  const content = `
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 16px;">
+      ${escapeHtml(greeting(entry.firstName, entry.lastName))},
+    </p>
+    <p style="font-size:15px;color:${DARK};line-height:1.7;margin:0 0 16px;font-weight:600;">
+      Gute Nachrichten — Ihre Wunschwohnung ist verfügbar!
+    </p>
+    <div style="background:${CARD_BG};border-left:4px solid ${GOLD};border-radius:8px;padding:16px 20px;margin:0 0 20px;">
+      <p style="margin:0 0 4px;font-size:13px;color:${GRAY};">Wohnung</p>
+      <p style="margin:0 0 12px;font-size:15px;color:${DARK};font-weight:600;">${escapeHtml(apartmentName)}</p>
+      <p style="margin:0 0 4px;font-size:13px;color:${GRAY};">Zeitraum</p>
+      <p style="margin:0;font-size:15px;color:${DARK};font-weight:600;">${ci} &ndash; ${co}</p>
+    </div>
+    <p style="font-size:14px;color:${GRAY};line-height:1.7;margin:0 0 20px;">
+      Klicken Sie unten, um die Buchung direkt mit Ihren Wunschdaten zu starten.
+      Bitte beachten Sie: das Angebot ist nicht reserviert — wer zuerst bucht, bekommt es.
+    </p>
+    ${ctaButton("Jetzt buchen", bookingUrl)}
+    ${signoff()}
+  `;
+
+  const html = emailBaseLayout(content, "Ihre Wunsch-Wohnung ist frei");
+
+  await transporter.sendMail({
+    from: process.env.SMTP_FROM,
+    to: entry.email,
+    subject: `Verfügbar: ${apartmentName} – ${ci} – ${co}`,
+    html,
+  });
+}

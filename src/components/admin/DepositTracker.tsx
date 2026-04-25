@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { markDepositPaid, markRemainderPaid, recordManualPayment } from "@/app/(admin)/admin/actions";
+import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit } from "@/app/(admin)/admin/actions";
+import { useRouter } from "next/navigation";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("de-AT", {
@@ -68,6 +69,12 @@ export default function DepositTracker({
   const [manualMethod, setManualMethod] = useState("bank_transfer");
   const [manualNote, setManualNote] = useState("");
   const [manualAppliesTo, setManualAppliesTo] = useState<"auto" | "deposit" | "remainder">("auto");
+  // Deposit/Frist manuell überschreiben
+  const [editingDeposit, setEditingDeposit] = useState(false);
+  const [editDepAmount, setEditDepAmount] = useState(depositAmount.toFixed(2));
+  const [editDepDue, setEditDepDue] = useState(depositDueDate ?? "");
+  const [editRemAmount, setEditRemAmount] = useState(remainderAmount.toFixed(2));
+  const [editRemDue, setEditRemDue] = useState(remainderDueDate ?? "");
 
   // Dynamic percentage labels derived from actual amounts
   const depositPercent =
@@ -167,6 +174,53 @@ export default function DepositTracker({
     }
   };
 
+  const router = useRouter();
+
+  const handleSaveDepositOverride = async () => {
+    const depAmount = parseFloat(editDepAmount);
+    const remAmount = parseFloat(editRemAmount);
+    if (isNaN(depAmount) || isNaN(remAmount)) {
+      setMessage({ type: "error", text: "Beträge müssen Zahlen sein" });
+      return;
+    }
+    const sum = depAmount + remAmount;
+    if (Math.abs(sum - totalPrice) > 0.02) {
+      if (
+        !confirm(
+          `Anzahlung + Restbetrag (${formatCurrency(sum)}) entspricht nicht dem Gesamtbetrag (${formatCurrency(totalPrice)}). Trotzdem speichern?`
+        )
+      ) {
+        return;
+      }
+    }
+    setLoading("override");
+    setMessage(null);
+    const result = await updateBookingDeposit(bookingId, {
+      deposit_amount: depAmount,
+      deposit_due_date: editDepDue || null,
+      remainder_amount: remAmount,
+      remainder_due_date: editRemDue || null,
+    });
+    setLoading(null);
+    if (result.success) {
+      setMessage({ type: "success", text: "Anzahlung aktualisiert" });
+      setEditingDeposit(false);
+      router.refresh();
+      setTimeout(() => setMessage(null), 2500);
+    } else {
+      setMessage({ type: "error", text: result.error || "Fehler" });
+    }
+  };
+
+  const handleCancelDepositOverride = () => {
+    setEditDepAmount(depositAmount.toFixed(2));
+    setEditDepDue(depositDueDate ?? "");
+    setEditRemAmount(remainderAmount.toFixed(2));
+    setEditRemDue(remainderDueDate ?? "");
+    setEditingDeposit(false);
+    setMessage(null);
+  };
+
   const handleMarkRemainder = async () => {
     if (!confirm(`Restbetrag von ${formatCurrency(remainderAmount)} als bezahlt markieren?`)) return;
     setLoading("remainder");
@@ -196,19 +250,101 @@ export default function DepositTracker({
       <div className="px-5 py-4 border-b border-stone-100">
         <div className="flex items-center justify-between">
           <h3 className="font-semibold text-stone-900 text-sm">Zahlungen</h3>
-          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
-            isFullyPaid
-              ? "bg-emerald-100 text-emerald-700"
-              : depositPaidAt
-              ? "bg-amber-100 text-amber-700"
-              : "bg-red-100 text-red-700"
-          }`}>
-            {isFullyPaid ? "Bezahlt" : depositPaidAt ? "Teilweise" : "Offen"}
-          </span>
+          <div className="flex items-center gap-2">
+            {!editingDeposit && !isFullyPaid && (
+              <button
+                onClick={() => setEditingDeposit(true)}
+                className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
+                title="Anzahlung & Frist manuell überschreiben"
+              >
+                Bearbeiten
+              </button>
+            )}
+            <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+              isFullyPaid
+                ? "bg-emerald-100 text-emerald-700"
+                : depositPaidAt
+                ? "bg-amber-100 text-amber-700"
+                : "bg-red-100 text-red-700"
+            }`}>
+              {isFullyPaid ? "Bezahlt" : depositPaidAt ? "Teilweise" : "Offen"}
+            </span>
+          </div>
         </div>
       </div>
 
       <div className="p-5 space-y-4">
+        {/* Inline-Edit für Anzahlung & Frist (manuelle Übersteuerung) */}
+        {editingDeposit && (
+          <div className="rounded-xl border border-amber-200 bg-amber-50/40 p-4 space-y-3">
+            <p className="text-xs font-medium text-stone-600 uppercase tracking-wider">
+              Anzahlung & Restbetrag manuell setzen
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs text-stone-500 mb-1">Anzahlung (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editDepAmount}
+                  onChange={(e) => setEditDepAmount(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-stone-500 mb-1">Anzahlung fällig bis</label>
+                <input
+                  type="date"
+                  value={editDepDue}
+                  onChange={(e) => setEditDepDue(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-stone-500 mb-1">Restbetrag (€)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={editRemAmount}
+                  onChange={(e) => setEditRemAmount(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs text-stone-500 mb-1">Restbetrag fällig bis</label>
+                <input
+                  type="date"
+                  value={editRemDue}
+                  onChange={(e) => setEditRemDue(e.target.value)}
+                  className="w-full px-3 py-2 bg-white border border-stone-200 rounded-lg text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40"
+                />
+              </div>
+            </div>
+            <p className="text-[11px] text-stone-500">
+              Summe muss dem Gesamtpreis ({formatCurrency(totalPrice)}) entsprechen.
+              Frist leer lassen = nicht gesetzt.
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSaveDepositOverride}
+                disabled={loading !== null}
+                className="px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50"
+              >
+                {loading === "override" ? "Speichern..." : "Speichern"}
+              </button>
+              <button
+                onClick={handleCancelDepositOverride}
+                disabled={loading !== null}
+                className="px-4 py-2 bg-stone-200 hover:bg-stone-300 text-stone-700 text-sm font-medium rounded-lg transition-colors"
+              >
+                Abbrechen
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Progress bar */}
         <div>
           <div className="flex justify-between text-xs text-stone-500 mb-1.5">

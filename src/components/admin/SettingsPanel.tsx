@@ -14,7 +14,74 @@ import {
   deleteIcalImportFeed,
   toggleIcalImportFeed,
   sendBookingsExportEmailNow,
+  sendTestEmail,
+  type TestEmailType,
 } from "@/app/(admin)/admin/actions";
+
+/** Test-Mails — sendet jede Mail-Sorte an die Admin-Adresse */
+function TestMailsBlock() {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+
+  const tests: Array<{ key: TestEmailType; label: string }> = [
+    { key: "inquiry_confirmation", label: "Anfrage-Bestätigung" },
+    { key: "booking_confirmed", label: "Buchungsbestätigung" },
+    { key: "deposit_reminder", label: "Anzahlungs-Reminder" },
+    { key: "remainder_reminder", label: "Restbetrag-Reminder" },
+    { key: "payment_reminder", label: "Zahlungs-Reminder" },
+    { key: "checkin_info", label: "Check-in-Info" },
+    { key: "thankyou", label: "Thank-you-Mail" },
+    { key: "admin_notes_7d", label: "Admin: Notiz-Reminder" },
+    { key: "admin_payment_check_7d", label: "Admin: Anzahlung prüfen" },
+  ];
+
+  const send = async (key: TestEmailType, label: string) => {
+    setBusy(key);
+    setMsg(null);
+    const r = await sendTestEmail(key);
+    setBusy(null);
+    if (r.success) {
+      setMsg({
+        ok: true,
+        text: `„${label}" gesendet an ${r.sentTo ?? "Admin"}.`,
+      });
+    } else {
+      setMsg({ ok: false, text: `Fehler: ${r.error}` });
+    }
+    setTimeout(() => setMsg(null), 5000);
+  };
+
+  return (
+    <div className="space-y-3">
+      <p className="text-xs text-stone-500">
+        Jeder Klick sendet einen Beispiel der jeweiligen Mail an die hinterlegte
+        Admin-Adresse (NOTIFICATION_EMAIL). Vorlagedaten werden aus der jüngsten
+        Buchung übernommen.
+      </p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {tests.map((t) => (
+          <button
+            key={t.key}
+            onClick={() => send(t.key, t.label)}
+            disabled={busy !== null}
+            className="px-3 py-2 text-left text-sm bg-stone-50 hover:bg-stone-100 border border-stone-200 rounded-lg transition-colors disabled:opacity-50"
+          >
+            {busy === t.key ? "Sende…" : t.label}
+          </button>
+        ))}
+      </div>
+      {msg && (
+        <p
+          className={`text-xs ${
+            msg.ok ? "text-emerald-600" : "text-red-600"
+          }`}
+        >
+          {msg.text}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Klappbare Sektion */
 function Section({
@@ -1649,6 +1716,17 @@ export default function SettingsPanel({
             </div>
           </div>
         </div>
+      </Section>
+
+      {/* Test-Mails */}
+      <Section
+        id="test-mails"
+        title="Test-Mails"
+        subtitle="Eine Mail jeder Sorte an die Admin-Adresse senden — zum Layout-Check"
+        open={openSections.has("test-mails")}
+        onToggle={toggleSection}
+      >
+        <TestMailsBlock />
       </Section>
     </div>
   );
