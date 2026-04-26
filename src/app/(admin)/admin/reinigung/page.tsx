@@ -176,9 +176,9 @@ export default async function ReinigungPage({
                           </div>
                           <div className="text-right text-xs text-stone-500">
                             {dep.adults} Pers.
-                            {(dep.children || 0) > 0 && (
+                            {(dep.infants || 0) > 0 && (
                               <>
-                                {" "}+ {dep.children} Kleinkind{dep.children === 1 ? "" : "er"}
+                                {" "}+ {dep.infants} Kleinkind{dep.infants === 1 ? "" : "er"}
                               </>
                             )}
                             {dep.dogs > 0 && ` · ${dep.dogs} Hund${dep.dogs > 1 ? "e" : ""}`}

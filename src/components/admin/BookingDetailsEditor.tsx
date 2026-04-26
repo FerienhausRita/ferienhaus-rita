@@ -18,6 +18,7 @@ interface BookingDetailsEditorProps {
   initialCheckOut: string;
   initialAdults: number;
   initialChildren: number;
+  initialInfants: number;
   initialDogs: number;
   initialNotes: string;
   isExternalChannel: boolean;
@@ -31,6 +32,7 @@ export default function BookingDetailsEditor({
   initialCheckOut,
   initialAdults,
   initialChildren,
+  initialInfants,
   initialDogs,
   initialNotes,
   isExternalChannel,
@@ -42,6 +44,7 @@ export default function BookingDetailsEditor({
   const [checkOut, setCheckOut] = useState(initialCheckOut);
   const [adults, setAdults] = useState(initialAdults);
   const [children, setChildren] = useState(initialChildren);
+  const [infants, setInfants] = useState(initialInfants);
   const [dogs, setDogs] = useState(initialDogs);
   const [notes, setNotes] = useState(initialNotes);
   const [loading, setLoading] = useState(false);
@@ -57,6 +60,7 @@ export default function BookingDetailsEditor({
     (datesOrAptChanged ||
       adults !== initialAdults ||
       children !== initialChildren ||
+      infants !== initialInfants ||
       dogs !== initialDogs);
 
   const handleSave = async () => {
@@ -85,6 +89,7 @@ export default function BookingDetailsEditor({
       check_out: checkOut,
       adults,
       children,
+      infants,
       dogs,
       notes,
     });
@@ -105,6 +110,7 @@ export default function BookingDetailsEditor({
     setCheckOut(initialCheckOut);
     setAdults(initialAdults);
     setChildren(initialChildren);
+    setInfants(initialInfants);
     setDogs(initialDogs);
     setNotes(initialNotes);
     setEditing(false);
@@ -179,23 +185,38 @@ export default function BookingDetailsEditor({
           />
         </div>
         <div>
-          <label className="block text-xs text-stone-500 mb-1">Erwachsene</label>
+          <label className="block text-xs text-stone-500 mb-1">Gäste (ab 3 J.)</label>
           <input
             type="number"
             min={1}
             value={adults}
-            onChange={(e) => setAdults(Number(e.target.value))}
+            onChange={(e) => {
+              const v = Number(e.target.value);
+              setAdults(v);
+              if (children > v) setChildren(v);
+            }}
             className={inputClass}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Kinder (bis 12 J.)</label>
+            <label className="block text-xs text-stone-500 mb-1">davon Kinder (3–17)</label>
             <input
               type="number"
               min={0}
+              max={adults}
               value={children}
-              onChange={(e) => setChildren(Number(e.target.value))}
+              onChange={(e) => setChildren(Math.min(Number(e.target.value), adults))}
+              className={inputClass}
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-stone-500 mb-1">Kleinkinder (&lt;3)</label>
+            <input
+              type="number"
+              min={0}
+              value={infants}
+              onChange={(e) => setInfants(Number(e.target.value))}
               className={inputClass}
             />
           </div>

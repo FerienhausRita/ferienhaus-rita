@@ -29,6 +29,7 @@ export interface BookingRow {
   country: string;
   adults: number;
   children: number;
+  infants?: number;
   dogs: number;
   total_price: number;
   invoice_number: string;
@@ -705,6 +706,11 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
             <Text style={styles.totalHint}>
               Die Kurtaxe wurde bzw. wird separat abgerechnet
               und ist nicht im Gesamtbetrag enthalten.
+            </Text>
+          )}
+          {(booking.infants ?? 0) > 0 && (
+            <Text style={styles.totalHint}>
+              Inkl. {booking.infants} Kleinkind{booking.infants === 1 ? "" : "er"} unter 3 Jahren (kostenfrei).
             </Text>
           )}
         </View>

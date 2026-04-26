@@ -30,8 +30,12 @@ interface BookingFlowProps {
 interface BookingSearch {
   checkIn: string;
   checkOut: string;
+  /** Gäste ab 3 Jahren (Auslastungsbasis, einheitlicher Tarif) */
   adults: number;
+  /** Davon Kinder zwischen 3 und 17 Jahren (Untermenge von adults, info-only) */
   children: number;
+  /** Kleinkinder unter 3 Jahren (kostenfrei, zählen nicht zur Auslastung) */
+  infants: number;
   dogs: number;
 }
 
@@ -81,6 +85,7 @@ export default function BookingFlow({
     checkOut: searchParams.get("checkOut") || "",
     adults: parseInt(searchParams.get("guests") || "2"),
     children: 0,
+    infants: 0,
     dogs: 0,
   });
   const [selectedApartment, setSelectedApartment] = useState<Apartment | null>(
@@ -257,6 +262,7 @@ export default function BookingFlow({
           checkOut: search.checkOut,
           adults: search.adults,
           children: search.children,
+          infants: search.infants,
           dogs: search.dogs,
           firstName: guest.firstName,
           lastName: guest.lastName,
@@ -361,7 +367,7 @@ export default function BookingFlow({
             </p>
 
             <div className="bg-white rounded-2xl shadow-sm border border-stone-200 p-6 sm:p-8 mb-10">
-              <div className="grid grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr] gap-4 items-end">
+              <div className="grid grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1fr_1fr] gap-4 items-end">
                 <div className="col-span-2 lg:col-span-1">
                   <label className="block text-sm font-medium text-stone-700 mb-2">Reisezeitraum</label>
                   <DateRangePicker
@@ -373,15 +379,31 @@ export default function BookingFlow({
                 <div>
                   <label className="block text-sm font-medium text-stone-700 mb-2">Gäste</label>
                   <select value={search.adults}
-                    onChange={(e) => setSearch({ ...search, adults: parseInt(e.target.value) })}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value);
+                      // children darf nicht größer als adults sein
+                      setSearch({
+                        ...search,
+                        adults: v,
+                        children: Math.min(search.children, v),
+                      });
+                    }}
                     className={inputClasses}>
                     {[1, 2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-2">Kleinkinder (unter 3 J.)</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">davon Kinder (3–17 J.)</label>
                   <select value={search.children}
                     onChange={(e) => setSearch({ ...search, children: parseInt(e.target.value) })}
+                    className={inputClasses}>
+                    {Array.from({ length: search.adults + 1 }, (_, i) => i).map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">Kleinkinder (unter 3)</label>
+                  <select value={search.infants}
+                    onChange={(e) => setSearch({ ...search, infants: parseInt(e.target.value) })}
                     className={inputClasses}>
                     {[0, 1, 2, 3, 4].map((n) => <option key={n} value={n}>{n}</option>)}
                   </select>
@@ -669,7 +691,8 @@ export default function BookingFlow({
                     <div className="text-stone-600">
                       <p>
                         {search.adults} {search.adults === 1 ? "Gast" : "Gäste"}
-                        {search.children > 0 && <>, {search.children} {search.children === 1 ? "Kleinkind" : "Kleinkinder"} (unter 3 J.)</>}
+                        {search.children > 0 && <> (davon {search.children} {search.children === 1 ? "Kind" : "Kinder"} 3–17 J.)</>}
+                        {search.infants > 0 && <>, {search.infants} {search.infants === 1 ? "Kleinkind" : "Kleinkinder"} (unter 3 J.)</>}
                         {search.dogs > 0 && <>, {search.dogs} {search.dogs === 1 ? "Hund" : "Hunde"}</>}
                       </p>
                     </div>
@@ -711,7 +734,7 @@ export default function BookingFlow({
                   <div><p className="text-stone-400">Gesamtpreis</p><p className="text-stone-800 font-medium">{formatCurrency(priceBreakdown.total)}</p></div>
                   <div><p className="text-stone-400">Anreise</p><p className="text-stone-800 font-medium">{new Date(search.checkIn).toLocaleDateString("de-AT", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</p></div>
                   <div><p className="text-stone-400">Abreise</p><p className="text-stone-800 font-medium">{new Date(search.checkOut).toLocaleDateString("de-AT", { weekday: "short", day: "numeric", month: "long", year: "numeric" })}</p></div>
-                  <div><p className="text-stone-400">Gäste</p><p className="text-stone-800 font-medium">{search.adults + search.children} Personen</p></div>
+                  <div><p className="text-stone-400">Gäste</p><p className="text-stone-800 font-medium">{search.adults} Personen{search.infants > 0 && ` + ${search.infants} Kleinkind${search.infants === 1 ? "" : "er"}`}</p></div>
                   <div><p className="text-stone-400">Nächte</p><p className="text-stone-800 font-medium">{priceBreakdown.nights}</p></div>
                 </div>
               </div>

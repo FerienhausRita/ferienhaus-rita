@@ -36,6 +36,8 @@ interface BookingData {
   checkOut: Date;
   adults: number;
   children: number;
+  /** Kleinkinder unter 3 Jahre (kostenfrei) */
+  infants?: number;
   dogs: number;
   nights: number;
   totalPrice: number;
@@ -363,6 +365,17 @@ function priceTable(booking: BookingData): string {
     dogsRow = detailRow(desc, formatCurrency(booking.dogsTotal), { alignRight: true });
   }
 
+  // Kleinkinder unter 3 Jahre — dezenter Hinweis, keine eigene Position
+  let infantsRow = "";
+  if ((booking.infants ?? 0) > 0) {
+    const n = booking.infants!;
+    infantsRow = detailRow(
+      `<span style="color:${LIGHT_GRAY};font-style:italic;">+ ${n} Kleinkind${n === 1 ? "" : "er"} unter 3 J. (kostenfrei)</span>`,
+      `<span style="color:${LIGHT_GRAY};">&mdash;</span>`,
+      { alignRight: true }
+    );
+  }
+
   const localTaxRow =
     booking.localTaxTotal > 0
       ? detailRow(
@@ -385,6 +398,7 @@ function priceTable(booking: BookingData): string {
     <table role="presentation" style="width:100%;border-collapse:collapse;font-size:14px;">
       ${accommodationRows}
       ${extraGuestsRow}
+      ${infantsRow}
       ${dogsRow}
       ${detailRow("Endreinigung (einmalig)", formatCurrency(booking.cleaningFee), { alignRight: true })}
       ${localTaxRow}

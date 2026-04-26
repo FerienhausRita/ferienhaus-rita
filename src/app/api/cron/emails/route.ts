@@ -56,6 +56,7 @@ interface BookingRow {
   check_out: string;
   adults: number;
   children: number;
+  infants: number | null;
   dogs: number;
   nights: number;
   total_price: number;
@@ -77,10 +78,8 @@ function buildBookingData(
   const vatAmount = ((total - localTax) / 1.1) * 0.1;
   const baseGuests = apartment?.baseGuests ?? 2;
   const extraAdults = Math.max(0, row.adults - baseGuests);
-  const extraChildren = Math.max(
-    0,
-    row.adults + row.children - baseGuests - extraAdults
-  );
+  const extraChildren = 0; // einheitlicher Tarif — Aufteilung entfällt
+  void extraChildren;
 
   return {
     id: row.id,
@@ -97,6 +96,7 @@ function buildBookingData(
     checkOut: new Date(row.check_out),
     adults: row.adults,
     children: row.children,
+    infants: row.infants ?? 0,
     dogs: row.dogs,
     nights: row.nights,
     totalPrice: total,

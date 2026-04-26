@@ -45,6 +45,7 @@ export default function ManualBookingForm({
   const [checkOut, setCheckOut] = useState("");
   const [adults, setAdults] = useState(2);
   const [children, setChildren] = useState(0);
+  const [infants, setInfants] = useState(0);
   const [dogs, setDogs] = useState(0);
 
   const [firstName, setFirstName] = useState("");
@@ -160,6 +161,7 @@ export default function ManualBookingForm({
         check_out: checkOut,
         adults,
         children,
+        infants,
         dogs,
         first_name: firstName.trim(),
         last_name: lastName.trim(),
@@ -281,14 +283,18 @@ export default function ManualBookingForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Erwachsene
+              Gäste (ab 3 J.)
             </label>
             <select
               value={adults}
-              onChange={(e) => setAdults(parseInt(e.target.value))}
+              onChange={(e) => {
+                const v = parseInt(e.target.value);
+                setAdults(v);
+                if (children > v) setChildren(v);
+              }}
               className={inputClasses}
             >
               {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -300,11 +306,27 @@ export default function ManualBookingForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Kinder (bis 12 J.)
+              davon Kinder (3–17)
             </label>
             <select
               value={children}
-              onChange={(e) => setChildren(parseInt(e.target.value))}
+              onChange={(e) => setChildren(Math.min(parseInt(e.target.value), adults))}
+              className={inputClasses}
+            >
+              {Array.from({ length: adults + 1 }, (_, i) => i).map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-stone-700 mb-1.5">
+              Kleinkinder (&lt;3)
+            </label>
+            <select
+              value={infants}
+              onChange={(e) => setInfants(parseInt(e.target.value))}
               className={inputClasses}
             >
               {[0, 1, 2, 3, 4].map((n) => (

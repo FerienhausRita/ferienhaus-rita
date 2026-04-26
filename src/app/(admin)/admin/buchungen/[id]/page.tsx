@@ -261,16 +261,26 @@ export default async function BookingDetailPage({
                 </div>
                 <div>
                   <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Gäste
+                    Gäste (ab 3 J.)
                   </p>
                   <p className="font-medium text-stone-900">{booking.adults}</p>
                 </div>
+                {(booking.children || 0) > 0 && (
+                  <div>
+                    <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
+                      davon Kinder
+                    </p>
+                    <p className="font-medium text-stone-900">
+                      {booking.children}
+                    </p>
+                  </div>
+                )}
                 <div>
                   <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Kleinkinder (unter 3 J.)
+                    Kleinkinder &lt;3
                   </p>
                   <p className="font-medium text-stone-900">
-                    {booking.children || 0}
+                    {booking.infants || 0}
                   </p>
                 </div>
                 {booking.dogs > 0 && (
@@ -302,6 +312,7 @@ export default async function BookingDetailPage({
               initialCheckOut={booking.check_out}
               initialAdults={booking.adults}
               initialChildren={booking.children || 0}
+              initialInfants={booking.infants || 0}
               initialDogs={booking.dogs || 0}
               initialNotes={booking.notes || ""}
               isExternalChannel={!!booking.source_channel && booking.source_channel !== "Website"}

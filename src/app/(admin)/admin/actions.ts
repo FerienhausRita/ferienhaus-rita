@@ -493,6 +493,7 @@ export async function updateBookingStatus(
           extraChildren: breakdown?.extraChildren,
           extraChildrenTotal: breakdown?.extraChildrenTotal,
           extraChildPrice: apartment.extraChildPrice ?? apartment.extraPersonPrice,
+          infants: Number(booking.infants || 0),
           dogFeePerNight: apartment.dogFee,
           firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
           additionalDogFee: apartment.additionalDogFee ?? apartment.dogFee,
@@ -1265,7 +1266,7 @@ export async function getCleaningSchedule(start: string, end: string) {
   // Departures (need cleaning)
   const { data: departures } = await supabase
     .from("bookings")
-    .select("id, apartment_id, first_name, last_name, check_in, check_out, adults, children, dogs")
+    .select("id, apartment_id, first_name, last_name, check_in, check_out, adults, children, infants, dogs")
     .gte("check_out", start)
     .lte("check_out", end)
     .neq("status", "cancelled")
@@ -1274,7 +1275,7 @@ export async function getCleaningSchedule(start: string, end: string) {
   // Arrivals (next guest info for turnover)
   const { data: arrivals } = await supabase
     .from("bookings")
-    .select("id, apartment_id, first_name, last_name, check_in, check_out, adults, children, dogs")
+    .select("id, apartment_id, first_name, last_name, check_in, check_out, adults, children, infants, dogs")
     .gte("check_in", start)
     .lte("check_in", end)
     .neq("status", "cancelled")
@@ -1349,13 +1350,10 @@ export async function resendConfirmation(bookingId: string) {
         localTaxTotal: Number(booking.local_tax_total || 0),
         // Aufgespaltene Zusatzgast-Werte (von tatsächlicher Personenzahl + Apartment-Preisen abgeleitet)
         extraAdults: Math.max(0, booking.adults - apartment.baseGuests),
-        extraChildren: Math.max(
-          0,
-          booking.adults + (booking.children || 0) - apartment.baseGuests -
-            Math.max(0, booking.adults - apartment.baseGuests)
-        ),
+        extraChildren: 0,
         extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
         extraChildPrice: apartment.extraChildPrice ?? 20,
+        infants: Number(booking.infants || 0),
         firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
         additionalDogFee: apartment.additionalDogFee ?? 7.5,
         vatAmount,
@@ -2657,6 +2655,7 @@ export async function updateBookingDetails(
     check_out?: string;
     adults?: number;
     children?: number;
+    infants?: number;
     dogs?: number;
     notes?: string;
   }
@@ -2676,6 +2675,7 @@ export async function updateBookingDetails(
     check_out: updates.check_out ?? booking.check_out,
     adults: updates.adults ?? booking.adults,
     children: updates.children ?? booking.children,
+    infants: updates.infants ?? booking.infants ?? 0,
     dogs: updates.dogs ?? booking.dogs,
   };
 
@@ -2717,11 +2717,13 @@ export async function updateBookingDetails(
     check_out: merged.check_out,
     adults: merged.adults,
     children: merged.children,
+    infants: merged.infants,
     dogs: merged.dogs,
     notes: updates.notes ?? booking.notes,
   };
 
   // Recalculate price for Website bookings whenever anything price-relevant changed
+  // (infants ändern den Preis nicht, lösen aber keinen Recalc aus)
   const priceRelevantChanged =
     datesOrApartmentChanged ||
     merged.adults !== booking.adults ||
@@ -2813,6 +2815,7 @@ export async function createManualBooking(data: {
   check_out: string;
   adults: number;
   children: number;
+  infants?: number;
   dogs: number;
   first_name: string;
   last_name: string;
@@ -2924,6 +2927,7 @@ export async function createManualBooking(data: {
       nights,
       adults: data.adults,
       children: data.children,
+      infants: data.infants ?? 0,
       dogs: data.dogs,
       first_name: data.first_name,
       last_name: data.last_name,
@@ -3022,6 +3026,7 @@ export async function createManualBooking(data: {
           extraChildren: breakdown.extraChildren,
           extraChildrenTotal: breakdown.extraChildrenTotal,
           extraChildPrice: apartment.extraChildPrice ?? 20,
+          infants: data.infants ?? 0,
           firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
           additionalDogFee: apartment.additionalDogFee ?? 7.5,
         },

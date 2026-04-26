@@ -241,9 +241,11 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const { apartment, checkIn, checkOut, adults, children, dogs, discount, overrides } =
     params;
   const nights = calculateNights(checkIn, checkOut);
-  // `adults` = "Gäste" (alle ab 3 J., einheitlicher Tarif)
-  // `children` = Kleinkinder unter 3 J., kostenfrei und zählen NICHT zur
-  // baseGuests-Auslastung. Sie reisen mit, lösen aber keinen Zusatzpreis aus.
+  // Personen-Kategorien:
+  //   adults   = "Gäste" (alle ab 3 J., einheitlicher Tarif) → Auslastungsbasis
+  //   children = davon Kinder 3–17 J. (Untermenge, info-only)
+  //   infants  = Kleinkinder unter 3 J. (kostenfrei, zählen nicht)
+  // Pricing nutzt nur `adults` für die Auslastung — `children` ist Statistik.
   void children;
   const extraGuests = Math.max(0, adults - apartment.baseGuests);
 
