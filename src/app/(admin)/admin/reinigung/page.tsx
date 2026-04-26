@@ -2,6 +2,12 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { getCleaningSchedule } from "../actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
+import { getCleaningConfig } from "@/lib/cleaning-config";
+import {
+  buildCleaningSlots,
+  computeCleaningClusters,
+  type CleaningSlotInput,
+} from "@/lib/cleaning-schedule";
 
 export const metadata: Metadata = {
   title: "Reinigungsplan",
@@ -17,6 +23,14 @@ function formatDate(dateStr: string) {
   });
 }
 
+function daysFromToday(dateStr: string, todayIso: string): number {
+  return Math.round(
+    (new Date(dateStr + "T00:00:00").getTime() -
+      new Date(todayIso + "T00:00:00").getTime()) /
+      (1000 * 60 * 60 * 24)
+  );
+}
+
 const RANGE_OPTIONS = [
   { days: 14, label: "14 Tage" },
   { days: 30, label: "1 Monat" },
@@ -24,45 +38,40 @@ const RANGE_OPTIONS = [
   { days: 365, label: "Jahr" },
 ] as const;
 
+const VIEW_OPTIONS = [
+  { key: "cluster", label: "Empfohlene Tage" },
+  { key: "list", label: "Alle Abreisen" },
+] as const;
+type ViewKey = (typeof VIEW_OPTIONS)[number]["key"];
+
 export default async function ReinigungPage({
   searchParams,
 }: {
-  searchParams: { days?: string };
+  searchParams: { days?: string; view?: string };
 }) {
   const daysParam = Number(searchParams.days ?? 14);
   const days = [14, 30, 90, 365].includes(daysParam) ? daysParam : 14;
+  const view: ViewKey =
+    searchParams.view === "list" ? "list" : "cluster";
 
   const today = new Date();
   const start = today.toISOString().split("T")[0];
   const endDate = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
   const end = endDate.toISOString().split("T")[0];
 
-  const [{ departures, arrivals }, nameMap] = await Promise.all([
+  const [{ departures, arrivals }, nameMap, cleaningCfg] = await Promise.all([
     getCleaningSchedule(start, end),
     getApartmentNameMap(),
+    getCleaningConfig(),
   ]);
 
-  // Group departures by date
-  const byDate = new Map<string, typeof departures>();
-  for (const d of departures) {
-    const existing = byDate.get(d.check_out) ?? [];
-    existing.push(d);
-    byDate.set(d.check_out, existing);
-  }
-
-  // Build arrival map: apartment_id → next arrival after a departure
-  // Zusätzlich: chronologisch sortierte Anreise-Liste pro Wohnung,
-  // damit wir für jede Abreise die nächste Anreise finden (auch in X Tagen).
-  const arrivalMap = new Map<string, (typeof arrivals)[0]>();
+  // Map: apartment_id → sortierte Anreisen (für nextArrival-Lookup)
   const arrivalsByApt = new Map<string, typeof arrivals>();
   for (const a of arrivals) {
-    const key = `${a.apartment_id}-${a.check_in}`;
-    arrivalMap.set(key, a);
     const list = arrivalsByApt.get(a.apartment_id) ?? [];
     list.push(a);
     arrivalsByApt.set(a.apartment_id, list);
   }
-  // pre-sort (defensive)
   for (const list of arrivalsByApt.values()) {
     list.sort((x, y) => x.check_in.localeCompare(y.check_in));
   }
@@ -70,13 +79,41 @@ export default async function ReinigungPage({
     const list = arrivalsByApt.get(apartmentId) ?? [];
     return list.find((a) => a.check_in >= afterDate);
   };
-  const daysBetween = (from: string, to: string) =>
-    Math.round(
-      (new Date(to + "T00:00:00").getTime() -
-        new Date(from + "T00:00:00").getTime()) /
-        (1000 * 60 * 60 * 24)
-    );
 
+  // CleaningSlotInput pro Abreise erzeugen
+  const slotInputs: CleaningSlotInput[] = departures.map((dep) => {
+    const next = findNextArrival(dep.apartment_id, dep.check_out);
+    return {
+      apartmentId: dep.apartment_id,
+      apartmentName: nameMap.get(dep.apartment_id) ?? dep.apartment_id,
+      bookingId: dep.id,
+      guestFirstName: dep.first_name,
+      guestLastName: dep.last_name,
+      checkOut: dep.check_out,
+      nextCheckIn: next?.check_in ?? null,
+      nextGuestFirstName: next?.first_name ?? null,
+      nextGuestLastName: next?.last_name ?? null,
+      nextAdults: next?.adults,
+      nextChildren: next?.children,
+      nextInfants: (next as { infants?: number } | undefined)?.infants ?? 0,
+      nextDogs: next?.dogs,
+    };
+  });
+
+  const slots = buildCleaningSlots(slotInputs, cleaningCfg);
+  const clusters = computeCleaningClusters(slots);
+
+  // Für die Listen-Ansicht (Fallback): Abreisen nach Datum gruppiert
+  const byDate = new Map<string, typeof departures>();
+  for (const d of departures) {
+    const existing = byDate.get(d.check_out) ?? [];
+    existing.push(d);
+    byDate.set(d.check_out, existing);
+  }
+  const arrivalMap = new Map<string, (typeof arrivals)[0]>();
+  for (const a of arrivals) {
+    arrivalMap.set(`${a.apartment_id}-${a.check_in}`, a);
+  }
   const sortedDates = [...byDate.keys()].sort();
 
   return (
@@ -85,177 +122,285 @@ export default async function ReinigungPage({
         <div>
           <h1 className="text-2xl font-bold text-stone-900">Reinigungsplan</h1>
           <p className="text-sm text-stone-500 mt-1">
-            {formatDate(start)} &ndash; {formatDate(end)}
+            {formatDate(start)} &ndash; {formatDate(end)} ·{" "}
+            {cleaningCfg.buffer_days === 0
+              ? "Reinigung am Anreisetag"
+              : `${cleaningCfg.buffer_days} Tag${cleaningCfg.buffer_days === 1 ? "" : "e"} Puffer vor Anreise`}
           </p>
         </div>
-        <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-xl p-1">
-          {RANGE_OPTIONS.map((opt) => {
-            const active = opt.days === days;
-            return (
-              <Link
-                key={opt.days}
-                href={`/admin/reinigung?days=${opt.days}`}
-                className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                  active
-                    ? "bg-[#c8a96e] text-white"
-                    : "text-stone-600 hover:bg-stone-50"
-                }`}
-              >
-                {opt.label}
-              </Link>
-            );
-          })}
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          {/* View Toggle */}
+          <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-xl p-1">
+            {VIEW_OPTIONS.map((opt) => {
+              const active = opt.key === view;
+              return (
+                <Link
+                  key={opt.key}
+                  href={`/admin/reinigung?days=${days}&view=${opt.key}`}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    active
+                      ? "bg-[#c8a96e] text-white"
+                      : "text-stone-600 hover:bg-stone-50"
+                  }`}
+                >
+                  {opt.label}
+                </Link>
+              );
+            })}
+          </div>
+          {/* Range */}
+          <div className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-xl p-1">
+            {RANGE_OPTIONS.map((opt) => {
+              const active = opt.days === days;
+              return (
+                <Link
+                  key={opt.days}
+                  href={`/admin/reinigung?days=${opt.days}&view=${view}`}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                    active
+                      ? "bg-[#c8a96e] text-white"
+                      : "text-stone-600 hover:bg-stone-50"
+                  }`}
+                >
+                  {opt.label}
+                </Link>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      {sortedDates.length === 0 ? (
-        <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
-          <p className="text-stone-500">Keine Abreisen im gew&auml;hlten Zeitraum</p>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          {sortedDates.map((date) => {
-            const deps = byDate.get(date)!;
-            const isToday = date === start;
-            const isTomorrow =
-              date === new Date(today.getTime() + 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+      {view === "cluster" ? (
+        // ──────────── Cluster-Ansicht ────────────
+        clusters.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
+            <p className="text-stone-500">Keine Reinigungen im gew&auml;hlten Zeitraum.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {clusters.map((cluster) => {
+              const daysUntil = daysFromToday(cluster.day, start);
+              const dayLabel =
+                daysUntil === 0
+                  ? "Heute"
+                  : daysUntil === 1
+                  ? "Morgen"
+                  : daysUntil < 0
+                  ? `vor ${Math.abs(daysUntil)} Tag${Math.abs(daysUntil) === 1 ? "" : "en"}`
+                  : `in ${daysUntil} Tagen`;
+              const isToday = daysUntil === 0;
+              const isOverdue = daysUntil < 0;
 
-            return (
-              <div key={date}>
-                <div className="flex items-center gap-3 mb-3">
-                  <h2 className="font-semibold text-stone-900">
-                    {formatDate(date)}
-                  </h2>
-                  {isToday && (
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                      Heute
-                    </span>
-                  )}
-                  {isTomorrow && (
-                    <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
-                      Morgen
-                    </span>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {deps.map((dep) => {
-                    const apartmentName = nameMap.get(dep.apartment_id) ?? dep.apartment_id;
-                    // Turnover: Anreise am selben Tag (check_in === check_out)
-                    const sameDayArrival = arrivalMap.get(`${dep.apartment_id}-${dep.check_out}`);
-                    // Sonst: nächste Anreise danach (für "Puffer-Zeit")
-                    const nextArrival =
-                      sameDayArrival ??
-                      findNextArrival(dep.apartment_id, dep.check_out);
-                    const isTurnover = !!sameDayArrival;
-                    const daysUntilNext = nextArrival
-                      ? daysBetween(dep.check_out, nextArrival.check_in)
-                      : null;
-
-                    return (
-                      <div
-                        key={dep.id}
-                        className={`rounded-xl border p-4 ${
-                          isTurnover
-                            ? "border-red-200 bg-red-50/50"
-                            : nextArrival && daysUntilNext !== null && daysUntilNext <= 2
-                            ? "border-amber-200 bg-amber-50/50"
-                            : "border-stone-200 bg-white"
+              return (
+                <div
+                  key={cluster.day}
+                  className={`rounded-2xl border overflow-hidden ${
+                    cluster.hasTurnover
+                      ? "border-red-300 bg-red-50/50"
+                      : isToday
+                      ? "border-amber-300 bg-amber-50/50"
+                      : isOverdue
+                      ? "border-red-300 bg-red-50/30"
+                      : "border-stone-200 bg-white"
+                  }`}
+                >
+                  <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <h2 className="font-semibold text-stone-900">
+                        {formatDate(cluster.day)}
+                      </h2>
+                      <span
+                        className={`text-xs font-medium px-2 py-0.5 rounded-full ${
+                          isToday
+                            ? "bg-amber-100 text-amber-700"
+                            : isOverdue
+                            ? "bg-red-100 text-red-700"
+                            : "bg-stone-100 text-stone-600"
                         }`}
                       >
-                        <div className="flex items-start justify-between mb-2">
-                          <div>
+                        {dayLabel}
+                      </span>
+                      {cluster.hasTurnover && (
+                        <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                          Wechsel-Tag (MUSS)
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-stone-500">
+                      {cluster.slots.length} Reinigung
+                      {cluster.slots.length === 1 ? "" : "en"}
+                    </span>
+                  </div>
+
+                  <div className="divide-y divide-stone-100">
+                    {cluster.slots.map((slot) => {
+                      const bufferUntilNext = slot.nextCheckIn
+                        ? Math.round(
+                            (new Date(slot.nextCheckIn + "T00:00:00").getTime() -
+                              new Date(cluster.day + "T00:00:00").getTime()) /
+                              (1000 * 60 * 60 * 24)
+                          )
+                        : null;
+                      return (
+                        <div
+                          key={slot.bookingId}
+                          className="px-5 py-3 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2"
+                        >
+                          <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-stone-900">
+                              {slot.apartmentName}
+                            </p>
+                            <p className="text-xs text-stone-500">
+                              Abreise <strong className="text-stone-700">{slot.guestFirstName} {slot.guestLastName}</strong>{" "}
+                              am {formatDate(slot.checkOut)}
+                              {slot.nextCheckIn && slot.nextGuestFirstName && (
+                                <>
+                                  {" "}· nächste Anreise{" "}
+                                  <strong className="text-stone-700">
+                                    {slot.nextGuestFirstName} {slot.nextGuestLastName}
+                                  </strong>{" "}
+                                  am {formatDate(slot.nextCheckIn)}
+                                  {bufferUntilNext !== null && (
+                                    <>
+                                      {" "}({bufferUntilNext === 0
+                                        ? "selber Tag"
+                                        : bufferUntilNext === 1
+                                        ? "1 Tag Puffer"
+                                        : `${bufferUntilNext} Tage Puffer`})
+                                    </>
+                                  )}
+                                </>
+                              )}
+                            </p>
+                            {slot.nextCheckIn &&
+                              (slot.nextAdults ||
+                                slot.nextChildren ||
+                                slot.nextInfants ||
+                                slot.nextDogs) && (
+                                <p className="text-[11px] text-stone-400 mt-0.5">
+                                  Belegung danach: {slot.nextAdults ?? 0} Pers.
+                                  {(slot.nextChildren ?? 0) > 0 &&
+                                    ` + ${slot.nextChildren} Kinder`}
+                                  {(slot.nextInfants ?? 0) > 0 &&
+                                    ` + ${slot.nextInfants} Kleinkind${slot.nextInfants === 1 ? "" : "er"}`}
+                                  {(slot.nextDogs ?? 0) > 0 &&
+                                    ` · ${slot.nextDogs} Hund${slot.nextDogs === 1 ? "" : "e"}`}
+                                </p>
+                              )}
+                          </div>
+                          <div className="text-right text-xs">
+                            <p className="text-stone-500">
+                              spätestens
+                            </p>
+                            <p
+                              className={`font-medium ${
+                                slot.isTurnover ? "text-red-600" : "text-stone-700"
+                              }`}
+                            >
+                              {formatDate(slot.latest)}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )
+      ) : (
+        // ──────────── Listen-Ansicht (Legacy / Fallback) ────────────
+        sortedDates.length === 0 ? (
+          <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
+            <p className="text-stone-500">Keine Abreisen im gew&auml;hlten Zeitraum.</p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {sortedDates.map((date) => {
+              const deps = byDate.get(date)!;
+              const isToday = date === start;
+              const isTomorrow =
+                date ===
+                new Date(today.getTime() + 24 * 60 * 60 * 1000)
+                  .toISOString()
+                  .split("T")[0];
+
+              return (
+                <div key={date}>
+                  <div className="flex items-center gap-3 mb-3">
+                    <h2 className="font-semibold text-stone-900">
+                      {formatDate(date)}
+                    </h2>
+                    {isToday && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                        Heute
+                      </span>
+                    )}
+                    {isTomorrow && (
+                      <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                        Morgen
+                      </span>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {deps.map((dep) => {
+                      const apartmentName =
+                        nameMap.get(dep.apartment_id) ?? dep.apartment_id;
+                      const sameDayArrival = arrivalMap.get(
+                        `${dep.apartment_id}-${dep.check_out}`
+                      );
+                      const nextArrival =
+                        sameDayArrival ??
+                        findNextArrival(dep.apartment_id, dep.check_out);
+                      const isTurnover = !!sameDayArrival;
+                      return (
+                        <div
+                          key={dep.id}
+                          className={`rounded-xl border p-4 ${
+                            isTurnover
+                              ? "border-red-200 bg-red-50/50"
+                              : "border-stone-200 bg-white"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between mb-2">
                             <p className="font-semibold text-stone-900">
                               {apartmentName}
                             </p>
-                            {isTurnover && (
-                              <span className="text-xs font-medium text-red-700 bg-red-100 px-1.5 py-0.5 rounded">
-                                Wechsel heute!
-                              </span>
-                            )}
+                            <div className="text-right text-xs text-stone-500">
+                              {dep.adults} Pers.
+                              {((dep as { infants?: number }).infants || 0) > 0 && (
+                                <>
+                                  {" "}+ {(dep as { infants?: number }).infants} Kleinkind
+                                  {(dep as { infants?: number }).infants === 1 ? "" : "er"}
+                                </>
+                              )}
+                              {dep.dogs > 0 &&
+                                ` · ${dep.dogs} Hund${dep.dogs > 1 ? "e" : ""}`}
+                            </div>
                           </div>
-                          <div className="text-right text-xs text-stone-500">
-                            {dep.adults} Pers.
-                            {(dep.infants || 0) > 0 && (
-                              <>
-                                {" "}+ {dep.infants} Kleinkind{dep.infants === 1 ? "" : "er"}
-                              </>
-                            )}
-                            {dep.dogs > 0 && ` · ${dep.dogs} Hund${dep.dogs > 1 ? "e" : ""}`}
-                          </div>
+                          <p className="text-sm text-stone-600">
+                            Abreise{" "}
+                            <strong className="text-stone-800">
+                              {dep.first_name} {dep.last_name}
+                            </strong>
+                          </p>
+                          {nextArrival && (
+                            <p className="text-xs text-stone-500 mt-1">
+                              Nächste Anreise: {nextArrival.first_name}{" "}
+                              {nextArrival.last_name} am{" "}
+                              {formatDate(nextArrival.check_in)}
+                            </p>
+                          )}
                         </div>
-
-                        {/* Departing guest */}
-                        <div className="flex items-center gap-2 text-sm mb-1">
-                          <svg className="w-4 h-4 text-red-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15m3 0l3-3m0 0l-3-3m3 3H9" />
-                          </svg>
-                          <span className="text-stone-700">
-                            {dep.first_name} {dep.last_name}
-                          </span>
-                          <span className="text-stone-400 text-xs">Abreise</span>
-                        </div>
-
-                        {/* Next arrival — immer anzeigen, wenn im Zeitraum */}
-                        {nextArrival ? (
-                          <div className="flex items-center gap-2 text-sm pt-1">
-                            <svg
-                              className={`w-4 h-4 shrink-0 ${
-                                isTurnover
-                                  ? "text-red-500"
-                                  : daysUntilNext !== null && daysUntilNext <= 2
-                                  ? "text-amber-500"
-                                  : "text-emerald-500"
-                              }`}
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={1.5}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75"
-                              />
-                            </svg>
-                            <span className="text-stone-700">
-                              {nextArrival.first_name} {nextArrival.last_name}
-                            </span>
-                            <span className="text-stone-400 text-xs ml-auto">
-                              {isTurnover
-                                ? "heute"
-                                : daysUntilNext === 1
-                                ? "morgen"
-                                : `in ${daysUntilNext} Tagen`}{" "}
-                              ({formatDate(nextArrival.check_in)})
-                            </span>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 text-xs pt-1 text-stone-400">
-                            <svg
-                              className="w-3.5 h-3.5 shrink-0"
-                              fill="none"
-                              viewBox="0 0 24 24"
-                              stroke="currentColor"
-                              strokeWidth={1.5}
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                              />
-                            </svg>
-                            <span>Keine weitere Buchung im Zeitraum</span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+                      );
+                    })}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )
       )}
     </div>
   );

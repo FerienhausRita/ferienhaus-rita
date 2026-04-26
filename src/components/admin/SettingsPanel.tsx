@@ -255,6 +255,17 @@ export default function SettingsPanel({
   const [checkinLoading, setCheckinLoading] = useState(false);
   const [checkinMessage, setCheckinMessage] = useState<string | null>(null);
 
+  // Reinigungs-Konfiguration
+  const cleaningInit = siteSettings.cleaning_config ?? {};
+  const [cleaningBufferDays, setCleaningBufferDays] = useState<number>(
+    Number(cleaningInit.buffer_days ?? 1)
+  );
+  const [cleaningMaxLeadDays, setCleaningMaxLeadDays] = useState<number>(
+    Number(cleaningInit.max_lead_days ?? 14)
+  );
+  const [cleaningCfgLoading, setCleaningCfgLoading] = useState(false);
+  const [cleaningCfgMessage, setCleaningCfgMessage] = useState<string | null>(null);
+
   // E-Mail-Zeitplan
   const timingInit = siteSettings.email_timing ?? {};
   const [paymentDays, setPaymentDays] = useState<number>(timingInit.payment_reminder_days ?? 7);
@@ -637,6 +648,26 @@ export default function SettingsPanel({
     setCheckinLoading(false);
     setCheckinMessage(result.success ? "Gespeichert" : result.error || "Fehler");
     if (result.success) setTimeout(() => setCheckinMessage(null), 3000);
+  };
+
+  const handleCleaningCfgSave = async () => {
+    if (cleaningBufferDays < 0 || cleaningBufferDays > 7) {
+      setCleaningCfgMessage("Puffer muss zwischen 0 und 7 Tagen liegen");
+      return;
+    }
+    if (cleaningMaxLeadDays < 1 || cleaningMaxLeadDays > 60) {
+      setCleaningCfgMessage("Max. Vorlauf muss zwischen 1 und 60 Tagen liegen");
+      return;
+    }
+    setCleaningCfgLoading(true);
+    setCleaningCfgMessage(null);
+    const result = await updateSiteSetting("cleaning_config", {
+      buffer_days: Math.round(cleaningBufferDays),
+      max_lead_days: Math.round(cleaningMaxLeadDays),
+    });
+    setCleaningCfgLoading(false);
+    setCleaningCfgMessage(result.success ? "Gespeichert" : result.error || "Fehler");
+    if (result.success) setTimeout(() => setCleaningCfgMessage(null), 3000);
   };
 
   const handleTimingSave = async () => {
@@ -1187,6 +1218,64 @@ export default function SettingsPanel({
               {timingLoading ? "..." : "Speichern"}
             </button>
             {timingMessage && <p className={successClass}>{timingMessage}</p>}
+          </div>
+        </div>
+      </Section>
+
+      {/* Reinigungs-Konfiguration */}
+      <Section
+        id="cleaning"
+        title="Reinigungsplan"
+        subtitle="Bündel-Logik für Reinigungstermine — wie viele Tage vor Anreise muss eine Wohnung spätestens fertig sein"
+        open={openSections.has("cleaning")}
+        onToggle={toggleSection}
+      >
+        <div className="space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Puffer vor Anreise
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={0}
+                  max={7}
+                  value={cleaningBufferDays}
+                  onChange={(e) => setCleaningBufferDays(Number(e.target.value))}
+                  className={inputClass}
+                />
+                <span className="text-sm text-stone-500 whitespace-nowrap">Tage</span>
+              </div>
+              <p className="text-[11px] text-stone-400 mt-1">
+                1 = Reinigung am Tag vor Anreise, 0 = am Anreisetag selbst.
+              </p>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">
+                Max. Vorlauf bei freiem Zeitraum
+              </label>
+              <div className="flex items-center gap-2">
+                <input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={cleaningMaxLeadDays}
+                  onChange={(e) => setCleaningMaxLeadDays(Number(e.target.value))}
+                  className={inputClass}
+                />
+                <span className="text-sm text-stone-500 whitespace-nowrap">Tage</span>
+              </div>
+              <p className="text-[11px] text-stone-400 mt-1">
+                Wenn keine Anreise im Plan-Zeitraum ansteht: spätestens nach so vielen Tagen reinigen.
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-3">
+            <button onClick={handleCleaningCfgSave} disabled={cleaningCfgLoading} className={btnClass}>
+              {cleaningCfgLoading ? "..." : "Speichern"}
+            </button>
+            {cleaningCfgMessage && <p className={successClass}>{cleaningCfgMessage}</p>}
           </div>
         </div>
       </Section>
