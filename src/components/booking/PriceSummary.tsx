@@ -5,12 +5,15 @@ import LocalTaxHint from "@/components/booking/LocalTaxHint";
 interface PriceSummaryProps {
   breakdown: PriceBreakdown;
   dogs: number;
+  /** Kleinkinder unter 3 J. (kostenfrei) — dezenter Hinweis */
+  infants?: number;
   compact?: boolean;
 }
 
 export default function PriceSummary({
   breakdown,
   dogs,
+  infants = 0,
   compact = false,
 }: PriceSummaryProps) {
   const hasMultipleSeasons = breakdown.seasonBreakdown.length > 1;
@@ -74,6 +77,12 @@ export default function PriceSummary({
         <span>Endreinigung</span>
         <span>{formatCurrency(breakdown.cleaningFee)}</span>
       </div>
+
+      {infants > 0 && (
+        <div className="text-xs text-stone-400 italic">
+          + {infants} {infants === 1 ? "Kleinkind" : "Kleinkinder"} unter 3 J. (kostenfrei)
+        </div>
+      )}
 
       {/* Legacy: bei Altbuchungen war Kurtaxe im Gesamtpreis */}
       {breakdown.localTaxTotal > 0 && (

@@ -77,9 +77,9 @@ function buildBookingData(
   const localTax = Number(row.local_tax_total || 0);
   const vatAmount = ((total - localTax) / 1.1) * 0.1;
   const baseGuests = apartment?.baseGuests ?? 2;
-  const extraAdults = Math.max(0, row.adults - baseGuests);
-  const extraChildren = 0; // einheitlicher Tarif — Aufteilung entfällt
-  void extraChildren;
+  // Einheitlicher Tarif: alle ab 3 J. zählen additiv (adults + children).
+  // infants kostenfrei und zählen nicht.
+  const extraGuests = Math.max(0, row.adults + (row.children ?? 0) - baseGuests);
 
   return {
     id: row.id,
@@ -106,10 +106,9 @@ function buildBookingData(
     cleaningFee: Number(row.cleaning_fee),
     localTaxTotal: Number(row.local_tax_total || 0),
     vatAmount,
-    extraAdults,
-    extraChildren,
-    extraAdultPrice: apartment?.extraAdultPrice ?? apartment?.extraPersonPrice,
-    extraChildPrice: apartment?.extraChildPrice ?? 20,
+    extraGuests,
+    extraPersonPrice: apartment?.extraAdultPrice ?? apartment?.extraPersonPrice,
+    dogFeePerNight: apartment?.firstDogFee ?? apartment?.dogFee,
     firstDogFee: apartment?.firstDogFee ?? apartment?.dogFee,
     additionalDogFee: apartment?.additionalDogFee ?? 7.5,
   };

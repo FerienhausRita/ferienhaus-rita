@@ -482,19 +482,9 @@ export async function updateBookingStatus(
             total: s.total,
           })),
           extraGuests: breakdown?.extraGuests,
-          extraPersonPrice: breakdown
-            ? breakdown.extraGuests > 0 && nights > 0
-              ? Math.round((breakdown.extraGuestsTotal / (breakdown.extraGuests * nights)) * 100) / 100
-              : apartment.extraPersonPrice
-            : undefined,
-          extraAdults: breakdown?.extraAdults,
-          extraAdultsTotal: breakdown?.extraAdultsTotal,
-          extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
-          extraChildren: breakdown?.extraChildren,
-          extraChildrenTotal: breakdown?.extraChildrenTotal,
-          extraChildPrice: apartment.extraChildPrice ?? apartment.extraPersonPrice,
+          extraPersonPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
           infants: Number(booking.infants || 0),
-          dogFeePerNight: apartment.dogFee,
+          dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
           firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
           additionalDogFee: apartment.additionalDogFee ?? apartment.dogFee,
           localTaxPerNight: breakdown?.localTaxPerNight,
@@ -1348,12 +1338,14 @@ export async function resendConfirmation(bookingId: string) {
         dogsTotal: Number(booking.dogs_total),
         cleaningFee: Number(booking.cleaning_fee),
         localTaxTotal: Number(booking.local_tax_total || 0),
-        // Aufgespaltene Zusatzgast-Werte (von tatsächlicher Personenzahl + Apartment-Preisen abgeleitet)
-        extraAdults: Math.max(0, booking.adults - apartment.baseGuests),
-        extraChildren: 0,
-        extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
-        extraChildPrice: apartment.extraChildPrice ?? 20,
+        // Auslastung additiv: adults + children, infants kostenfrei
+        extraGuests: Math.max(
+          0,
+          booking.adults + (booking.children || 0) - apartment.baseGuests
+        ),
+        extraPersonPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
         infants: Number(booking.infants || 0),
+        dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
         firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
         additionalDogFee: apartment.additionalDogFee ?? 7.5,
         vatAmount,
@@ -2863,11 +2855,8 @@ export async function createManualBooking(data: {
     ? {
         basePrice: nights > 0 ? Math.round(((manualTotal - manualCleaning) / nights) * 100) / 100 : 0,
         basePriceTotal: manualTotal - manualCleaning,
+        extraGuests: 0,
         extraGuestsTotal: 0,
-        extraAdults: 0,
-        extraAdultsTotal: 0,
-        extraChildren: 0,
-        extraChildrenTotal: 0,
         dogsTotal: 0,
         cleaningFee: manualCleaning,
         localTaxTotal: 0,
@@ -3020,13 +3009,10 @@ export async function createManualBooking(data: {
           cleaningFee: breakdown.cleaningFee,
           localTaxTotal: breakdown.localTaxTotal || 0,
           vatAmount: breakdown.vatAmount,
-          extraAdults: breakdown.extraAdults,
-          extraAdultsTotal: breakdown.extraAdultsTotal,
-          extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
-          extraChildren: breakdown.extraChildren,
-          extraChildrenTotal: breakdown.extraChildrenTotal,
-          extraChildPrice: apartment.extraChildPrice ?? 20,
+          extraGuests: "extraGuests" in breakdown ? breakdown.extraGuests : 0,
+          extraPersonPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
           infants: data.infants ?? 0,
+          dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
           firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
           additionalDogFee: apartment.additionalDogFee ?? 7.5,
         },
@@ -3916,8 +3902,9 @@ export async function sendTestEmail(emailType: TestEmailType) {
   const dogs = Number(latestBooking.dogs || 0);
   const nights = Number(latestBooking.nights || 3);
   const totalPrice = Number(latestBooking.total_price || 500);
-  const extraAdults = Math.max(0, adults - baseGuests);
-  const extraChildren = Math.max(0, adults + children - baseGuests - extraAdults);
+  // additiv: alle ab 3 zählen
+  const extraGuests = Math.max(0, adults + children - baseGuests);
+  const infants = Number(latestBooking.infants || 0);
 
   const synthetic = {
     id: latestBooking.id,
@@ -3947,10 +3934,10 @@ export async function sendTestEmail(emailType: TestEmailType) {
     depositDueDate: latestBooking.deposit_due_date as string | undefined,
     remainderAmount: Number(latestBooking.remainder_amount || totalPrice * 0.7),
     remainderDueDate: latestBooking.remainder_due_date as string | undefined,
-    extraAdults,
-    extraChildren,
-    extraAdultPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
-    extraChildPrice: apartment.extraChildPrice ?? 20,
+    extraGuests,
+    extraPersonPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+    infants,
+    dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
     firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
     additionalDogFee: apartment.additionalDogFee ?? 7.5,
     localTaxIncluded: false,

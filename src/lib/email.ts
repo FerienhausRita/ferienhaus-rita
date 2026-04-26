@@ -58,15 +58,10 @@ interface BookingData {
     pricePerNight: number;
     total: number;
   }>;
+  /** Anzahl Zusatzgäste (über baseGuests hinaus) — einheitlicher Tarif */
   extraGuests?: number;
+  /** Preis pro Zusatzperson/Nacht */
   extraPersonPrice?: number;
-  /** Aufgespaltene Zusatzpersonen (neue Pricing-Engine) */
-  extraAdults?: number;
-  extraAdultPrice?: number;
-  extraAdultsTotal?: number;
-  extraChildren?: number;
-  extraChildPrice?: number;
-  extraChildrenTotal?: number;
   dogFeePerNight?: number;
   firstDogFee?: number;
   additionalDogFee?: number;

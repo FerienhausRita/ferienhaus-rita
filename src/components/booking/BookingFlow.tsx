@@ -480,7 +480,7 @@ export default function BookingFlow({
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">
                       Preisübersicht – {selectedApartment.name}
                     </h3>
-                    <PriceSummary breakdown={priceBreakdown} dogs={search.dogs} />
+                    <PriceSummary breakdown={priceBreakdown} dogs={search.dogs} infants={search.infants} />
 
                     <div className="mt-6 pt-4 border-t border-stone-100">
                       <label className="block text-sm font-medium text-stone-700 mb-2">Rabattcode</label>
@@ -681,7 +681,7 @@ export default function BookingFlow({
                       </p>
                     </div>
                     <div className="pt-3 border-t border-stone-100">
-                      <PriceSummary breakdown={priceBreakdown} dogs={search.dogs} compact />
+                      <PriceSummary breakdown={priceBreakdown} dogs={search.dogs} infants={search.infants} compact />
                     </div>
                   </div>
                 </div>

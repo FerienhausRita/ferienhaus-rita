@@ -69,12 +69,6 @@ export interface PriceBreakdown {
   extraGuests: number;
   extraGuestsPricePerNight: number;
   extraGuestsTotal: number;
-  /** Anzahl zusätzlicher Erwachsener (über baseGuests hinaus) */
-  extraAdults: number;
-  extraAdultsTotal: number;
-  /** Anzahl zusätzlicher Kinder (über baseGuests hinaus) */
-  extraChildren: number;
-  extraChildrenTotal: number;
   dogsPricePerNight: number;
   dogsTotal: number;
   /** Anzahl Hunde (für Anzeige der Staffel) */
@@ -333,18 +327,11 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const basePrice =
     nights > 0 ? Math.round((basePriceTotal / nights) * 100) / 100 : apartment.basePrice;
 
-  // Einheitlicher Zusatzpersonentarif für alle Gäste ab 3 J.
-  // Kleinkinder unter 3 (= `children`) zählen nicht zur Auslastung.
-  // `extraChildren` bleibt im Breakdown für Backwards-Compat erhalten,
-  // wird aber konsequent auf 0 gesetzt — keine separate Anzeige mehr.
+  // Einheitlicher Zusatzpersonentarif für alle ab 3 J.
   const extraAdultPrice =
     apartment.extraAdultPrice ?? apartment.extraPersonPrice;
-  const extraAdults = extraGuests;
-  const extraChildren = 0;
-  const extraAdultsTotal =
-    Math.round(extraAdults * extraAdultPrice * nights * 100) / 100;
-  const extraChildrenTotal = 0;
-  const extraGuestsTotal = extraAdultsTotal;
+  const extraGuestsTotal =
+    Math.round(extraGuests * extraAdultPrice * nights * 100) / 100;
   const extraGuestsPricePerNight =
     extraGuests > 0 ? extraGuestsTotal / nights : 0;
 
@@ -394,10 +381,6 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
     extraGuests,
     extraGuestsPricePerNight,
     extraGuestsTotal,
-    extraAdults,
-    extraAdultsTotal,
-    extraChildren,
-    extraChildrenTotal,
     dogsPricePerNight,
     dogsTotal,
     dogsCount: dogs,

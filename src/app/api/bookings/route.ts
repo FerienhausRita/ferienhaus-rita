@@ -290,6 +290,7 @@ export async function POST(request: NextRequest) {
       checkOut: checkOutDate,
       adults: data.adults,
       children: data.children,
+      infants: data.infants ?? 0,
       dogs: data.dogs,
       nights: priceBreakdown.nights,
       totalPrice: priceBreakdown.total,
@@ -299,6 +300,11 @@ export async function POST(request: NextRequest) {
       cleaningFee: priceBreakdown.cleaningFee,
       localTaxTotal: priceBreakdown.localTaxTotal || 0,
       vatAmount: priceBreakdown.vatAmount,
+      extraGuests: priceBreakdown.extraGuests,
+      extraPersonPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+      dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
+      firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
+      additionalDogFee: apartment.additionalDogFee ?? apartment.dogFee,
     };
 
     try {
