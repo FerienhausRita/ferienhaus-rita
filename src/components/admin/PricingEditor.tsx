@@ -77,7 +77,11 @@ function ApartmentPricingCard({
   const [extraAdultPrice, setExtraAdultPrice] = useState(
     apt.extra_adult_price ?? apt.extra_person_price
   );
-  const [extraChildPrice, setExtraChildPrice] = useState(apt.extra_child_price ?? 20);
+  // Kleinkinder unter 3 sind kostenfrei — kein eigenes Input mehr.
+  // extraChildPrice spiegeln wir hinter den Kulissen auf den Erwachsenen-Preis,
+  // damit Code-Pfade, die das Feld noch lesen, konsistente Werte bekommen.
+  const extraChildPrice = extraAdultPrice;
+  const _setExtraChildPrice = (_v: number) => {}; void _setExtraChildPrice;
   const [cleaningFee, setCleaningFee] = useState(apt.cleaning_fee);
   const [firstDogFee, setFirstDogFee] = useState(apt.first_dog_fee ?? apt.dog_fee);
   const [additionalDogFee, setAdditionalDogFee] = useState(apt.additional_dog_fee ?? 7.5);
@@ -189,7 +193,7 @@ function ApartmentPricingCard({
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-1">
-            Zusatz-Erw./Nacht
+            Zusatzperson/Nacht
           </label>
           <input
             type="number"
@@ -199,19 +203,9 @@ function ApartmentPricingCard({
             onChange={(e) => setExtraAdultPrice(Number(e.target.value))}
             className={inputClass}
           />
-        </div>
-        <div>
-          <label className="block text-xs font-medium text-stone-500 mb-1">
-            Kind bis 12 J./Nacht
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min="0"
-            value={extraChildPrice}
-            onChange={(e) => setExtraChildPrice(Number(e.target.value))}
-            className={inputClass}
-          />
+          <p className="text-[10px] text-stone-400 mt-0.5">
+            Einheitlich für alle ab 3 J. — Kleinkinder unter 3 sind kostenfrei.
+          </p>
         </div>
         <div>
           <label className="block text-xs font-medium text-stone-500 mb-1">

@@ -499,19 +499,14 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
   };
 
   const nights = calculateNights(booking.check_in, booking.check_out);
-  const totalGuests = booking.adults + booking.children;
-  const extraGuests = Math.max(0, totalGuests - apartment.baseGuests);
 
   const basePricePerNight = apartment.basePrice;
   const accommodationTotal = basePricePerNight * nights;
-  // Aufgespaltene Zusatzgäste: Erw. (extraAdultPrice) vs. Kinder bis 12 (extraChildPrice)
+  // Einheitlicher Zusatzpersonentarif. `children` (= Kleinkinder unter 3 J.)
+  // sind kostenfrei und zählen nicht.
   const extraAdultPrice = apartment.extraAdultPrice ?? apartment.extraPersonPrice;
-  const extraChildPrice = apartment.extraChildPrice ?? apartment.extraPersonPrice;
-  const extraAdults = Math.max(0, booking.adults - apartment.baseGuests);
-  const extraChildren = Math.max(0, extraGuests - extraAdults);
-  const extraAdultsTotal = extraAdults * extraAdultPrice * nights;
-  const extraChildrenTotal = extraChildren * extraChildPrice * nights;
-  const extraGuestsTotal = extraAdultsTotal + extraChildrenTotal;
+  const extraGuestsCount = Math.max(0, booking.adults - apartment.baseGuests);
+  const extraGuestsTotal = extraGuestsCount * extraAdultPrice * nights;
   // Hunde-Staffel: 1. Hund volle Gebühr, ab 2. ermäßigt
   const firstDogFee = apartment.firstDogFee ?? apartment.dogFee;
   const additionalDogFee = apartment.additionalDogFee ?? apartment.dogFee;
@@ -543,18 +538,11 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
     formula: `${nights} ${nights === 1 ? "Nacht" : "Nächte"} × ${fmtCurrency(basePricePerNight)}/Nacht`,
     amount: accommodationTotal,
   });
-  if (extraAdults > 0) {
+  if (extraGuestsCount > 0) {
     positions.push({
-      title: `Zusatz-Erwachsene (${extraAdults} ${extraAdults === 1 ? "Person" : "Personen"})`,
-      formula: `${extraAdults} × ${fmtCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`,
-      amount: extraAdultsTotal,
-    });
-  }
-  if (extraChildren > 0) {
-    positions.push({
-      title: `Zusatz-Kinder bis 12 J. (${extraChildren} ${extraChildren === 1 ? "Kind" : "Kinder"})`,
-      formula: `${extraChildren} × ${fmtCurrency(extraChildPrice)}/Nacht × ${nights} Nächte`,
-      amount: extraChildrenTotal,
+      title: `Zusatzpersonen (${extraGuestsCount} ${extraGuestsCount === 1 ? "Person" : "Personen"})`,
+      formula: `${extraGuestsCount} × ${fmtCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`,
+      amount: extraGuestsTotal,
     });
   }
   if (booking.dogs > 0) {

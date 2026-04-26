@@ -167,7 +167,7 @@ export default async function PreisePage() {
                       </div>
                       <div className="flex justify-between">
                         <dt className="text-stone-500">
-                          Zusatzperson Erw. (ab Person {apt.baseGuests + 1})
+                          Zusatzperson (ab Person {apt.baseGuests + 1})
                         </dt>
                         <dd className="text-stone-900 font-medium">
                           {formatCurrency(apt.extraAdultPrice ?? apt.extraPersonPrice)}
@@ -176,11 +176,10 @@ export default async function PreisePage() {
                       </div>
                       <div className="flex justify-between">
                         <dt className="text-stone-500">
-                          Zusatzperson Kind (bis 12 J.)
+                          Kleinkinder unter 3 J.
                         </dt>
-                        <dd className="text-stone-900 font-medium">
-                          {formatCurrency(apt.extraChildPrice ?? 20)}
-                          <span className="text-xs text-stone-400"> /Nacht</span>
+                        <dd className="text-stone-500 italic text-xs">
+                          kostenfrei
                         </dd>
                       </div>
                       <div className="flex justify-between">

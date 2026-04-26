@@ -64,18 +64,21 @@ export default function BookingPriceEditor({
   dogFeePerNight,
   extraPersonPrice,
   extraAdultPrice,
-  extraChildPrice,
+  extraChildPrice: _extraChildPrice,
   firstDogFee,
   additionalDogFee,
   localTaxPerNight,
 }: BookingPriceEditorProps) {
+  void _extraChildPrice; // Backwards-Compat: Prop bleibt, wird aber nicht mehr genutzt
+
   const [editing, setEditing] = useState(false);
   const [isPending, startTransition] = useTransition();
   const router = useRouter();
 
   // Derived initial values
   const initialAccommodationTotal = round2(initialPPN * nights);
-  const initialExtraGuests = Math.max(0, (adults + children) - baseGuests);
+  // Kleinkinder (children) zählen nicht zur Auslastung
+  const initialExtraGuests = Math.max(0, adults - baseGuests);
   const initialExtraPersonPPN = initialExtraGuests > 0 ? round2(initialEG / (initialExtraGuests * nights)) : extraPersonPrice;
   const initialDogFeePPN = dogsCount > 0 ? round2(initialDogs / (dogsCount * nights)) : dogFeePerNight;
   const initialLocalTaxPPN = adults > 0 && nights > 0 ? round2(initialLT / (adults * nights)) : localTaxPerNight;
@@ -98,7 +101,8 @@ export default function BookingPriceEditor({
 
   // Auto-calculated totals from unit values
   const calcAccommodation = round2(editPPN * editNights);
-  const calcExtraGuests = Math.max(0, (editAdults + editChildren) - baseGuests);
+  // Kleinkinder (editChildren) zählen nicht zur Auslastung
+  const calcExtraGuests = Math.max(0, editAdults - baseGuests);
   const calcExtraGuestsTotal = round2(calcExtraGuests * editExtraPersonPPN * editNights);
   const calcDogsTotal = round2(editDogsCount * editDogFeePPN * editNights);
   const calcLocalTax = round2(editAdults * editLocalTaxPPN * editNights);
@@ -243,47 +247,28 @@ export default function BookingPriceEditor({
               </td>
             </tr>
 
-            {/* Zusatzgäste — aufgeteilt nach Erwachsenen und Kindern (bis 12 J.) */}
+            {/* Zusatzgäste — einheitlicher Tarif für alle ab 3 J. */}
             {(() => {
-              const totalGuests = adults + children;
-              const extraTotal = Math.max(0, totalGuests - baseGuests);
-              const extraAdults = Math.max(0, adults - baseGuests);
-              const extraChildren = Math.max(0, extraTotal - extraAdults);
-              const adultPart = round2(extraAdults * extraAdultPrice * nights);
-              const childPart = round2(extraChildren * extraChildPrice * nights);
+              const extraGuests = Math.max(0, adults - baseGuests);
+              const computed = round2(extraGuests * extraAdultPrice * nights);
               const rows = [];
-              if (extraAdults > 0) {
+              if (extraGuests > 0 || initialEG > 0) {
                 rows.push(
-                  <tr key="extra-adults">
+                  <tr key="extra-guests">
                     <td className="py-2">
-                      <span className="text-stone-900">Zusatz-Erwachsene</span>
+                      <span className="text-stone-900">Zusatzgäste</span>
                       <span className="block text-xs text-stone-400">
-                        {extraAdults} × {formatCurrency(extraAdultPrice)}/Nacht × {nights} Nächte
+                        {extraGuests > 0
+                          ? `${extraGuests} × ${formatCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`
+                          : `Keine (${adults} G\u00e4ste, ${baseGuests} inkl.)`}
                       </span>
                     </td>
                     <td className="py-2 text-right font-medium text-stone-900">
-                      {formatCurrency(adultPart)}
+                      {formatCurrency(initialEG > 0 ? initialEG : computed)}
                     </td>
                   </tr>
                 );
               }
-              if (extraChildren > 0) {
-                rows.push(
-                  <tr key="extra-children">
-                    <td className="py-2">
-                      <span className="text-stone-900">Zusatz-Kinder (bis 12 J.)</span>
-                      <span className="block text-xs text-stone-400">
-                        {extraChildren} × {formatCurrency(extraChildPrice)}/Nacht × {nights} Nächte
-                      </span>
-                    </td>
-                    <td className="py-2 text-right font-medium text-stone-900">
-                      {formatCurrency(childPart)}
-                    </td>
-                  </tr>
-                );
-              }
-              // Falls in DB ein abweichender Betrag steht (manuelle Übersteuerung)
-              const computed = adultPart + childPart;
               if (Math.abs(computed - initialEG) > 0.02 && initialEG > 0) {
                 rows.push(
                   <tr key="extra-diff">
@@ -291,6 +276,15 @@ export default function BookingPriceEditor({
                       gespeicherter Zusatzgäste-Total weicht ab: {formatCurrency(initialEG)}
                     </td>
                     <td></td>
+                  </tr>
+                );
+              }
+              if (children > 0) {
+                rows.push(
+                  <tr key="infants-info">
+                    <td className="py-1 text-[11px] text-stone-400 italic" colSpan={2}>
+                      + {children} Kleinkind{children === 1 ? "" : "er"} unter 3 J. (kostenfrei)
+                    </td>
                   </tr>
                 );
               }
@@ -432,7 +426,8 @@ export default function BookingPriceEditor({
             <td className="py-2">
               <span className="text-stone-900">Zusatzgäste</span>
               <span className="block text-[10px] text-stone-400">
-                {editAdults + editChildren} Gäste, {baseGuests} inkl. → {calcExtraGuests} extra
+                {editAdults} Gäste, {baseGuests} inkl. → {calcExtraGuests} extra
+                {editChildren > 0 && <> · + {editChildren} Kleinkind{editChildren === 1 ? "" : "er"} (kostenfrei)</>}
               </span>
             </td>
             <td className="py-2 text-right text-stone-500 text-xs">{calcExtraGuests}</td>

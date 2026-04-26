@@ -42,25 +42,14 @@ export default function PriceSummary({
         </div>
       )}
 
-      {breakdown.extraAdults > 0 && (
+      {breakdown.extraGuests > 0 && (
         <div className="flex justify-between text-stone-600">
           <span>
-            {breakdown.extraAdults} zusätzliche{" "}
-            {breakdown.extraAdults === 1 ? "Person" : "Personen"} (Erw.) ×{" "}
+            {breakdown.extraGuests} zusätzliche{" "}
+            {breakdown.extraGuests === 1 ? "Person" : "Personen"} ×{" "}
             {breakdown.nights} {breakdown.nights === 1 ? "Nacht" : "Nächte"}
           </span>
-          <span>{formatCurrency(breakdown.extraAdultsTotal)}</span>
-        </div>
-      )}
-
-      {breakdown.extraChildren > 0 && (
-        <div className="flex justify-between text-stone-600">
-          <span>
-            {breakdown.extraChildren}{" "}
-            {breakdown.extraChildren === 1 ? "Kind" : "Kinder"} (bis 12 J.) ×{" "}
-            {breakdown.nights} {breakdown.nights === 1 ? "Nacht" : "Nächte"}
-          </span>
-          <span>{formatCurrency(breakdown.extraChildrenTotal)}</span>
+          <span>{formatCurrency(breakdown.extraGuestsTotal)}</span>
         </div>
       )}
 

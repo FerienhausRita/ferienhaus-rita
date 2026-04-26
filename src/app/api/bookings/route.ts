@@ -95,8 +95,9 @@ export async function POST(request: NextRequest) {
       getTaxConfigFromDB(),
     ]);
 
-    // Verify guest count doesn't exceed max
-    const totalGuests = data.adults + data.children;
+    // Verify guest count doesn't exceed max — Kleinkinder unter 3 (children)
+    // zählen nicht mit, da sie üblicherweise im Bett der Eltern schlafen.
+    const totalGuests = data.adults;
     if (totalGuests > apartment.maxGuests) {
       return NextResponse.json(
         {

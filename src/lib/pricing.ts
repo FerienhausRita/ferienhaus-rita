@@ -241,8 +241,11 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const { apartment, checkIn, checkOut, adults, children, dogs, discount, overrides } =
     params;
   const nights = calculateNights(checkIn, checkOut);
-  const totalGuests = adults + children;
-  const extraGuests = Math.max(0, totalGuests - apartment.baseGuests);
+  // `adults` = "Gäste" (alle ab 3 J., einheitlicher Tarif)
+  // `children` = Kleinkinder unter 3 J., kostenfrei und zählen NICHT zur
+  // baseGuests-Auslastung. Sie reisen mit, lösen aber keinen Zusatzpreis aus.
+  void children;
+  const extraGuests = Math.max(0, adults - apartment.baseGuests);
 
   // Use overrides if provided
   const usedLocalTaxPerNight = overrides?.localTaxPerNight ?? localTax.perPersonPerNight;
@@ -328,21 +331,18 @@ export function calculatePrice(params: BookingParams): PriceBreakdown {
   const basePrice =
     nights > 0 ? Math.round((basePriceTotal / nights) * 100) / 100 : apartment.basePrice;
 
-  // Extra guests: differenziert nach Erwachsenen (höherer Tarif) und
-  // Kindern (vergünstigt). Erwachsene "verbrauchen" zuerst die Basisplätze
-  // → Kinder werden bevorzugt zur Zusatzperson, was den Gast preislich
-  // begünstigt.
+  // Einheitlicher Zusatzpersonentarif für alle Gäste ab 3 J.
+  // Kleinkinder unter 3 (= `children`) zählen nicht zur Auslastung.
+  // `extraChildren` bleibt im Breakdown für Backwards-Compat erhalten,
+  // wird aber konsequent auf 0 gesetzt — keine separate Anzeige mehr.
   const extraAdultPrice =
     apartment.extraAdultPrice ?? apartment.extraPersonPrice;
-  const extraChildPrice =
-    apartment.extraChildPrice ?? apartment.extraPersonPrice;
-  const extraAdults = Math.max(0, adults - apartment.baseGuests);
-  const extraChildren = Math.max(0, extraGuests - extraAdults);
+  const extraAdults = extraGuests;
+  const extraChildren = 0;
   const extraAdultsTotal =
     Math.round(extraAdults * extraAdultPrice * nights * 100) / 100;
-  const extraChildrenTotal =
-    Math.round(extraChildren * extraChildPrice * nights * 100) / 100;
-  const extraGuestsTotal = extraAdultsTotal + extraChildrenTotal;
+  const extraChildrenTotal = 0;
+  const extraGuestsTotal = extraAdultsTotal;
   const extraGuestsPricePerNight =
     extraGuests > 0 ? extraGuestsTotal / nights : 0;
 

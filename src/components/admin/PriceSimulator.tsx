@@ -95,8 +95,9 @@ export default function PriceSimulator({
       current.setDate(current.getDate() + 1);
     }
 
-    const totalGuests = adults + children;
-    const extraGuests = Math.max(0, totalGuests - apartment.baseGuests);
+    // Kleinkinder (children) zählen nicht zur Auslastung
+    void children;
+    const extraGuests = Math.max(0, adults - apartment.baseGuests);
     const extraGuestsTotal =
       extraGuests * apartment.extraPersonPrice * nights;
     const dogsTotal = dogs * apartment.dogFee * nights;

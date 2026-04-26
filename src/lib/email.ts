@@ -341,34 +341,10 @@ function priceTable(booking: BookingData): string {
         { alignRight: true }
       );
 
-  // Zusatzgäste: aufgespalten Erwachsene/Kinder, falls neue Felder vorhanden
-  const extraAdults = booking.extraAdults ?? 0;
-  const extraChildren = booking.extraChildren ?? 0;
-  const splitAvailable = (extraAdults > 0 || extraChildren > 0) &&
-    (booking.extraAdultPrice != null || booking.extraChildPrice != null);
-
+  // Einheitlicher Zusatzpersonentarif. Kleinkinder unter 3 sind kostenfrei
+  // und tauchen daher nicht als eigene Position auf.
   let extraGuestsRow = "";
-  if (splitAvailable) {
-    const adultPrice = booking.extraAdultPrice ?? extraPersonPrice;
-    const childPrice = booking.extraChildPrice ?? extraPersonPrice;
-    const adultTotal = booking.extraAdultsTotal ?? extraAdults * adultPrice * booking.nights;
-    const childTotal = booking.extraChildrenTotal ?? extraChildren * childPrice * booking.nights;
-    if (extraAdults > 0) {
-      extraGuestsRow += detailRow(
-        `${extraAdults} Zusatz-Erwachsene &times; ${formatCurrency(adultPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
-        formatCurrency(adultTotal),
-        { alignRight: true }
-      );
-    }
-    if (extraChildren > 0) {
-      extraGuestsRow += detailRow(
-        `${extraChildren} Zusatz-Kind${extraChildren === 1 ? "" : "er"} (bis 12 J.) &times; ${formatCurrency(childPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
-        formatCurrency(childTotal),
-        { alignRight: true }
-      );
-    }
-  } else if (booking.extraGuestsTotal > 0 && extraGuests > 0) {
-    // Legacy: alte Buchungen ohne Aufspaltung
+  if (booking.extraGuestsTotal > 0 && extraGuests > 0) {
     extraGuestsRow = detailRow(
       `${extraGuests} Zusatzgast${extraGuests > 1 ? "e" : ""} &times; ${formatCurrency(extraPersonPrice)}/Nacht &times; ${booking.nights} N&auml;chte`,
       formatCurrency(booking.extraGuestsTotal),

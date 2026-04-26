@@ -122,7 +122,8 @@ export default function BookingFlow({
   }, [selectedApartment]);
 
   const today = new Date().toISOString().split("T")[0];
-  const totalGuests = search.adults + search.children;
+  // Kleinkinder unter 3 zählen NICHT zur maxGuests-Auslastung.
+  const totalGuests = search.adults;
 
   const [availableApartments, setAvailableApartments] = useState<Apartment[]>(apartments);
   const [checkingAvailability, setCheckingAvailability] = useState(false);
@@ -370,7 +371,7 @@ export default function BookingFlow({
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-2">Erwachsene</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">Gäste</label>
                   <select value={search.adults}
                     onChange={(e) => setSearch({ ...search, adults: parseInt(e.target.value) })}
                     className={inputClasses}>
@@ -378,7 +379,7 @@ export default function BookingFlow({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-stone-700 mb-2">Kinder (bis 12 J.)</label>
+                  <label className="block text-sm font-medium text-stone-700 mb-2">Kleinkinder (unter 3 J.)</label>
                   <select value={search.children}
                     onChange={(e) => setSearch({ ...search, children: parseInt(e.target.value) })}
                     className={inputClasses}>
@@ -667,8 +668,8 @@ export default function BookingFlow({
                     </div>
                     <div className="text-stone-600">
                       <p>
-                        {search.adults} {search.adults === 1 ? "Erwachsener" : "Erwachsene"}
-                        {search.children > 0 && <>, {search.children} {search.children === 1 ? "Kind" : "Kinder"}</>}
+                        {search.adults} {search.adults === 1 ? "Gast" : "Gäste"}
+                        {search.children > 0 && <>, {search.children} {search.children === 1 ? "Kleinkind" : "Kleinkinder"} (unter 3 J.)</>}
                         {search.dogs > 0 && <>, {search.dogs} {search.dogs === 1 ? "Hund" : "Hunde"}</>}
                       </p>
                     </div>

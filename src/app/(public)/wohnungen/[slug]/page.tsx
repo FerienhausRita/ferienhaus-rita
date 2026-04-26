@@ -175,16 +175,14 @@ export default async function ApartmentDetailPage({ params }: Props) {
 
               <div className="space-y-3 mb-6 text-sm text-stone-600">
                 <div className="flex justify-between">
-                  <span>Weitere Person (Erw.)</span>
+                  <span>Weitere Person</span>
                   <span className="font-medium">
                     +{formatCurrency(apartment.extraAdultPrice ?? apartment.extraPersonPrice)} / Nacht
                   </span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Kind (bis 12 J.)</span>
-                  <span className="font-medium">
-                    +{formatCurrency(apartment.extraChildPrice ?? 20)} / Nacht
-                  </span>
+                  <span>Kleinkinder unter 3 J.</span>
+                  <span className="text-stone-500 italic text-xs">kostenfrei</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Endreinigung</span>

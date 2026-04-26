@@ -261,16 +261,16 @@ export default async function BookingDetailPage({
                 </div>
                 <div>
                   <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Erwachsene
+                    Gäste
                   </p>
                   <p className="font-medium text-stone-900">{booking.adults}</p>
                 </div>
                 <div>
                   <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                    Kinder
+                    Kleinkinder (unter 3 J.)
                   </p>
                   <p className="font-medium text-stone-900">
-                    {booking.children}
+                    {booking.children || 0}
                   </p>
                 </div>
                 {booking.dogs > 0 && (
