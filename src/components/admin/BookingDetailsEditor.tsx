@@ -190,28 +190,24 @@ export default function BookingDetailsEditor({
             type="number"
             min={1}
             value={adults}
-            onChange={(e) => {
-              const v = Number(e.target.value);
-              setAdults(v);
-              if (children > v) setChildren(v);
-            }}
+            onChange={(e) => setAdults(Number(e.target.value))}
             className={inputClass}
           />
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-stone-500 mb-1">davon Kinder (3–17)</label>
+            <label className="block text-xs text-stone-500 mb-1">Kinder (Legacy)</label>
             <input
               type="number"
               min={0}
-              max={adults}
               value={children}
-              onChange={(e) => setChildren(Math.min(Number(e.target.value), adults))}
+              onChange={(e) => setChildren(Number(e.target.value))}
               className={inputClass}
+              title="Nur für Bestandsbuchungen aus dem alten Modell. Bei neuen Buchungen 0 lassen."
             />
           </div>
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Kleinkinder (&lt;3)</label>
+            <label className="block text-xs text-stone-500 mb-1">Kleinkinder (bis 3 J.)</label>
             <input
               type="number"
               min={0}

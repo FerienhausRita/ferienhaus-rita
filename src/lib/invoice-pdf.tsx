@@ -506,7 +506,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
   // Einheitlicher Zusatzpersonentarif. `children` (= Kleinkinder unter 3 J.)
   // sind kostenfrei und zählen nicht.
   const extraAdultPrice = apartment.extraAdultPrice ?? apartment.extraPersonPrice;
-  const extraGuestsCount = Math.max(0, booking.adults - apartment.baseGuests);
+  const extraGuestsCount = Math.max(0, booking.adults + booking.children - apartment.baseGuests);
   const extraGuestsTotal = extraGuestsCount * extraAdultPrice * nights;
   // Hunde-Staffel: 1. Hund volle Gebühr, ab 2. ermäßigt
   const firstDogFee = apartment.firstDogFee ?? apartment.dogFee;

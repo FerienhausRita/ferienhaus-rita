@@ -77,8 +77,9 @@ export default function BookingPriceEditor({
 
   // Derived initial values
   const initialAccommodationTotal = round2(initialPPN * nights);
-  // Kleinkinder (children) zählen nicht zur Auslastung
-  const initialExtraGuests = Math.max(0, adults - baseGuests);
+  // adults + children additiv (children = ältere Kinder, additiver Wert),
+  // infants kostenfrei zählen nicht.
+  const initialExtraGuests = Math.max(0, adults + children - baseGuests);
   const initialExtraPersonPPN = initialExtraGuests > 0 ? round2(initialEG / (initialExtraGuests * nights)) : extraPersonPrice;
   const initialDogFeePPN = dogsCount > 0 ? round2(initialDogs / (dogsCount * nights)) : dogFeePerNight;
   const initialLocalTaxPPN = adults > 0 && nights > 0 ? round2(initialLT / (adults * nights)) : localTaxPerNight;
@@ -101,8 +102,8 @@ export default function BookingPriceEditor({
 
   // Auto-calculated totals from unit values
   const calcAccommodation = round2(editPPN * editNights);
-  // Kleinkinder (editChildren) zählen nicht zur Auslastung
-  const calcExtraGuests = Math.max(0, editAdults - baseGuests);
+  // adults + children additiv, infants gratis
+  const calcExtraGuests = Math.max(0, editAdults + editChildren - baseGuests);
   const calcExtraGuestsTotal = round2(calcExtraGuests * editExtraPersonPPN * editNights);
   const calcDogsTotal = round2(editDogsCount * editDogFeePPN * editNights);
   const calcLocalTax = round2(editAdults * editLocalTaxPPN * editNights);
@@ -249,7 +250,7 @@ export default function BookingPriceEditor({
 
             {/* Zusatzgäste — einheitlicher Tarif für alle ab 3 J. */}
             {(() => {
-              const extraGuests = Math.max(0, adults - baseGuests);
+              const extraGuests = Math.max(0, adults + children - baseGuests);
               const computed = round2(extraGuests * extraAdultPrice * nights);
               const rows = [];
               if (extraGuests > 0 || initialEG > 0) {
@@ -260,7 +261,7 @@ export default function BookingPriceEditor({
                       <span className="block text-xs text-stone-400">
                         {extraGuests > 0
                           ? `${extraGuests} × ${formatCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`
-                          : `Keine (${adults} G\u00e4ste, ${baseGuests} inkl.)`}
+                          : `Keine (${adults + children} G\u00e4ste, ${baseGuests} inkl.)`}
                       </span>
                     </td>
                     <td className="py-2 text-right font-medium text-stone-900">
@@ -426,8 +427,7 @@ export default function BookingPriceEditor({
             <td className="py-2">
               <span className="text-stone-900">Zusatzgäste</span>
               <span className="block text-[10px] text-stone-400">
-                {editAdults} Gäste, {baseGuests} inkl. → {calcExtraGuests} extra
-                {editChildren > 0 && <> · + {editChildren} Kleinkind{editChildren === 1 ? "" : "er"} (kostenfrei)</>}
+                {editAdults + editChildren} Gäste, {baseGuests} inkl. → {calcExtraGuests} extra
               </span>
             </td>
             <td className="py-2 text-right text-stone-500 text-xs">{calcExtraGuests}</td>

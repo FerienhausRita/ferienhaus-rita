@@ -95,9 +95,9 @@ export default function PriceSimulator({
       current.setDate(current.getDate() + 1);
     }
 
-    // Kleinkinder (children) zählen nicht zur Auslastung
-    void children;
-    const extraGuests = Math.max(0, adults - apartment.baseGuests);
+    // adults + children additiv (children = ältere Kinder/Legacy);
+    // infants gibt es im Simulator nicht.
+    const extraGuests = Math.max(0, adults + children - apartment.baseGuests);
     const extraGuestsTotal =
       extraGuests * apartment.extraPersonPrice * nights;
     const dogsTotal = dogs * apartment.dogFee * nights;

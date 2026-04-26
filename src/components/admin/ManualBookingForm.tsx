@@ -283,18 +283,14 @@ export default function ManualBookingForm({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="grid grid-cols-3 gap-4">
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
               Gäste (ab 3 J.)
             </label>
             <select
               value={adults}
-              onChange={(e) => {
-                const v = parseInt(e.target.value);
-                setAdults(v);
-                if (children > v) setChildren(v);
-              }}
+              onChange={(e) => setAdults(parseInt(e.target.value))}
               className={inputClasses}
             >
               {[1, 2, 3, 4, 5, 6].map((n) => (
@@ -306,23 +302,7 @@ export default function ManualBookingForm({
           </div>
           <div>
             <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              davon Kinder (3–17)
-            </label>
-            <select
-              value={children}
-              onChange={(e) => setChildren(Math.min(parseInt(e.target.value), adults))}
-              className={inputClasses}
-            >
-              {Array.from({ length: adults + 1 }, (_, i) => i).map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-stone-700 mb-1.5">
-              Kleinkinder (&lt;3)
+              Kleinkinder (bis 3 J.)
             </label>
             <select
               value={infants}
