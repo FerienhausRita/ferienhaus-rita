@@ -196,14 +196,14 @@ export default function BookingDetailsEditor({
         </div>
         <div className="grid grid-cols-3 gap-3">
           <div>
-            <label className="block text-xs text-stone-500 mb-1">Kinder (Legacy)</label>
+            <label className="block text-xs text-stone-500 mb-1">Kinder (zusätzl.)</label>
             <input
               type="number"
               min={0}
               value={children}
               onChange={(e) => setChildren(Number(e.target.value))}
               className={inputClass}
-              title="Nur für Bestandsbuchungen aus dem alten Modell. Bei neuen Buchungen 0 lassen."
+              title="Zusätzliche Personen (z. B. ältere Kinder aus Bestandsbuchungen). Wird additiv zu den Gästen gezählt; gleicher Tarif. Bei neuen Buchungen 0 lassen."
             />
           </div>
           <div>

@@ -15,6 +15,7 @@ interface BookingPriceEditorProps {
   nights: number;
   adults: number;
   children: number;
+  infants: number;
   dogs: number;
   baseGuests: number;
   pricePerNight: number;
@@ -51,6 +52,7 @@ export default function BookingPriceEditor({
   nights,
   adults,
   children,
+  infants,
   dogs: dogsCount,
   baseGuests,
   pricePerNight: initialPPN,
@@ -280,11 +282,11 @@ export default function BookingPriceEditor({
                   </tr>
                 );
               }
-              if (children > 0) {
+              if (infants > 0) {
                 rows.push(
                   <tr key="infants-info">
                     <td className="py-1 text-[11px] text-stone-400 italic" colSpan={2}>
-                      + {children} Kleinkind{children === 1 ? "" : "er"} unter 3 J. (kostenfrei)
+                      + {infants} Kleinkind{infants === 1 ? "" : "er"} unter 3 J. (kostenfrei)
                     </td>
                   </tr>
                 );

@@ -268,7 +268,7 @@ export default async function BookingDetailPage({
                 {(booking.children || 0) > 0 && (
                   <div>
                     <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">
-                      davon Kinder
+                      Kinder (zusätzl.)
                     </p>
                     <p className="font-medium text-stone-900">
                       {booking.children}
@@ -340,6 +340,7 @@ export default async function BookingDetailPage({
                 nights={booking.nights}
                 adults={booking.adults}
                 children={booking.children || 0}
+                infants={booking.infants || 0}
                 dogs={booking.dogs || 0}
                 baseGuests={apartmentPricing?.baseGuests ?? 2}
                 pricePerNight={Number(booking.price_per_night)}
