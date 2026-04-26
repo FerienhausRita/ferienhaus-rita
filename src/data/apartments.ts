@@ -133,7 +133,6 @@ export const apartments: Apartment[] = [
           "Balkon mit Bergblick",
           "Skiraum",
           "Parkplatz",
-          "Grillplatz",
         ],
       },
     ],
@@ -232,7 +231,6 @@ export const apartments: Apartment[] = [
           "Balkon mit Panoramablick",
           "Skiraum",
           "Parkplatz",
-          "Grillplatz",
         ],
       },
     ],
@@ -323,7 +321,7 @@ export const apartments: Apartment[] = [
       },
       {
         category: "Außen",
-        items: ["Südterrasse (ebenerdig)", "Skiraum", "Parkplatz", "Grillplatz"],
+        items: ["Südterrasse (ebenerdig)", "Skiraum", "Parkplatz"],
       },
     ],
     images: [
@@ -409,7 +407,7 @@ export const apartments: Apartment[] = [
       },
       {
         category: "Außen",
-        items: ["Südterrasse (ebenerdig)", "Skiraum", "Parkplatz", "Grillplatz"],
+        items: ["Südterrasse (ebenerdig)", "Skiraum", "Parkplatz"],
       },
     ],
     images: [
