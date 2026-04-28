@@ -4073,3 +4073,99 @@ export async function deleteWaitlistEntry(id: string) {
   revalidatePath("/admin/warteliste");
   return { success: true };
 }
+
+// ---------------------------------------------------------------------------
+// Rechnungs-Snapshot: finalize + cancel
+// ---------------------------------------------------------------------------
+
+/**
+ * Erstellt einen Snapshot der Buchung und persistiert ihn als invoice_snapshot.
+ * Wenn noch keine invoice_number da ist, wird sie automatisch zugewiesen.
+ * Ab jetzt rendert der PDF-Download aus dem Snapshot.
+ */
+export async function finalizeInvoice(bookingId: string) {
+  try {
+    const { buildInvoiceSnapshot } = await import("@/lib/invoice-snapshot");
+    const supabase = createServerClient();
+
+    // Sicherstellen dass eine invoice_number da ist
+    const { data: booking } = await supabase
+      .from("bookings")
+      .select("id, invoice_number, invoice_finalized_at")
+      .eq("id", bookingId)
+      .single();
+    if (!booking) return { success: false, error: "Buchung nicht gefunden" };
+    if (booking.invoice_finalized_at) {
+      return {
+        success: false,
+        error: "Rechnung ist bereits ausgestellt — bitte stornieren um neu zu erstellen",
+      };
+    }
+    if (!booking.invoice_number) {
+      await assignInvoiceNumber(bookingId);
+    }
+
+    const snapshot = await buildInvoiceSnapshot(bookingId);
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({
+        invoice_snapshot: snapshot,
+        invoice_finalized_at: new Date().toISOString(),
+        invoice_cancelled_at: null,
+      })
+      .eq("id", bookingId);
+
+    if (error) return { success: false, error: error.message };
+
+    revalidatePath(`/admin/buchungen/${bookingId}`);
+    revalidatePath("/admin/rechnungen");
+    return { success: true, invoice_number: snapshot.invoice_number };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { success: false, error: msg };
+  }
+}
+
+/**
+ * Storniert eine ausgestellte Rechnung. Alte Nummer wird in
+ * `previous_invoice_number` archiviert (auch der vorherige Wert wird
+ * dort durch ein „;"-getrenntes Append erhalten — so bleibt eine
+ * History bei mehrfacher Stornierung).
+ * `invoice_number`, `invoice_snapshot`, `invoice_finalized_at` werden geleert,
+ * `invoice_cancelled_at` gesetzt. Beim nächsten finalizeInvoice() wird eine
+ * neue Nummer vergeben.
+ */
+export async function cancelInvoice(bookingId: string) {
+  const supabase = createServerClient();
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("invoice_number, previous_invoice_number, invoice_finalized_at")
+    .eq("id", bookingId)
+    .single();
+  if (!booking) return { success: false, error: "Buchung nicht gefunden" };
+  if (!booking.invoice_finalized_at || !booking.invoice_number) {
+    return { success: false, error: "Keine ausgestellte Rechnung zum Stornieren" };
+  }
+
+  const archived = booking.previous_invoice_number
+    ? `${booking.previous_invoice_number}; ${booking.invoice_number}`
+    : booking.invoice_number;
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      previous_invoice_number: archived,
+      invoice_number: null,
+      invoice_snapshot: null,
+      invoice_finalized_at: null,
+      invoice_cancelled_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId);
+
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/rechnungen");
+  return { success: true };
+}

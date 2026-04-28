@@ -14,6 +14,7 @@ import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
 import DepositTracker from "@/components/admin/DepositTracker";
 import BookingPriceEditor from "@/components/admin/BookingPriceEditor";
 import GuestDataEditor from "@/components/admin/GuestDataEditor";
+import InvoiceSection from "@/components/admin/InvoiceSection";
 import { getMeldeschein } from "../../actions";
 
 export const metadata: Metadata = {
@@ -366,8 +367,8 @@ export default async function BookingDetailPage({
                 localTaxPerNight={taxConfig.localTaxPerNight}
               />
 
-              {/* Invoice number + download */}
-              <div className="pt-4 mt-4 border-t border-stone-100 space-y-3">
+              {/* Invoice number — manuelle Vergabe (Legacy-Imports) */}
+              <div className="pt-4 mt-4 border-t border-stone-100">
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-medium text-stone-400 uppercase tracking-wide">Rechnungsnr.</span>
                   <InvoiceNumberEdit
@@ -375,29 +376,49 @@ export default async function BookingDetailPage({
                     initialNumber={booking.invoice_number}
                   />
                 </div>
-                <a
-                  href={`/api/invoice/${booking.id}`}
-                  download
-                  className="inline-flex items-center gap-2 px-4 py-2 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3"
-                    />
-                  </svg>
-                  Rechnung herunterladen
-                </a>
               </div>
             </div>
           </div>
+
+          {/* Rechnung — Snapshot-Workflow */}
+          {(() => {
+            const snapshot = (booking as { invoice_snapshot?: import("@/lib/invoice-snapshot").InvoiceSnapshot | null }).invoice_snapshot ?? null;
+            const finalizedAt = (booking as { invoice_finalized_at?: string | null }).invoice_finalized_at ?? null;
+            const cancelledAt = (booking as { invoice_cancelled_at?: string | null }).invoice_cancelled_at ?? null;
+            const previousNumber = (booking as { previous_invoice_number?: string | null }).previous_invoice_number ?? null;
+            let diffs: Array<{ field: string; snapshot: string; current: string }> = [];
+            let snapshotTotal: number | null = null;
+            if (snapshot && finalizedAt) {
+              // Lazy-import Diff-Helper im Server-Component
+              const { compareSnapshotWithBooking } = require("@/lib/invoice-snapshot") as typeof import("@/lib/invoice-snapshot");
+              diffs = compareSnapshotWithBooking(snapshot, {
+                first_name: booking.first_name,
+                last_name: booking.last_name,
+                apartment_id: booking.apartment_id,
+                check_in: booking.check_in,
+                check_out: booking.check_out,
+                adults: booking.adults,
+                children: booking.children,
+                dogs: booking.dogs,
+                total_price: Number(booking.total_price),
+                discount_amount: booking.discount_amount,
+              });
+              snapshotTotal = snapshot.totals?.total ?? null;
+            }
+            return (
+              <InvoiceSection
+                bookingId={booking.id}
+                invoiceNumber={booking.invoice_number ?? null}
+                invoiceFinalizedAt={finalizedAt}
+                invoiceCancelledAt={cancelledAt}
+                previousInvoiceNumber={previousNumber}
+                status={booking.status}
+                diffs={diffs}
+                invoiceSnapshotTotal={snapshotTotal}
+                currentTotal={Number(booking.total_price)}
+              />
+            );
+          })()}
 
           {/* Email Timeline */}
           <EmailTimeline

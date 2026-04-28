@@ -9,6 +9,7 @@ import {
 import React from "react";
 import type { Apartment } from "@/data/apartments";
 import type { ContactData } from "@/data/contact";
+import type { InvoiceSnapshot } from "@/lib/invoice-snapshot";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -48,6 +49,11 @@ export interface InvoiceData {
   apartment: Apartment;
   bankDetails: BankDetails;
   contact: ContactData;
+  /**
+   * Wenn vorhanden: PDF rendert AUS dem Snapshot (= eingefrorene Rechnungsdaten)
+   * statt aus apartment-Config + booking neu zu berechnen.
+   */
+  snapshot?: InvoiceSnapshot | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -490,90 +496,114 @@ function PositionRow({
 // ---------------------------------------------------------------------------
 
 function InvoicePdf({ data }: { data: InvoiceData }) {
-  const { booking, apartment, bankDetails: rawBankDetails, contact } = data;
+  const { booking, apartment, bankDetails: rawBankDetails, contact, snapshot } = data;
   // Defensive fallback: Legacy-Datensätze hatten `holder` statt `account_holder`.
-  const bankDetails: BankDetails = {
-    ...rawBankDetails,
-    account_holder:
-      (rawBankDetails.account_holder && rawBankDetails.account_holder.trim()) ||
-      ((rawBankDetails as unknown as { holder?: string }).holder ?? "").trim(),
-  };
+  const bankDetails: BankDetails = snapshot?.bank_details
+    ? {
+        iban: snapshot.bank_details.iban,
+        bic: snapshot.bank_details.bic,
+        bank_name: snapshot.bank_details.bank_name,
+        account_holder: snapshot.bank_details.account_holder,
+      }
+    : {
+        ...rawBankDetails,
+        account_holder:
+          (rawBankDetails.account_holder && rawBankDetails.account_holder.trim()) ||
+          ((rawBankDetails as unknown as { holder?: string }).holder ?? "").trim(),
+      };
 
-  const nights = calculateNights(booking.check_in, booking.check_out);
+  const nights = snapshot?.stay.nights ?? calculateNights(booking.check_in, booking.check_out);
 
-  const basePricePerNight = apartment.basePrice;
-  const accommodationTotal = basePricePerNight * nights;
-  // Einheitlicher Zusatzpersonentarif. `children` (= Kleinkinder unter 3 J.)
-  // sind kostenfrei und zählen nicht.
-  const extraAdultPrice = apartment.extraAdultPrice ?? apartment.extraPersonPrice;
-  const extraGuestsCount = Math.max(0, booking.adults + booking.children - apartment.baseGuests);
-  const extraGuestsTotal = extraGuestsCount * extraAdultPrice * nights;
-  // Hunde-Staffel: 1. Hund volle Gebühr, ab 2. ermäßigt
-  const firstDogFee = apartment.firstDogFee ?? apartment.dogFee;
-  const additionalDogFee = apartment.additionalDogFee ?? apartment.dogFee;
-  const dogsPerNight =
-    booking.dogs === 0
-      ? 0
-      : firstDogFee + Math.max(0, booking.dogs - 1) * additionalDogFee;
-  const dogsTotal = dogsPerNight * nights;
-  const cleaningFee = apartment.cleaningFee;
+  // Snapshot-Modus: Positionen + Steuern aus Snapshot übernehmen
+  let positions: Array<{ title: string; formula?: string; amount: number }>;
+  let localTaxTotal: number;
+  let vatAmount: number;
+  let totalForDisplay: number;
+  let discount: { label: string; amount: number } | null;
+  let extraLineItems: Array<{ label: string; amount: number }>;
 
-  // Legacy-Detection: Wenn total_price höher ist als die errechneten Positionen
-  // zzgl. möglicher Kurtaxe, nehmen wir an, dass die Kurtaxe included war.
-  const positionsSum = accommodationTotal + extraGuestsTotal + dogsTotal + cleaningFee;
-  const implicitLocalTax = Math.max(0, booking.total_price - positionsSum);
-  const localTaxTotal =
-    implicitLocalTax > 0.5 ? Math.round(implicitLocalTax * 100) / 100 : 0;
+  if (snapshot) {
+    positions = [...snapshot.positions];
+    localTaxTotal = snapshot.tax.local_tax_total;
+    vatAmount = snapshot.tax.vat_amount;
+    totalForDisplay = snapshot.totals.total;
+    discount =
+      snapshot.discount && snapshot.discount.amount > 0
+        ? { label: snapshot.discount.label, amount: snapshot.discount.amount }
+        : null;
+    extraLineItems = snapshot.extra_line_items ?? [];
+  } else {
+    // Legacy-Pfad: keine Snapshot-Daten → live-Berechnung wie bisher
+    const basePricePerNight = apartment.basePrice;
+    const accommodationTotal = basePricePerNight * nights;
+    const extraAdultPrice = apartment.extraAdultPrice ?? apartment.extraPersonPrice;
+    const extraGuestsCount = Math.max(0, booking.adults + booking.children - apartment.baseGuests);
+    const extraGuestsTotal = extraGuestsCount * extraAdultPrice * nights;
+    const firstDogFee = apartment.firstDogFee ?? apartment.dogFee;
+    const additionalDogFee = apartment.additionalDogFee ?? apartment.dogFee;
+    const dogsPerNight =
+      booking.dogs === 0
+        ? 0
+        : firstDogFee + Math.max(0, booking.dogs - 1) * additionalDogFee;
+    const dogsTotal = dogsPerNight * nights;
+    const cleaningFee = apartment.cleaningFee;
 
-  const vatLiableGross = booking.total_price - localTaxTotal;
-  const vatAmount =
-    Math.round(((vatLiableGross / (1 + VAT_RATE)) * VAT_RATE) * 100) / 100;
+    const positionsSum = accommodationTotal + extraGuestsTotal + dogsTotal + cleaningFee;
+    const implicitLocalTax = Math.max(0, booking.total_price - positionsSum);
+    localTaxTotal = implicitLocalTax > 0.5 ? Math.round(implicitLocalTax * 100) / 100 : 0;
 
-  const invoiceDate = fmtDate(new Date());
+    const vatLiableGross = booking.total_price - localTaxTotal;
+    vatAmount = Math.round(((vatLiableGross / (1 + VAT_RATE)) * VAT_RATE) * 100) / 100;
+    totalForDisplay = booking.total_price;
+    discount = null;
+    extraLineItems = [];
+
+    positions = [];
+    positions.push({
+      title: `Unterkunft · ${apartment.name}`,
+      formula: `${nights} ${nights === 1 ? "Nacht" : "Nächte"} × ${fmtCurrency(basePricePerNight)}/Nacht`,
+      amount: accommodationTotal,
+    });
+    if (extraGuestsCount > 0) {
+      positions.push({
+        title: `Zusatzpersonen (${extraGuestsCount} ${extraGuestsCount === 1 ? "Person" : "Personen"})`,
+        formula: `${extraGuestsCount} × ${fmtCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`,
+        amount: extraGuestsTotal,
+      });
+    }
+    if (booking.dogs > 0) {
+      const dogFormula =
+        booking.dogs === 1
+          ? `1 × ${fmtCurrency(firstDogFee)}/Nacht × ${nights} Nächte`
+          : `1×${fmtCurrency(firstDogFee)} + ${booking.dogs - 1}×${fmtCurrency(additionalDogFee)}/Nacht × ${nights} Nächte`;
+      positions.push({
+        title: booking.dogs === 1 ? "Hund" : `${booking.dogs} Hunde`,
+        formula: dogFormula,
+        amount: dogsTotal,
+      });
+    }
+    positions.push({
+      title: "Endreinigung",
+      formula: "einmalig pauschal",
+      amount: cleaningFee,
+    });
+    if (localTaxTotal > 0) {
+      const legacyRate =
+        booking.adults > 0 && nights > 0
+          ? Math.round((localTaxTotal / (booking.adults * nights)) * 100) / 100
+          : LOCAL_TAX_PER_PERSON_PER_NIGHT;
+      positions.push({
+        title: "Kurtaxe",
+        formula: `${booking.adults} Erw. × ${fmtCurrency(legacyRate)}/Nacht × ${nights} Nächte`,
+        amount: localTaxTotal,
+      });
+    }
+  }
+
+  const invoiceDate = snapshot
+    ? fmtDate(new Date(snapshot.created_at))
+    : fmtDate(new Date());
   const paymentRef = `FR-${booking.id.substring(0, 8).toUpperCase()}`;
-
-  // Build position rows
-  const positions: Array<{ title: string; formula?: string; amount: number }> = [];
-  positions.push({
-    title: `Unterkunft · ${apartment.name}`,
-    formula: `${nights} ${nights === 1 ? "Nacht" : "Nächte"} × ${fmtCurrency(basePricePerNight)}/Nacht`,
-    amount: accommodationTotal,
-  });
-  if (extraGuestsCount > 0) {
-    positions.push({
-      title: `Zusatzpersonen (${extraGuestsCount} ${extraGuestsCount === 1 ? "Person" : "Personen"})`,
-      formula: `${extraGuestsCount} × ${fmtCurrency(extraAdultPrice)}/Nacht × ${nights} Nächte`,
-      amount: extraGuestsTotal,
-    });
-  }
-  if (booking.dogs > 0) {
-    const dogFormula =
-      booking.dogs === 1
-        ? `1 × ${fmtCurrency(firstDogFee)}/Nacht × ${nights} Nächte`
-        : `1×${fmtCurrency(firstDogFee)} + ${booking.dogs - 1}×${fmtCurrency(additionalDogFee)}/Nacht × ${nights} Nächte`;
-    positions.push({
-      title: booking.dogs === 1 ? "Hund" : `${booking.dogs} Hunde`,
-      formula: dogFormula,
-      amount: dogsTotal,
-    });
-  }
-  positions.push({
-    title: "Endreinigung",
-    formula: "einmalig pauschal",
-    amount: cleaningFee,
-  });
-  // Kurtaxe nur bei Altbuchungen (wenn sie im total_price steckt)
-  if (localTaxTotal > 0) {
-    const legacyRate =
-      booking.adults > 0 && nights > 0
-        ? Math.round((localTaxTotal / (booking.adults * nights)) * 100) / 100
-        : LOCAL_TAX_PER_PERSON_PER_NIGHT;
-    positions.push({
-      title: "Kurtaxe",
-      formula: `${booking.adults} Erw. × ${fmtCurrency(legacyRate)}/Nacht × ${nights} Nächte`,
-      amount: localTaxTotal,
-    });
-  }
 
   return (
     <Document>
@@ -681,11 +711,25 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 
         {/* Totals */}
         <View style={styles.totals}>
+          {/* Zusätzliche Line-Items (z.B. Babybett) */}
+          {extraLineItems.map((li, idx) => (
+            <View key={`li-${idx}`} style={styles.totalRow}>
+              <Text style={styles.totalLabel}>{li.label}</Text>
+              <Text style={styles.totalValue}>{fmtCurrency(li.amount)}</Text>
+            </View>
+          ))}
+          {/* Rabatt-Zeile */}
+          {discount && (
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Rabatt ({discount.label})</Text>
+              <Text style={styles.totalValue}>
+                −{fmtCurrency(discount.amount)}
+              </Text>
+            </View>
+          )}
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>Zwischensumme</Text>
-            <Text style={styles.totalValue}>
-              {fmtCurrency(booking.total_price)}
-            </Text>
+            <Text style={styles.totalValue}>{fmtCurrency(totalForDisplay)}</Text>
           </View>
           <View style={styles.totalRow}>
             <Text style={styles.totalLabel}>davon 10 % USt.</Text>
@@ -694,9 +738,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           <View style={styles.totalDivider} />
           <View style={styles.grandRow}>
             <Text style={styles.grandLabel}>Gesamtbetrag</Text>
-            <Text style={styles.grandValue}>
-              {fmtCurrency(booking.total_price)}
-            </Text>
+            <Text style={styles.grandValue}>{fmtCurrency(totalForDisplay)}</Text>
           </View>
           {localTaxTotal > 0 ? (
             <Text style={styles.totalHint}>

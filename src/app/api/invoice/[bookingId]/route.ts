@@ -144,6 +144,17 @@ export async function GET(
     bankRow?.value as Record<string, unknown> | null | undefined
   ) ?? { iban: "", bic: "", account_holder: "", bank_name: "" };
 
+  // --- Snapshot laden (wenn vorhanden) ---
+  // Wenn Buchung schon einen Snapshot hat → daraus rendern (eingefrorene
+  // Rechnung). Sonst Live-Berechnung wie bisher (Legacy / nicht finalisierte
+  // Buchungen).
+  type WithSnapshot = { invoice_snapshot?: unknown };
+  const snapshot =
+    ((booking as WithSnapshot).invoice_snapshot as
+      | import("@/lib/invoice-snapshot").InvoiceSnapshot
+      | null
+      | undefined) ?? null;
+
   // --- Generate PDF ---
   try {
     const pdfBuffer = await generateInvoicePdf({
@@ -151,6 +162,7 @@ export async function GET(
       apartment,
       bankDetails,
       contact,
+      snapshot,
     });
 
     return new NextResponse(new Uint8Array(pdfBuffer), {
