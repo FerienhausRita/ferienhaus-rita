@@ -271,6 +271,18 @@ export default function SettingsPanel({
   const [paymentDays, setPaymentDays] = useState<number>(timingInit.payment_reminder_days ?? 7);
   const [checkinDays, setCheckinDays] = useState<number>(timingInit.checkin_info_days ?? 3);
   const [thankyouDays, setThankyouDays] = useState<number>(timingInit.thankyou_days ?? 1);
+  // Mail-Typ-Toggles: Default = aktiv. enabled[type] !== false → aktiv.
+  const enabledInit: Record<string, boolean> = (timingInit.enabled ?? {}) as Record<string, boolean>;
+  const isOn = (k: string) => enabledInit[k] !== false;
+  const [enabledPaymentReminder, setEnabledPaymentReminder] = useState(isOn("payment_reminder"));
+  const [enabledDepositReminder, setEnabledDepositReminder] = useState(isOn("deposit_reminder"));
+  const [enabledRemainderReminder, setEnabledRemainderReminder] = useState(isOn("remainder_reminder"));
+  const [enabledCheckinInfo, setEnabledCheckinInfo] = useState(isOn("checkin_info"));
+  const [enabledThankyou, setEnabledThankyou] = useState(isOn("thankyou"));
+  const [enabledLoyalty, setEnabledLoyalty] = useState(isOn("loyalty"));
+  const [enabledAdminNotes7d, setEnabledAdminNotes7d] = useState(isOn("admin_notes_7d"));
+  const [enabledAdminNotes3d, setEnabledAdminNotes3d] = useState(isOn("admin_notes_3d"));
+  const [enabledAdminPaymentCheck7d, setEnabledAdminPaymentCheck7d] = useState(isOn("admin_payment_check_7d"));
   const [timingLoading, setTimingLoading] = useState(false);
   const [timingMessage, setTimingMessage] = useState<string | null>(null);
 
@@ -677,6 +689,17 @@ export default function SettingsPanel({
       payment_reminder_days: paymentDays,
       checkin_info_days: checkinDays,
       thankyou_days: thankyouDays,
+      enabled: {
+        payment_reminder: enabledPaymentReminder,
+        deposit_reminder: enabledDepositReminder,
+        remainder_reminder: enabledRemainderReminder,
+        checkin_info: enabledCheckinInfo,
+        thankyou: enabledThankyou,
+        loyalty: enabledLoyalty,
+        admin_notes_7d: enabledAdminNotes7d,
+        admin_notes_3d: enabledAdminNotes3d,
+        admin_payment_check_7d: enabledAdminPaymentCheck7d,
+      },
     });
     setTimingLoading(false);
     setTimingMessage(result.success ? "Gespeichert" : result.error || "Fehler");
@@ -1161,8 +1184,67 @@ export default function SettingsPanel({
       </Section>
 
       {/* E-Mail-Zeitplan */}
-      <Section id="email-timing" title="E-Mail-Zeitplan" subtitle="Automatischer Versand von E-Mails an Gäste" open={openSections.has("email-timing")} onToggle={toggleSection}>
-        <div className="space-y-3">
+      <Section id="email-timing" title="E-Mail-Zeitplan" subtitle="Automatischer Versand von E-Mails an Gäste & Admin" open={openSections.has("email-timing")} onToggle={toggleSection}>
+        <div className="space-y-5">
+          {/* Mail-Typ-Toggles */}
+          <div className="space-y-3">
+            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wider">
+              Aktive automatische Mails
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2">
+              {/* Gast-Mails */}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider mb-1">An den Gast</p>
+                {[
+                  { label: "Zahlungserinnerung", val: enabledPaymentReminder, set: setEnabledPaymentReminder },
+                  { label: "Anzahlungs-Reminder", val: enabledDepositReminder, set: setEnabledDepositReminder },
+                  { label: "Restbetrag-Reminder", val: enabledRemainderReminder, set: setEnabledRemainderReminder },
+                  { label: "Check-in-Info (vor Anreise)", val: enabledCheckinInfo, set: setEnabledCheckinInfo },
+                  { label: "Thank-you (nach Abreise)", val: enabledThankyou, set: setEnabledThankyou },
+                  { label: "Loyalty-Code (Stammgast-Rabatt)", val: enabledLoyalty, set: setEnabledLoyalty },
+                ].map((t) => (
+                  <label key={t.label} className="flex items-center gap-2 cursor-pointer text-sm text-stone-700 hover:text-stone-900">
+                    <input
+                      type="checkbox"
+                      checked={t.val}
+                      onChange={(e) => t.set(e.target.checked)}
+                      className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]/40"
+                    />
+                    {t.label}
+                  </label>
+                ))}
+              </div>
+
+              {/* Admin-Mails */}
+              <div className="space-y-1.5">
+                <p className="text-[11px] font-medium text-stone-500 uppercase tracking-wider mb-1">Intern (Admin)</p>
+                {[
+                  { label: "Notiz-Reminder 7 Tage vor Anreise", val: enabledAdminNotes7d, set: setEnabledAdminNotes7d },
+                  { label: "Notiz-Reminder 3 Tage vor Anreise", val: enabledAdminNotes3d, set: setEnabledAdminNotes3d },
+                  { label: "Anzahlung prüfen (7 Tage nach Bestätigung)", val: enabledAdminPaymentCheck7d, set: setEnabledAdminPaymentCheck7d },
+                ].map((t) => (
+                  <label key={t.label} className="flex items-center gap-2 cursor-pointer text-sm text-stone-700 hover:text-stone-900">
+                    <input
+                      type="checkbox"
+                      checked={t.val}
+                      onChange={(e) => t.set(e.target.checked)}
+                      className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]/40"
+                    />
+                    {t.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <p className="text-[11px] text-stone-400">
+              Deaktivierte Mails werden beim Cron-Lauf übersprungen — bestehende geplante Einträge werden auf „skipped" gesetzt, nicht versendet.
+            </p>
+          </div>
+
+          {/* Versand-Zeitpunkte */}
+          <div className="space-y-3 pt-3 border-t border-stone-100">
+            <p className="text-xs font-semibold text-stone-700 uppercase tracking-wider">
+              Versand-Zeitpunkte
+            </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div>
               <label className="block text-xs font-medium text-stone-500 mb-1">
@@ -1213,7 +1295,8 @@ export default function SettingsPanel({
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          </div>
+          <div className="flex items-center gap-3 pt-2 border-t border-stone-100">
             <button onClick={handleTimingSave} disabled={timingLoading} className={btnClass}>
               {timingLoading ? "..." : "Speichern"}
             </button>

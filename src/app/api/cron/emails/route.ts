@@ -147,6 +147,14 @@ async function loadSiteSetting<T>(
 async function processScheduledEmails() {
   const supabase = createServerClient();
 
+  // Lade Mail-Typ-Toggles aus email_timing.enabled
+  // Default: alles aktiv (kein Verhaltens-Bruch wenn die Property fehlt)
+  const timing = await loadSiteSetting<{
+    enabled?: Record<string, boolean>;
+  }>(supabase, "email_timing");
+  const enabledMap = timing?.enabled ?? {};
+  const isTypeActive = (t: string) => enabledMap[t] !== false;
+
   // Fetch all pending emails whose scheduled_for has passed
   const { data: pendingEmails, error: fetchError } = await supabase
     .from("email_schedule")
@@ -169,6 +177,20 @@ async function processScheduledEmails() {
 
   for (const entry of pendingEmails) {
     try {
+      // Mail-Typ deaktiviert? → skippen, nicht versenden
+      if (!isTypeActive(entry.email_type)) {
+        await supabase
+          .from("email_schedule")
+          .update({
+            status: "skipped",
+            sent_at: new Date().toISOString(),
+            error: `email type '${entry.email_type}' disabled in settings`,
+          })
+          .eq("id", entry.id);
+        skipped++;
+        continue;
+      }
+
       // Load the booking
       const { data: booking, error: bookingError } = await supabase
         .from("bookings")
