@@ -490,8 +490,16 @@ export async function updateBookingStatus(
           localTaxPerNight: breakdown?.localTaxPerNight,
           localTaxIncluded: breakdown?.localTaxIncluded,
           localTaxExemptAge: breakdown?.localTaxExemptAge,
-          discountLabel: breakdown?.discountLabel ?? null,
-          discountAmount: breakdown?.discountAmount ?? Number(booking.discount_amount || 0),
+          // Rabatt: DB ist Source of Truth (manuelle Eintragungen im
+          // BookingPriceEditor werden dort persistiert). Der breakdown aus
+          // recalculateBookingPrices kennt den manuellen Rabatt NICHT
+          // → würde discountAmount=0 liefern. Wir lesen direkt aus DB.
+          discountAmount: Number(booking.discount_amount || 0),
+          discountLabel: booking.discount_code
+            ? booking.discount_code
+            : Number(booking.discount_amount || 0) > 0
+            ? "Rabatt"
+            : null,
         };
 
         await sendBookingConfirmed(bookingEmailData, apartment, {
