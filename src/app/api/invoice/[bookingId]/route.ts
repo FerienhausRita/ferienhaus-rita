@@ -155,6 +155,21 @@ export async function GET(
       | null
       | undefined) ?? null;
 
+  // --- Zahlungen live aus DB laden (nicht Teil des Snapshots) ---
+  const { data: paymentsRaw } = await supabase
+    .from("booking_payments")
+    .select("id, amount, paid_at, applies_to, method, note")
+    .eq("booking_id", bookingId)
+    .order("paid_at", { ascending: true });
+  const payments = (paymentsRaw ?? []).map((p) => ({
+    id: p.id as string,
+    amount: Number(p.amount),
+    paid_at: p.paid_at as string,
+    applies_to: p.applies_to as string,
+    method: (p.method as string) ?? null,
+    note: (p.note as string) ?? null,
+  }));
+
   // --- Generate PDF ---
   try {
     const pdfBuffer = await generateInvoicePdf({
@@ -163,6 +178,7 @@ export async function GET(
       bankDetails,
       contact,
       snapshot,
+      payments,
     });
 
     return new NextResponse(new Uint8Array(pdfBuffer), {

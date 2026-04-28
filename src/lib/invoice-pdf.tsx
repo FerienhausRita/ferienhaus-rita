@@ -44,6 +44,15 @@ export interface BankDetails {
   bank_name: string;
 }
 
+export interface InvoicePayment {
+  id: string;
+  amount: number;
+  paid_at: string;
+  applies_to: string;
+  method?: string | null;
+  note?: string | null;
+}
+
 export interface InvoiceData {
   booking: BookingRow;
   apartment: Apartment;
@@ -54,6 +63,11 @@ export interface InvoiceData {
    * statt aus apartment-Config + booking neu zu berechnen.
    */
   snapshot?: InvoiceSnapshot | null;
+  /**
+   * Live aus DB geladen — bezahlte Beträge werden vom Total abgezogen,
+   * offener Betrag wird in der Bankbox ausgewiesen.
+   */
+  payments?: InvoicePayment[];
 }
 
 // ---------------------------------------------------------------------------
@@ -421,41 +435,101 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
 
+  // ── Bezahlt-Stempel ──
+  paidStamp: {
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#86efac",
+    backgroundColor: "#ecfdf5",
+    alignItems: "center",
+  },
+  paidStampText: {
+    fontFamily: "Helvetica-Bold",
+    fontSize: 13,
+    color: "#15803d",
+    letterSpacing: 1,
+  },
+  paidStampSubtext: {
+    fontSize: 9,
+    color: "#15803d",
+    marginTop: 4,
+  },
+
   // ── Footer ──
+  // ── Dankesnote ──
+  thankBlock: {
+    marginTop: 18,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderLeftWidth: 2,
+    borderLeftColor: GOLD,
+    backgroundColor: BG_SOFT,
+  },
+  thankText: {
+    fontSize: 11,
+    fontFamily: "Times-Italic",
+    color: DARK,
+  },
+  thankSubtext: {
+    fontSize: 9,
+    color: GRAY,
+    marginTop: 2,
+  },
+
   footer: {
     position: "absolute" as const,
-    bottom: 30,
+    bottom: 24,
     left: 44,
     right: 44,
-    paddingTop: 10,
+    paddingTop: 8,
     borderTopWidth: 0.5,
-    borderTopColor: GOLD,
+    borderTopColor: LINE,
   },
-  footerRow: {
+  footerInner: {
     flexDirection: "row",
     justifyContent: "space-between",
-    alignItems: "center",
+    gap: 18,
   },
-  footerLeft: {
+  footerCol: {
     flex: 1,
   },
-  footerCenter: {
-    flex: 1,
-    alignItems: "center",
-  },
-  footerRight: {
-    flex: 1,
-    alignItems: "flex-end",
-  },
-  footerThank: {
-    fontSize: 10,
-    fontFamily: "Times-Italic",
+  footerHeading: {
+    fontSize: 7,
+    fontFamily: "Helvetica-Bold",
     color: GOLD,
+    textTransform: "uppercase",
+    letterSpacing: 0.8,
+    marginBottom: 3,
   },
   footerDetail: {
     fontSize: 7,
     color: GRAY,
-    lineHeight: 1.4,
+    lineHeight: 1.5,
+  },
+  footerDetailMono: {
+    fontSize: 7,
+    fontFamily: "Courier",
+    color: GRAY,
+    letterSpacing: 0.5,
+    lineHeight: 1.5,
+  },
+  footerLegal: {
+    marginTop: 6,
+    paddingTop: 6,
+    borderTopWidth: 0.3,
+    borderTopColor: LINE,
+  },
+  footerLegalText: {
+    fontSize: 6.5,
+    color: GRAY_LIGHT,
+    lineHeight: 1.5,
+  },
+  footerBottom: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
   },
   footerPage: {
     fontSize: 7,
@@ -496,7 +570,7 @@ function PositionRow({
 // ---------------------------------------------------------------------------
 
 function InvoicePdf({ data }: { data: InvoiceData }) {
-  const { booking, apartment, bankDetails: rawBankDetails, contact, snapshot } = data;
+  const { booking, apartment, bankDetails: rawBankDetails, contact, snapshot, payments = [] } = data;
   // Defensive fallback: Legacy-Datensätze hatten `holder` statt `account_holder`.
   const bankDetails: BankDetails = snapshot?.bank_details
     ? {
@@ -604,6 +678,18 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
     ? fmtDate(new Date(snapshot.created_at))
     : fmtDate(new Date());
   const paymentRef = `FR-${booking.id.substring(0, 8).toUpperCase()}`;
+
+  // Bezahlte Beträge live aus DB summieren
+  const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
+  const outstandingAmount = Math.max(
+    0,
+    Math.round((totalForDisplay - totalPaid) * 100) / 100
+  );
+  const isFullyPaid = totalPaid >= totalForDisplay - 0.01;
+  const dueDateForDisplay =
+    (booking as { remainder_due_date?: string | null }).remainder_due_date ||
+    (booking as { deposit_due_date?: string | null }).deposit_due_date ||
+    null;
 
   return (
     <Document>
@@ -757,55 +843,174 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           )}
         </View>
 
-        {/* Payment info */}
-        <View style={styles.paymentBox}>
-          <Text style={styles.paymentTitle}>Überweisungsinformationen</Text>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Kontoinhaber</Text>
-            <Text style={styles.paymentValue}>{bankDetails.account_holder}</Text>
+        {/* Bereits geleistete Zahlungen — aus booking_payments live geladen */}
+        {payments.length > 0 && (
+          <View style={[styles.totals, { marginTop: 4 }]}>
+            {payments.map((p) => {
+              const label =
+                p.applies_to === "deposit"
+                  ? "Anzahlung erhalten"
+                  : p.applies_to === "remainder"
+                  ? "Restzahlung erhalten"
+                  : "Zahlung erhalten";
+              return (
+                <View key={p.id} style={styles.totalRow}>
+                  <Text style={styles.totalLabel}>
+                    {label} ({fmtDate(p.paid_at)})
+                  </Text>
+                  <Text style={[styles.totalValue, { color: GRAY }]}>
+                    −{fmtCurrency(Number(p.amount))}
+                  </Text>
+                </View>
+              );
+            })}
+            <View style={styles.totalDivider} />
+            <View style={styles.grandRow}>
+              <Text style={styles.grandLabel}>
+                {isFullyPaid ? "Bezahlt" : "Offener Betrag"}
+              </Text>
+              <Text
+                style={[
+                  styles.grandValue,
+                  { color: isFullyPaid ? "#15803d" : DARK },
+                ]}
+              >
+                {isFullyPaid ? "—" : fmtCurrency(outstandingAmount)}
+              </Text>
+            </View>
+            {dueDateForDisplay && !isFullyPaid && (
+              <Text style={[styles.totalHint, { color: GRAY }]}>
+                Bitte überweisen Sie den offenen Betrag bis spätestens {fmtDate(dueDateForDisplay)}.
+              </Text>
+            )}
           </View>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>IBAN</Text>
-            <Text style={styles.paymentValueMono}>{bankDetails.iban}</Text>
+        )}
+
+        {/* Bankverbindung — nur anzeigen wenn noch was offen ist */}
+        {!isFullyPaid && (
+          <View style={styles.paymentBox}>
+            <Text style={styles.paymentTitle}>
+              Überweisungsinformationen
+              {payments.length > 0 ? " für Restbetrag" : ""}
+            </Text>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Kontoinhaber</Text>
+              <Text style={styles.paymentValue}>{bankDetails.account_holder}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>IBAN</Text>
+              <Text style={styles.paymentValueMono}>{bankDetails.iban}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>BIC</Text>
+              <Text style={styles.paymentValueMono}>{bankDetails.bic}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Bank</Text>
+              <Text style={styles.paymentValue}>{bankDetails.bank_name}</Text>
+            </View>
+            <View style={styles.paymentRow}>
+              <Text style={styles.paymentLabel}>Betrag</Text>
+              <Text style={styles.paymentValue}>{fmtCurrency(outstandingAmount)}</Text>
+            </View>
+            <View style={styles.refBox}>
+              <Text style={styles.refLabel}>Verwendungszweck</Text>
+              <Text style={styles.refValue}>{paymentRef}</Text>
+            </View>
           </View>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>BIC</Text>
-            <Text style={styles.paymentValueMono}>{bankDetails.bic}</Text>
+        )}
+
+        {/* Bezahlt-Stempel wenn alles erhalten */}
+        {isFullyPaid && (
+          <View style={styles.paidStamp}>
+            <Text style={styles.paidStampText}>
+              ✓ Vollständig bezahlt
+            </Text>
+            <Text style={styles.paidStampSubtext}>
+              Dieser Betrag wurde vollständig vereinnahmt — keine Überweisung erforderlich.
+            </Text>
           </View>
-          <View style={styles.paymentRow}>
-            <Text style={styles.paymentLabel}>Bank</Text>
-            <Text style={styles.paymentValue}>{bankDetails.bank_name}</Text>
-          </View>
-          <View style={styles.refBox}>
-            <Text style={styles.refLabel}>Verwendungszweck</Text>
-            <Text style={styles.refValue}>{paymentRef}</Text>
-          </View>
+        )}
+
+        {/* Dankesnote */}
+        <View style={styles.thankBlock}>
+          <Text style={styles.thankText}>
+            Vielen Dank für Ihren Aufenthalt im {contact.businessName}!
+          </Text>
+          <Text style={styles.thankSubtext}>
+            Wir freuen uns, Sie bald wieder in Kals begrüßen zu dürfen.
+          </Text>
         </View>
 
-        {/* Footer */}
+        {/* Footer mit Firmen- und Steuer-Daten */}
         <View style={styles.footer} fixed>
-          <View style={styles.footerRow}>
-            <View style={styles.footerLeft}>
+          <View style={styles.footerInner}>
+            {/* Linke Spalte: Firma + Adresse */}
+            <View style={styles.footerCol}>
+              <Text style={styles.footerHeading}>Rechnungssteller</Text>
+              <Text style={styles.footerDetail}>{contact.ownerName}</Text>
+              <Text style={styles.footerDetail}>{contact.businessName}</Text>
+              <Text style={styles.footerDetail}>{contact.street}</Text>
               <Text style={styles.footerDetail}>
-                {contact.street}, {contact.zip} {contact.city}
+                {contact.zip} {contact.city}
               </Text>
+              <Text style={styles.footerDetail}>{contact.country}</Text>
+            </View>
+
+            {/* Mittlere Spalte: Bank + Kontakt */}
+            <View style={styles.footerCol}>
+              <Text style={styles.footerHeading}>Bankverbindung</Text>
               <Text style={styles.footerDetail}>
-                {contact.phone} · {contact.email}
+                {bankDetails.bank_name || "—"}
+              </Text>
+              <Text style={styles.footerDetailMono}>{bankDetails.iban}</Text>
+              <Text style={styles.footerDetailMono}>{bankDetails.bic}</Text>
+              <Text style={[styles.footerDetail, { marginTop: 4 }]}>
+                {contact.phone}
+              </Text>
+              <Text style={styles.footerDetail}>{contact.email}</Text>
+            </View>
+
+            {/* Rechte Spalte: Steuer-Daten */}
+            <View style={styles.footerCol}>
+              <Text style={styles.footerHeading}>Steuerdaten</Text>
+              {contact.taxNumber && (
+                <Text style={styles.footerDetail}>StNr.: {contact.taxNumber}</Text>
+              )}
+              {contact.uid && (
+                <Text style={styles.footerDetail}>UID: {contact.uid}</Text>
+              )}
+              {(contact as { authority?: string }).authority && (
+                <Text style={styles.footerDetail}>
+                  Behörde: {(contact as { authority?: string }).authority}
+                </Text>
+              )}
+              <Text style={[styles.footerDetail, { marginTop: 4 }]}>
+                Enthält 10 % USt. (§ 10 Abs. 3 UStG, Beherbergung)
               </Text>
             </View>
-            <View style={styles.footerCenter}>
-              <Text style={styles.footerThank}>
-                Vielen Dank für Ihren Aufenthalt!
-              </Text>
-            </View>
-            <View style={styles.footerRight}>
-              <Text
-                style={styles.footerPage}
-                render={({ pageNumber, totalPages }) =>
-                  `Seite ${pageNumber} von ${totalPages}`
-                }
-              />
-            </View>
+          </View>
+
+          {/* Storno-Hinweis */}
+          <View style={styles.footerLegal}>
+            <Text style={styles.footerLegalText}>
+              Stornobedingungen: bis 60 Tage vor Anreise kostenfrei stornierbar.
+              Zwischen 59 und 30 Tagen vor Anreise wird die Anzahlung
+              einbehalten. Innerhalb 30 Tagen vor Anreise ist der
+              Gesamtbetrag fällig (außer bei nachgewiesener Reiseunfähigkeit).
+            </Text>
+          </View>
+
+          <View style={styles.footerBottom}>
+            <Text style={styles.footerPage}>
+              Rechnung {booking.invoice_number} · {invoiceDate}
+            </Text>
+            <Text
+              style={styles.footerPage}
+              render={({ pageNumber, totalPages }) =>
+                `Seite ${pageNumber} von ${totalPages}`
+              }
+            />
           </View>
         </View>
       </Page>
