@@ -140,7 +140,8 @@ export default function ManualBookingForm({
     if (checkIn && checkOut && checkIn >= checkOut) errs.checkOut = "Abreise muss nach Anreise liegen";
     if (!firstName.trim()) errs.firstName = "Pflichtfeld";
     if (!lastName.trim()) errs.lastName = "Pflichtfeld";
-    if (email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
+    if (!email.trim()) errs.email = "E-Mail-Adresse ist Pflichtfeld";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) errs.email = "Ungültige E-Mail";
     if (!phone.trim()) errs.phone = "Pflichtfeld";
     if (!street.trim()) errs.street = "Pflichtfeld";
     if (!zip.trim()) errs.zip = "Pflichtfeld";
@@ -364,7 +365,7 @@ export default function ManualBookingForm({
             value={email}
             onChange={setEmail}
             error={errors.email}
-            placeholder="Optional"
+            required
           />
           <Field
             label="Telefon 1"
