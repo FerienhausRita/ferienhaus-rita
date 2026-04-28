@@ -124,10 +124,10 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     fontSize: 9,
     color: DARK,
-    paddingTop: 44,
-    paddingBottom: 70,
-    paddingHorizontal: 44,
-    lineHeight: 1.45,
+    paddingTop: 32,
+    paddingBottom: 100, // Platz für ausgebauten 3-Spalten-Footer
+    paddingHorizontal: 40,
+    lineHeight: 1.4,
   },
 
   // ── Header ──
@@ -135,41 +135,46 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 28,
+    marginBottom: 18,
   },
   headerLeft: {
     flexDirection: "row",
     alignItems: "center",
   },
   logoBadge: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 42,
+    height: 42,
+    borderRadius: 21,
     backgroundColor: GOLD,
     justifyContent: "center",
     alignItems: "center",
     marginRight: 12,
   },
   logoText: {
-    fontSize: 16,
+    fontSize: 15,
     fontFamily: "Times-Bold",
     color: "#ffffff",
-    letterSpacing: 1,
+    // letterSpacing entfernt — würde nach dem letzten Buchstaben
+    // einen Spacing-Slot lassen → Text optisch nach rechts verschoben
+    // textAlign auf View-Level zentriert via parent justifyContent/alignItems
+    paddingLeft: 1, // visueller Ausgleich für minimalen optical-axis Versatz
   },
   brandBlock: {
     flexDirection: "column",
+    justifyContent: "center",
   },
   brandName: {
-    fontSize: 19,
+    fontSize: 18,
     fontFamily: "Times-Bold",
     color: DARK,
     letterSpacing: 0.3,
+    lineHeight: 1.1, // verhindert dass die Tagline in den Namen läuft
   },
   brandTagline: {
     fontSize: 8,
     fontFamily: "Times-Italic",
     color: GOLD,
-    marginTop: 1,
+    marginTop: 4,
     letterSpacing: 0.5,
   },
   invoiceBox: {
@@ -203,19 +208,19 @@ const styles = StyleSheet.create({
   headerDivider: {
     height: 1,
     backgroundColor: GOLD,
-    marginBottom: 24,
+    marginBottom: 16,
   },
 
   // ── Addresses (two columns) ──
   addressGrid: {
     flexDirection: "row",
-    gap: 16,
-    marginBottom: 24,
+    gap: 14,
+    marginBottom: 14,
   },
   addressCol: {
     flex: 1,
     backgroundColor: BG_SOFT,
-    padding: 12,
+    padding: 10,
     borderRadius: 4,
   },
   addressLabel: {
@@ -240,7 +245,7 @@ const styles = StyleSheet.create({
   // ── Service period ──
   serviceBlock: {
     flexDirection: "row",
-    marginBottom: 22,
+    marginBottom: 14,
   },
   serviceAccent: {
     width: 3,
@@ -271,25 +276,25 @@ const styles = StyleSheet.create({
 
   // ── Positions table ──
   table: {
-    marginBottom: 16,
+    marginBottom: 12,
   },
   tableHeader: {
     flexDirection: "row",
     backgroundColor: GOLD_LIGHT,
-    paddingVertical: 7,
+    paddingVertical: 5,
     paddingHorizontal: 8,
     marginBottom: 2,
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: LINE_SOFT,
   },
   tableRowAlt: {
     flexDirection: "row",
-    paddingVertical: 8,
+    paddingVertical: 6,
     paddingHorizontal: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: LINE_SOFT,
@@ -328,7 +333,7 @@ const styles = StyleSheet.create({
   // ── Totals ──
   totals: {
     alignItems: "flex-end" as const,
-    marginBottom: 24,
+    marginBottom: 14,
   },
   totalRow: {
     flexDirection: "row",
@@ -383,8 +388,8 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: GOLD,
     borderRadius: 4,
-    padding: 14,
-    marginBottom: 24,
+    padding: 10,
+    marginBottom: 12,
   },
   paymentTitle: {
     fontSize: 7,
@@ -392,11 +397,11 @@ const styles = StyleSheet.create({
     textTransform: "uppercase" as const,
     letterSpacing: 1.2,
     fontFamily: "Helvetica-Bold",
-    marginBottom: 8,
+    marginBottom: 6,
   },
   paymentRow: {
     flexDirection: "row",
-    marginBottom: 3,
+    marginBottom: 2,
   },
   paymentLabel: {
     width: 120,
@@ -416,8 +421,8 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   refBox: {
-    marginTop: 8,
-    paddingTop: 8,
+    marginTop: 6,
+    paddingTop: 6,
     borderTopWidth: 0.5,
     borderTopColor: LINE,
     flexDirection: "row",
@@ -437,8 +442,8 @@ const styles = StyleSheet.create({
 
   // ── Bezahlt-Stempel ──
   paidStamp: {
-    marginTop: 16,
-    padding: 14,
+    marginTop: 8,
+    padding: 10,
     borderRadius: 6,
     borderWidth: 1,
     borderColor: "#86efac",
@@ -447,22 +452,21 @@ const styles = StyleSheet.create({
   },
   paidStampText: {
     fontFamily: "Helvetica-Bold",
-    fontSize: 13,
+    fontSize: 12,
     color: "#15803d",
     letterSpacing: 1,
   },
   paidStampSubtext: {
-    fontSize: 9,
+    fontSize: 8,
     color: "#15803d",
-    marginTop: 4,
+    marginTop: 3,
   },
 
-  // ── Footer ──
   // ── Dankesnote ──
   thankBlock: {
-    marginTop: 18,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
+    marginTop: 10,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
     borderLeftWidth: 2,
     borderLeftColor: GOLD,
     backgroundColor: BG_SOFT,
@@ -480,10 +484,10 @@ const styles = StyleSheet.create({
 
   footer: {
     position: "absolute" as const,
-    bottom: 24,
-    left: 44,
-    right: 44,
-    paddingTop: 8,
+    bottom: 20,
+    left: 40,
+    right: 40,
+    paddingTop: 6,
     borderTopWidth: 0.5,
     borderTopColor: LINE,
   },
