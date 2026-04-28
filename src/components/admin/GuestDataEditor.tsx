@@ -9,10 +9,12 @@ interface GuestDataEditorProps {
   lastName: string;
   email: string;
   phone: string;
+  phone2?: string;
   street: string;
   zip: string;
   city: string;
   country: string;
+  guestMisc?: string;
 }
 
 export default function GuestDataEditor({
@@ -21,10 +23,12 @@ export default function GuestDataEditor({
   lastName: initLastName,
   email: initEmail,
   phone: initPhone,
+  phone2: initPhone2 = "",
   street: initStreet,
   zip: initZip,
   city: initCity,
   country: initCountry,
+  guestMisc: initGuestMisc = "",
 }: GuestDataEditorProps) {
   const [editing, setEditing] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -34,10 +38,12 @@ export default function GuestDataEditor({
   const [lastName, setLastName] = useState(initLastName);
   const [email, setEmail] = useState(initEmail);
   const [phone, setPhone] = useState(initPhone);
+  const [phone2, setPhone2] = useState(initPhone2);
   const [street, setStreet] = useState(initStreet);
   const [zip, setZip] = useState(initZip);
   const [city, setCity] = useState(initCity);
   const [country, setCountry] = useState(initCountry);
+  const [guestMisc, setGuestMisc] = useState(initGuestMisc);
 
   const handleSave = async () => {
     setLoading(true);
@@ -47,10 +53,12 @@ export default function GuestDataEditor({
       last_name: lastName.trim(),
       email: email.trim(),
       phone: phone.trim(),
+      phone2: phone2.trim(),
       street: street.trim(),
       zip: zip.trim(),
       city: city.trim(),
       country: country.trim(),
+      guest_misc: guestMisc.trim(),
     });
     setLoading(false);
     if (result.success) {
@@ -67,10 +75,12 @@ export default function GuestDataEditor({
     setLastName(initLastName);
     setEmail(initEmail);
     setPhone(initPhone);
+    setPhone2(initPhone2);
     setStreet(initStreet);
     setZip(initZip);
     setCity(initCity);
     setCountry(initCountry);
+    setGuestMisc(initGuestMisc);
     setEditing(false);
     setMessage(null);
   };
@@ -108,7 +118,7 @@ export default function GuestDataEditor({
               )}
             </div>
             <div>
-              <p className={labelClass}>Telefon</p>
+              <p className={labelClass}>Telefon 1</p>
               {phone ? (
                 <a href={`tel:${phone}`} className="font-medium text-[#c8a96e] hover:text-[#b89555] text-sm">
                   {phone}
@@ -118,12 +128,28 @@ export default function GuestDataEditor({
               )}
             </div>
             <div>
+              <p className={labelClass}>Telefon 2</p>
+              {phone2 ? (
+                <a href={`tel:${phone2}`} className="font-medium text-[#c8a96e] hover:text-[#b89555] text-sm">
+                  {phone2}
+                </a>
+              ) : (
+                <p className="text-sm text-stone-400">—</p>
+              )}
+            </div>
+            <div className="sm:col-span-2">
               <p className={labelClass}>Adresse</p>
               <p className="text-stone-900 text-sm">
                 {street || "-"}<br />
                 {zip} {city}{country ? `, ${country}` : ""}
               </p>
             </div>
+            {guestMisc && (
+              <div className="sm:col-span-2">
+                <p className={labelClass}>Sonstiges</p>
+                <p className="text-stone-700 text-sm whitespace-pre-wrap">{guestMisc}</p>
+              </div>
+            )}
           </div>
           {message && <p className="text-xs text-emerald-600">{message}</p>}
         </div>
@@ -151,8 +177,12 @@ export default function GuestDataEditor({
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className={inputClass} placeholder="Optional" />
           </div>
           <div>
-            <label className={labelClass}>Telefon</label>
+            <label className={labelClass}>Telefon 1</label>
             <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Telefon 2</label>
+            <input type="tel" value={phone2} onChange={(e) => setPhone2(e.target.value)} className={inputClass} placeholder="Optional" />
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Stra&szlig;e</label>
@@ -169,6 +199,16 @@ export default function GuestDataEditor({
           <div>
             <label className={labelClass}>Land</label>
             <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass} />
+          </div>
+          <div className="sm:col-span-2">
+            <label className={labelClass}>Sonstiges (Beruf, Allergien, Hinweise…)</label>
+            <textarea
+              value={guestMisc}
+              onChange={(e) => setGuestMisc(e.target.value)}
+              rows={3}
+              className={inputClass}
+              placeholder="Frei beschreibbar — interne Notiz, nicht in Mails sichtbar"
+            />
           </div>
         </div>
         <div className="flex items-center gap-2 pt-2">

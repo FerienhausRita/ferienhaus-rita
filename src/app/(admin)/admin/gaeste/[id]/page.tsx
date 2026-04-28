@@ -147,6 +147,7 @@ export default async function GuestDetailPage({
             guestId={guest.id}
             initialRating={guest.admin_rating ?? null}
             initialNotes={guest.admin_notes ?? ""}
+            initialMisc={guest.misc ?? ""}
           />
 
           {/* Stats */}

@@ -7,15 +7,18 @@ interface GuestRatingEditorProps {
   guestId: string;
   initialRating: number | null;
   initialNotes: string;
+  initialMisc?: string;
 }
 
 export default function GuestRatingEditor({
   guestId,
   initialRating,
   initialNotes,
+  initialMisc = "",
 }: GuestRatingEditorProps) {
   const [rating, setRating] = useState<number | null>(initialRating);
   const [notes, setNotes] = useState(initialNotes);
+  const [misc, setMisc] = useState(initialMisc);
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [hoverRating, setHoverRating] = useState<number | null>(null);
@@ -26,6 +29,7 @@ export default function GuestRatingEditor({
     const result = await updateGuestRating(guestId, {
       rating,
       notes,
+      misc,
     });
     setLoading(false);
     setMessage(result.success ? "Gespeichert" : result.error || "Fehler");
@@ -88,6 +92,19 @@ export default function GuestRatingEditor({
             onChange={(e) => setNotes(e.target.value)}
             placeholder="z.B. pünktlich angereist, sehr freundlich, Wohnung makellos hinterlassen"
             rows={4}
+            className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40 focus:border-[#c8a96e]"
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-medium text-stone-500 mb-1 uppercase tracking-wider">
+            Sonstiges
+          </label>
+          <textarea
+            value={misc}
+            onChange={(e) => setMisc(e.target.value)}
+            placeholder="z.B. Beruf, Allergien, dauerhafte Hinweise"
+            rows={3}
             className="w-full px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/40 focus:border-[#c8a96e]"
           />
         </div>

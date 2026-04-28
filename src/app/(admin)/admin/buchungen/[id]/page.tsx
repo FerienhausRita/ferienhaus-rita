@@ -326,10 +326,12 @@ export default async function BookingDetailPage({
             lastName={booking.last_name}
             email={booking.email || ""}
             phone={booking.phone || ""}
+            phone2={booking.phone2 || ""}
             street={booking.street || ""}
             zip={booking.zip || ""}
             city={booking.city || ""}
             country={booking.country || ""}
+            guestMisc={booking.guest_misc || ""}
           />
 
           {/* Price Breakdown */}

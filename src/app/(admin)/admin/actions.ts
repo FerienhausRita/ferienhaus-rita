@@ -1353,6 +1353,15 @@ export async function resendConfirmation(bookingId: string) {
         depositDueDate: booking.deposit_due_date || undefined,
         remainderAmount: booking.remainder_amount ? Number(booking.remainder_amount) : undefined,
         remainderDueDate: booking.remainder_due_date || undefined,
+        // Rabatt aus DB lesen — bei manuell eingetragenem Rabatt im
+        // BookingPriceEditor ist `discount_code` ggf. NULL, daher Fallback auf
+        // generisches Label.
+        discountAmount: Number(booking.discount_amount || 0),
+        discountLabel: booking.discount_code
+          ? booking.discount_code
+          : Number(booking.discount_amount || 0) > 0
+          ? "Rabatt"
+          : null,
       },
       apartment,
       { bankDetails: bankDetails || undefined }
@@ -3015,6 +3024,9 @@ export async function createManualBooking(data: {
           dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
           firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
           additionalDogFee: apartment.additionalDogFee ?? 7.5,
+          // Manuelle Buchung hat aktuell keinen Rabatt — defensiv übergeben
+          discountAmount: 0,
+          discountLabel: null,
         },
         apartment,
         { bankDetails: manualBankDetails || undefined }
@@ -3065,12 +3077,13 @@ export async function getGuestById(id: string) {
  */
 export async function updateGuestRating(
   guestId: string,
-  { rating, notes }: { rating: number | null; notes: string }
+  { rating, notes, misc }: { rating: number | null; notes: string; misc?: string }
 ) {
   const supabase = createServerClient();
   const payload: Record<string, unknown> = {
     admin_rating: rating,
     admin_notes: notes.trim() || null,
+    misc: misc?.trim() || null,
   };
   const { error } = await supabase
     .from("guests")
@@ -3784,10 +3797,12 @@ export async function updateBookingGuestData(
     last_name: string;
     email: string;
     phone: string;
+    phone2?: string;
     street: string;
     zip: string;
     city: string;
     country: string;
+    guest_misc?: string;
   }
 ) {
   const supabase = createServerClient();
@@ -3800,10 +3815,12 @@ export async function updateBookingGuestData(
       last_name: data.last_name,
       email: data.email,
       phone: data.phone,
+      phone2: data.phone2 || null,
       street: data.street,
       zip: data.zip,
       city: data.city,
       country: data.country,
+      guest_misc: data.guest_misc || null,
     })
     .eq("id", bookingId);
 

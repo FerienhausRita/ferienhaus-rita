@@ -71,12 +71,13 @@ export default function BlockDateForm({ apartments }: BlockDateFormProps) {
         onClick={() => setOpen(false)}
       />
 
-      {/* Modal */}
-      <div className="fixed inset-x-4 top-1/2 -translate-y-1/2 z-50 sm:inset-auto sm:left-1/2 sm:-translate-x-1/2 sm:w-full sm:max-w-md">
-        <form
-          onSubmit={handleSubmit}
-          className="bg-white rounded-2xl shadow-xl border border-stone-200 p-6"
-        >
+      {/* Scroll-Container — Modal scrollt bei zu kleinem Viewport */}
+      <div className="fixed inset-0 z-50 overflow-y-auto">
+        <div className="flex min-h-full items-center justify-center p-4">
+          <form
+            onSubmit={handleSubmit}
+            className="w-full max-w-md bg-white rounded-2xl shadow-xl border border-stone-200 p-6"
+          >
           <h3 className="font-semibold text-stone-900 text-lg mb-4">
             Zeitraum sperren
           </h3>
@@ -160,7 +161,8 @@ export default function BlockDateForm({ apartments }: BlockDateFormProps) {
               {loading ? "Wird gesperrt..." : "Sperren"}
             </button>
           </div>
-        </form>
+          </form>
+        </div>
       </div>
     </>
   );
