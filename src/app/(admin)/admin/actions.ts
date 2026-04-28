@@ -2822,11 +2822,13 @@ export async function createManualBooking(data: {
   last_name: string;
   email: string;
   phone: string;
+  phone2?: string;
   street: string;
   zip: string;
   city: string;
   country: string;
   notes?: string;
+  guest_misc?: string;
   status: "pending" | "confirmed";
   send_confirmation?: boolean;
   source_channel?: string;
@@ -2931,11 +2933,13 @@ export async function createManualBooking(data: {
       last_name: data.last_name,
       email: emailTrimmed || null,
       phone: data.phone,
+      phone2: data.phone2 || null,
       street: data.street,
       zip: data.zip,
       city: data.city,
       country: data.country,
       notes: data.notes || "",
+      guest_misc: data.guest_misc || null,
       price_per_night: breakdown.basePrice,
       extra_guests_total: breakdown.extraGuestsTotal,
       dogs_total: breakdown.dogsTotal,

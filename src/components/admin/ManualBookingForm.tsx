@@ -52,6 +52,8 @@ export default function ManualBookingForm({
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [phone, setPhone] = useState("");
+  const [phone2, setPhone2] = useState("");
+  const [guestMisc, setGuestMisc] = useState("");
   const [street, setStreet] = useState("");
   const [zip, setZip] = useState("");
   const [city, setCity] = useState("");
@@ -167,11 +169,13 @@ export default function ManualBookingForm({
         last_name: lastName.trim(),
         email: email.trim(),
         phone: phone.trim(),
+        phone2: phone2.trim() || undefined,
         street: street.trim(),
         zip: zip.trim(),
         city: city.trim(),
         country,
         notes: notes.trim() || undefined,
+        guest_misc: guestMisc.trim() || undefined,
         status: isExternalChannel ? "confirmed" : status,
         send_confirmation: isExternalChannel ? false : sendConfirmation,
         source_channel: sourceChannel,
@@ -363,12 +367,19 @@ export default function ManualBookingForm({
             placeholder="Optional"
           />
           <Field
-            label="Telefon"
+            label="Telefon 1"
             type="tel"
             value={phone}
             onChange={setPhone}
             error={errors.phone}
             required
+          />
+          <Field
+            label="Telefon 2"
+            type="tel"
+            value={phone2}
+            onChange={setPhone2}
+            placeholder="Optional"
           />
         </div>
 
@@ -430,6 +441,19 @@ export default function ManualBookingForm({
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             placeholder="Interne Notizen, besondere Wünsche..."
+            rows={3}
+            className={`${inputClasses} resize-none`}
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-medium text-stone-700 mb-1.5">
+            Sonstiges (Beruf, Allergien, Hinweise…)
+          </label>
+          <textarea
+            value={guestMisc}
+            onChange={(e) => setGuestMisc(e.target.value)}
+            placeholder="Frei beschreibbar — interne Notiz, nicht in Mails sichtbar"
             rows={3}
             className={`${inputClasses} resize-none`}
           />
