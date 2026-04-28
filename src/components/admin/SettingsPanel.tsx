@@ -201,15 +201,6 @@ export default function SettingsPanel({
   const [syncLoading, setSyncLoading] = useState(false);
   const [syncResult, setSyncResult] = useState<Record<string, { imported: number; deleted: number; error?: string }> | null>(null);
 
-  // Smoobu
-  const smoobuConfig = siteSettings?.smoobu_config as { enabled?: boolean; last_sync_at?: string } | undefined;
-  const [smoobuEnabled, setSmoobuEnabled] = useState(smoobuConfig?.enabled ?? false);
-  const [smoobuSyncing, setSmoobuSyncing] = useState(false);
-  const [smoobuResult, setSmoobuResult] = useState<{ success: boolean; stats?: Record<string, number>; error?: string } | null>(null);
-  const [smoobuTesting, setSmoobuTesting] = useState(false);
-  const [smoobuTestResult, setSmoobuTestResult] = useState<{ success: boolean; apartments?: { id: number; name: string }[]; error?: string } | null>(null);
-  const [smoobuPushingAll, setSmoobuPushingAll] = useState(false);
-  const [smoobuPushAllResult, setSmoobuPushAllResult] = useState<{ success: boolean; stats?: Record<string, number>; message?: string; error?: string } | null>(null);
 
   // Backup
   const [backupRunning, setBackupRunning] = useState(false);
@@ -551,55 +542,6 @@ export default function SettingsPanel({
 
   const handleCopyUrl = (url: string) => {
     navigator.clipboard.writeText(url);
-  };
-
-  const handleSmoobuToggle = async () => {
-    const newValue = !smoobuEnabled;
-    setSmoobuEnabled(newValue);
-    await updateSiteSetting("smoobu_config", {
-      ...(smoobuConfig || {}),
-      enabled: newValue,
-    });
-  };
-
-  const handleSmoobuTest = async () => {
-    setSmoobuTesting(true);
-    setSmoobuTestResult(null);
-    try {
-      const res = await fetch("/api/admin/smoobu/test");
-      const data = await res.json();
-      setSmoobuTestResult(data);
-    } catch {
-      setSmoobuTestResult({ success: false, error: "Verbindungsfehler" });
-    }
-    setSmoobuTesting(false);
-  };
-
-  const handleSmoobuSync = async () => {
-    setSmoobuSyncing(true);
-    setSmoobuResult(null);
-    try {
-      const res = await fetch("/api/cron/smoobu-sync");
-      const data = await res.json();
-      setSmoobuResult(data);
-    } catch {
-      setSmoobuResult({ success: false, error: "Sync fehlgeschlagen" });
-    }
-    setSmoobuSyncing(false);
-  };
-
-  const handleSmoobuPushAll = async () => {
-    if (!confirm("Alle bestehenden Buchungen an Smoobu übertragen? Bestehende Datumsblockierungen werden durch vollständige Buchungen mit Gästedaten ersetzt.")) return;
-    setSmoobuPushingAll(true);
-    setSmoobuPushAllResult(null);
-    try {
-      const res = await fetch("/api/admin/smoobu/push-all", { method: "POST" });
-      const data = await res.json();
-      setSmoobuPushAllResult(data);
-    } catch {
-      setSmoobuPushAllResult({ success: false, error: "Übertragung fehlgeschlagen" });
-    }
-    setSmoobuPushingAll(false);
   };
 
   const handleBackupNow = async () => {
@@ -1390,129 +1332,6 @@ export default function SettingsPanel({
         </div>
       </Section>
 
-      {/* Smoobu API */}
-      <Section id="smoobu" title="Smoobu API" subtitle="Bidirektionale Synchronisation mit Smoobu Channel Manager" open={openSections.has("smoobu")} onToggle={toggleSection}>
-        <div className="space-y-4">
-          {/* Enable toggle */}
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-stone-700">Integration aktiv</p>
-              <p className="text-xs text-stone-400">Aktiviert Webhook-Empfang und täglichen Sync um 7 Uhr</p>
-            </div>
-            <button
-              onClick={handleSmoobuToggle}
-              className={`relative w-11 h-6 rounded-full transition-colors ${smoobuEnabled ? "bg-emerald-500" : "bg-stone-300"}`}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${smoobuEnabled ? "translate-x-5" : ""}`} />
-            </button>
-          </div>
-
-          {/* Test connection */}
-          <div className="flex gap-2">
-            <button onClick={handleSmoobuTest} disabled={smoobuTesting} className={btnClass}>
-              {smoobuTesting ? "Teste..." : "Verbindung testen"}
-            </button>
-            <button onClick={handleSmoobuSync} disabled={smoobuSyncing} className={btnClass}>
-              {smoobuSyncing ? "Sync läuft..." : "Jetzt synchronisieren"}
-            </button>
-          </div>
-
-          {/* Test result */}
-          {smoobuTestResult && (
-            <div className={`rounded-xl p-4 ${smoobuTestResult.success ? "bg-emerald-50" : "bg-red-50"}`}>
-              {smoobuTestResult.success ? (
-                <div>
-                  <p className="text-sm font-medium text-emerald-700 mb-1">Verbindung erfolgreich</p>
-                  {smoobuTestResult.apartments?.map((apt) => (
-                    <p key={apt.id} className="text-xs text-emerald-600">
-                      {apt.name} (ID: {apt.id})
-                    </p>
-                  ))}
-                </div>
-              ) : (
-                <p className="text-sm text-red-600">{smoobuTestResult.error}</p>
-              )}
-            </div>
-          )}
-
-          {/* Sync result */}
-          {smoobuResult && (
-            <div className={`rounded-xl p-4 ${smoobuResult.success ? "bg-emerald-50" : "bg-red-50"}`}>
-              {smoobuResult.success && smoobuResult.stats ? (
-                <div>
-                  <p className="text-sm font-medium text-emerald-700 mb-1">Sync abgeschlossen</p>
-                  <div className="grid grid-cols-2 gap-1 text-xs text-emerald-600">
-                    <span>Neue Buchungen: {smoobuResult.stats.pulled}</span>
-                    <span>Aktualisiert: {smoobuResult.stats.updated}</span>
-                    <span>Retried: {smoobuResult.stats.retried}</span>
-                    <span>Fehler: {smoobuResult.stats.errors}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-red-600">{smoobuResult.error || "Sync fehlgeschlagen"}</p>
-              )}
-            </div>
-          )}
-
-          {/* Push all existing bookings */}
-          <div className="border-t border-stone-100 pt-4">
-            <p className="text-sm font-medium text-stone-700 mb-1">Bestehende Buchungen übertragen</p>
-            <p className="text-xs text-stone-400 mb-2">
-              Überträgt alle lokalen Buchungen mit vollständigen Gästedaten (Name, E-Mail, Preis) an Smoobu. Ersetzt leere Datumsblockierungen durch echte Reservierungen.
-            </p>
-            <button onClick={handleSmoobuPushAll} disabled={smoobuPushingAll} className={btnClass}>
-              {smoobuPushingAll ? "Übertrage..." : "Alle Buchungen an Smoobu senden"}
-            </button>
-          </div>
-
-          {smoobuPushAllResult && (
-            <div className={`rounded-xl p-4 ${smoobuPushAllResult.success ? "bg-emerald-50" : "bg-red-50"}`}>
-              {smoobuPushAllResult.success && smoobuPushAllResult.stats ? (
-                <div>
-                  <p className="text-sm font-medium text-emerald-700 mb-1">Übertragung abgeschlossen</p>
-                  <div className="grid grid-cols-2 gap-1 text-xs text-emerald-600">
-                    <span>Gesamt: {smoobuPushAllResult.stats.total}</span>
-                    <span>Übertragen: {smoobuPushAllResult.stats.pushed}</span>
-                    <span>Übersprungen: {smoobuPushAllResult.stats.skipped}</span>
-                    <span>Fehler: {smoobuPushAllResult.stats.failed}</span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-sm text-red-600">{smoobuPushAllResult.error || "Übertragung fehlgeschlagen"}</p>
-              )}
-            </div>
-          )}
-
-          {/* Last sync info */}
-          {smoobuConfig?.last_sync_at && (
-            <p className="text-xs text-stone-400">
-              Letzter Sync: {new Date(smoobuConfig.last_sync_at).toLocaleString("de-DE")}
-            </p>
-          )}
-
-          {/* Webhook URL */}
-          <div>
-            <h3 className="text-sm font-medium text-stone-700 mb-1">Webhook URL</h3>
-            <p className="text-xs text-stone-400 mb-1">
-              Diese URL in Smoobu unter Einstellungen → API & Webhooks eintragen:
-            </p>
-            <div className="flex items-center gap-1">
-              <code className="flex-1 bg-stone-50 rounded px-2 py-1 text-xs text-stone-500 truncate">
-                {exportBaseUrl}/api/webhooks/smoobu
-              </code>
-              <button
-                onClick={() => handleCopyUrl(`${exportBaseUrl}/api/webhooks/smoobu`)}
-                className="shrink-0 px-2 py-1 text-[#c8a96e] hover:text-[#b89555] transition-colors"
-                title="Kopieren"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0013.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 01-.75.75H9.75a.75.75 0 01-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 01-2.25 2.25H6.75A2.25 2.25 0 014.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 011.927-.184" />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </div>
-      </Section>
 
       {/* Backup */}
       <Section id="backup" title="Datenbank-Backup" subtitle="T&auml;gliches automatisches Backup um 3 Uhr per E-Mail" open={openSections.has("backup")} onToggle={toggleSection}>

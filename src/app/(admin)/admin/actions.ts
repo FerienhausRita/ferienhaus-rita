@@ -363,7 +363,7 @@ export async function updateBookingStatus(
   // When confirming: calculate deposit/remainder amounts
   const updateData: Record<string, unknown> = { status };
 
-  // Externe Kanäle (Booking.com, Airbnb, Smoobu, ...) laufen komplett über
+  // Externe Kanäle (Booking.com, Airbnb, ...) laufen komplett über
   // die Plattform. Keine Anzahlungslogik, keine automatischen Mails, keine
   // Reminder. Zahlung wird direkt auf "paid" gesetzt.
   const bookingChannel = (booking.source_channel as string | null) ?? "Website";
@@ -674,23 +674,6 @@ export async function updateBookingStatus(
     console.error("Error recalculating guest stats:", e);
   }
 
-  // Sync with Smoobu (non-blocking)
-  try {
-    if (status === "confirmed") {
-      const { pushBookingToSmoobu } = await import("@/lib/smoobu/sync");
-      pushBookingToSmoobu(bookingId).catch((err: unknown) =>
-        console.error("Smoobu push error:", err),
-      );
-    } else if (status === "cancelled") {
-      const { cancelBookingInSmoobu } = await import("@/lib/smoobu/sync");
-      cancelBookingInSmoobu(bookingId).catch((err: unknown) =>
-        console.error("Smoobu cancel error:", err),
-      );
-    }
-  } catch {
-    // Smoobu module not available — ignore
-  }
-
   revalidatePath("/admin/buchungen");
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin");
@@ -704,10 +687,10 @@ export async function updateBookingStatus(
 export async function deleteBooking(bookingId: string) {
   const supabase = createServerClient();
 
-  // Get booking to check for Smoobu reservation
+  // Get booking
   const { data: booking } = await supabase
     .from("bookings")
-    .select("id, smoobu_reservation_id, email")
+    .select("id, email")
     .eq("id", bookingId)
     .single();
 
@@ -715,21 +698,10 @@ export async function deleteBooking(bookingId: string) {
     return { success: false, error: "Buchung nicht gefunden" };
   }
 
-  // Cancel in Smoobu if linked
-  if (booking.smoobu_reservation_id) {
-    try {
-      const { cancelBookingInSmoobu } = await import("@/lib/smoobu/sync");
-      await cancelBookingInSmoobu(bookingId);
-    } catch {
-      // Non-critical
-    }
-  }
-
   // Delete related records first
   await supabase.from("email_schedule").delete().eq("booking_id", bookingId);
   await supabase.from("booking_line_items").delete().eq("booking_id", bookingId);
   await supabase.from("meldeschein").delete().eq("booking_id", bookingId);
-  await supabase.from("smoobu_sync_log").delete().eq("booking_id", bookingId);
 
   // Delete the booking
   const { error } = await supabase
@@ -2086,7 +2058,6 @@ export async function triggerIcalSync() {
 function detectFeedLabel(url: string): string {
   const u = url.toLowerCase();
   if (u.includes("airbnb")) return "Airbnb";
-  if (u.includes("smoobu")) return "Smoobu";
   if (u.includes("booking")) return "Booking.com";
   if (u.includes("vrbo") || u.includes("homeaway")) return "Vrbo";
   return "Extern";

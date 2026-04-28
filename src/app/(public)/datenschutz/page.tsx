@@ -145,18 +145,6 @@ export default function DatenschutzPage() {
               Auftragsverarbeitungsvertrag (AVV) geschlossen.
             </p>
 
-            <h3 className="text-lg font-semibold text-stone-800">
-              Smoobu (Channel Manager)
-            </h3>
-            <p>
-              Zur Verwaltung der Verfügbarkeiten und Synchronisierung mit
-              Buchungsplattformen nutzen wir Smoobu GmbH, Wikingerufer 7,
-              10555 Berlin, Deutschland. Smoobu erhält dabei Informationen
-              über belegte Zeiträume unserer Unterkünfte. Personenbezogene
-              Gästeinformationen werden nicht an Smoobu übermittelt.
-              Rechtsgrundlage ist Art. 6 Abs. 1 lit. f DSGVO (berechtigtes
-              Interesse an einer effizienten Belegungsplanung).
-            </p>
           </section>
 
           <section>

@@ -22,7 +22,6 @@ const BACKUP_TABLES = [
   "sent_emails",
   "booking_line_items",
   "points_of_interest",
-  "smoobu_sync_log",
   "admin_profiles",
 ] as const;
 
