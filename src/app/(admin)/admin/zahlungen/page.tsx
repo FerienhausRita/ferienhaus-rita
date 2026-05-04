@@ -2,7 +2,6 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { getPaymentOverview } from "../actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
-import SortHeader from "@/components/admin/SortHeader";
 
 export const metadata: Metadata = {
   title: "Zahlungen",
@@ -25,13 +24,40 @@ function formatDate(dateStr: string) {
   });
 }
 
+type SortKey = "due" | "name" | "open";
+
+function sortLink(searchParams: Record<string, string | undefined>, key: SortKey, label: string) {
+  const current = (searchParams.sort as SortKey) ?? "due";
+  const dir = searchParams.dir === "desc" ? "desc" : "asc";
+  const isActive = current === key;
+  const nextDir = isActive && dir === "asc" ? "desc" : "asc";
+  const params = new URLSearchParams();
+  params.set("sort", key);
+  params.set("dir", nextDir);
+  return (
+    <Link
+      href={`/admin/zahlungen?${params.toString()}`}
+      className={`px-3 py-1.5 rounded-full text-xs font-medium transition ${
+        isActive ? "bg-stone-900 text-white" : "bg-stone-100 text-stone-600 hover:bg-stone-200"
+      }`}
+    >
+      {label} {isActive && (dir === "asc" ? "↑" : "↓")}
+    </Link>
+  );
+}
+
 export default async function ZahlungenPage({
   searchParams,
 }: {
   searchParams: { sort?: string; dir?: string };
 }) {
+  // Map UI sort keys to action sort columns
+  const sortKey = (searchParams.sort as SortKey) ?? "due";
+  const dbSort =
+    sortKey === "name" ? "last_name" : sortKey === "open" ? "remainder_amount" : "deposit_due_date";
+
   const [{ bookings, overdueCount, totalOutstanding }, nameMap] = await Promise.all([
-    getPaymentOverview(searchParams.sort, searchParams.dir),
+    getPaymentOverview(dbSort, searchParams.dir),
     getApartmentNameMap(),
   ]);
   const sp = searchParams as Record<string, string | undefined>;
@@ -42,7 +68,7 @@ export default async function ZahlungenPage({
       <h1 className="text-2xl font-bold text-stone-900 mb-6">Zahlungen</h1>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-white rounded-2xl border border-stone-200 p-5">
           <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Ausstehend gesamt</p>
           <p className="text-2xl font-bold text-stone-900">{formatCurrency(totalOutstanding)}</p>
@@ -57,130 +83,161 @@ export default async function ZahlungenPage({
         </div>
       </div>
 
-      {/* Payment Table */}
+      {/* Sort */}
+      {bookings.length > 0 && (
+        <div className="flex items-center gap-2 mb-4">
+          <span className="text-xs text-stone-500 uppercase tracking-wider mr-1">Sortieren:</span>
+          {sortLink(sp, "due", "Fälligkeit")}
+          {sortLink(sp, "name", "Name")}
+          {sortLink(sp, "open", "Offener Betrag")}
+        </div>
+      )}
+
+      {/* Payment Cards */}
       {bookings.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
           <p className="text-stone-500">Keine offenen Zahlungen</p>
         </div>
       ) : (
-        <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-stone-100 text-left text-xs text-stone-500 uppercase tracking-wider">
-                  <SortHeader column="last_name" label="Gast" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} />
-                  <th className="py-3 px-4 font-medium">Wohnung</th>
-                  <th className="py-3 px-4 font-medium">Zeitraum</th>
-                  <SortHeader column="deposit_amount" label="Anzahlung" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="right" />
-                  <SortHeader column="remainder_amount" label="Restbetrag" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="right" />
-                  <th className="py-3 px-4 font-medium text-right">Offen</th>
-                  <SortHeader column="payment_status" label="Status" currentSort={searchParams.sort} currentDir={searchParams.dir} searchParams={sp} align="center" />
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-stone-50">
-                {bookings.map((b) => {
-                  const apartmentName = nameMap.get(b.apartment_id) ?? b.apartment_id;
-                  const depositAmount = Number(b.deposit_amount || 0);
-                  const remainderAmount = Number(b.remainder_amount || 0);
-                  const depositPaid = Number(b.deposit_paid_sum || 0);
-                  const remainderPaid = Number(b.remainder_paid_sum || 0);
-                  const depositOpen = Number(b.deposit_open || 0);
-                  const remainderOpen = Number(b.remainder_open || 0);
-                  const totalOpen = Number(b.total_open || 0);
-                  const depositDone = depositAmount === 0 || depositOpen <= 0.01 || !!b.deposit_paid_at;
-                  const remainderDone = remainderAmount === 0 || remainderOpen <= 0.01 || !!b.remainder_paid_at;
-                  const depositOverdue =
-                    b.deposit_due_date && b.deposit_due_date < today && !depositDone;
-                  const remainderOverdue =
-                    b.remainder_due_date && b.remainder_due_date < today && !remainderDone;
+        <div className="space-y-3">
+          {bookings.map((b) => {
+            const apartmentName = nameMap.get(b.apartment_id) ?? b.apartment_id;
+            const depositAmount = Number(b.deposit_amount || 0);
+            const remainderAmount = Number(b.remainder_amount || 0);
+            const depositPaid = Number(b.deposit_paid_sum || 0);
+            const remainderPaid = Number(b.remainder_paid_sum || 0);
+            const depositOpen = Number(b.deposit_open || 0);
+            const remainderOpen = Number(b.remainder_open || 0);
+            const totalOpen = Number(b.total_open || 0);
+            const depositDone = depositAmount === 0 || depositOpen <= 0.01 || !!b.deposit_paid_at;
+            const remainderDone = remainderAmount === 0 || remainderOpen <= 0.01 || !!b.remainder_paid_at;
+            const depositOverdue = !!(b.deposit_due_date && b.deposit_due_date < today && !depositDone);
+            const remainderOverdue = !!(b.remainder_due_date && b.remainder_due_date < today && !remainderDone);
+            const anyOverdue = depositOverdue || remainderOverdue;
 
-                  const bucketCell = (
-                    amount: number,
-                    paid: number,
-                    done: boolean,
-                    overdue: boolean,
-                    dueDate: string | null | undefined
-                  ) => {
-                    if (amount === 0) return <span className="text-stone-300">&ndash;</span>;
-                    const hasPayments = paid > 0.01;
-                    return (
-                      <div>
-                        <div className="flex items-center justify-end gap-1.5">
-                          <span
-                            className={`font-medium ${
-                              done ? "text-emerald-600" : overdue ? "text-red-600" : "text-stone-900"
-                            }`}
-                          >
-                            {formatCurrency(paid)} / {formatCurrency(amount)}
-                          </span>
-                          {done && <span className="text-emerald-600">✓</span>}
-                          {!done && hasPayments && <span>🟠</span>}
-                        </div>
-                        {!done && dueDate && (
-                          <p
-                            className={`text-xs ${
-                              overdue ? "text-red-500" : "text-stone-400"
-                            }`}
-                          >
-                            bis {formatDate(dueDate)}
-                          </p>
-                        )}
-                        {done && paid > 0 && (
-                          <p className="text-xs text-emerald-500">bezahlt</p>
-                        )}
-                      </div>
-                    );
-                  };
+            const status: "paid" | "partial" | "overdue" | "open" =
+              b.payment_status === "paid"
+                ? "paid"
+                : b.payment_status === "deposit_paid" || depositPaid > 0.01 || depositDone
+                ? "partial"
+                : anyOverdue
+                ? "overdue"
+                : "open";
 
-                  return (
-                    <tr key={b.id} className="hover:bg-stone-50">
-                      <td className="py-3 px-4">
-                        <Link href={`/admin/buchungen/${b.id}`} className="text-[#c8a96e] hover:text-[#b89555] font-medium">
-                          {b.first_name} {b.last_name}
-                        </Link>
-                      </td>
-                      <td className="py-3 px-4 text-stone-600">{apartmentName}</td>
-                      <td className="py-3 px-4 text-stone-600 whitespace-nowrap">
-                        {formatDate(b.check_in)} &ndash; {formatDate(b.check_out)}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {bucketCell(depositAmount, depositPaid, depositDone, !!depositOverdue, b.deposit_due_date)}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {bucketCell(remainderAmount, remainderPaid, remainderDone, !!remainderOverdue, b.remainder_due_date)}
-                      </td>
-                      <td className="py-3 px-4 text-right">
-                        {totalOpen > 0.01 ? (
-                          <span className={`font-bold ${depositOverdue || remainderOverdue ? "text-red-600" : "text-stone-900"}`}>
-                            {formatCurrency(totalOpen)}
-                          </span>
-                        ) : (
-                          <span className="text-emerald-600 font-medium">0 €</span>
-                        )}
-                      </td>
-                      <td className="py-3 px-4 text-center">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${
-                          b.payment_status === "paid"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : b.payment_status === "deposit_paid" || depositPaid > 0.01
-                            ? "bg-amber-100 text-amber-700"
-                            : (depositOverdue || remainderOverdue)
-                            ? "bg-red-100 text-red-700"
-                            : "bg-stone-100 text-stone-600"
-                        }`}>
-                          {b.payment_status === "paid" ? "Bezahlt"
-                            : b.payment_status === "deposit_paid" || depositPaid > 0.01 ? "Teilweise"
-                            : (depositOverdue || remainderOverdue) ? "\u00dcberf\u00e4llig"
-                            : "Offen"
-                          }
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+            const statusLabel =
+              status === "paid"
+                ? "Bezahlt"
+                : status === "partial"
+                ? "Teilweise"
+                : status === "overdue"
+                ? "Überfällig"
+                : "Offen";
+            const statusClasses =
+              status === "paid"
+                ? "bg-emerald-100 text-emerald-700"
+                : status === "partial"
+                ? "bg-amber-100 text-amber-700"
+                : status === "overdue"
+                ? "bg-red-100 text-red-700"
+                : "bg-stone-100 text-stone-600";
+
+            const borderColor =
+              status === "overdue"
+                ? "border-l-red-500"
+                : status === "partial"
+                ? "border-l-amber-400"
+                : status === "paid"
+                ? "border-l-emerald-500"
+                : "border-l-stone-300";
+
+            const bucketRow = (
+              label: string,
+              amount: number,
+              paid: number,
+              done: boolean,
+              overdue: boolean,
+              dueDate: string | null | undefined
+            ) => {
+              if (amount === 0) return null;
+              const hasPayments = paid > 0.01;
+              const partial = hasPayments && !done;
+              const amountColor = done
+                ? "text-emerald-600"
+                : overdue
+                ? "text-red-600"
+                : "text-stone-900";
+              const icon = done ? "✓" : partial ? "🟠" : overdue ? "⚠" : null;
+
+              return (
+                <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
+                  <div className="flex items-baseline gap-2 min-w-0">
+                    <span className="text-stone-500 w-20 shrink-0">{label}</span>
+                    {dueDate && (
+                      <span className={`text-xs ${overdue ? "text-red-500" : "text-stone-400"}`}>
+                        f&auml;llig {formatDate(dueDate)}
+                      </span>
+                    )}
+                  </div>
+                  <div className={`flex items-center gap-1.5 font-medium whitespace-nowrap ${amountColor}`}>
+                    {partial && (
+                      <span className="text-xs text-stone-500 font-normal">
+                        {formatCurrency(paid)} von
+                      </span>
+                    )}
+                    <span>{formatCurrency(amount)}</span>
+                    {icon && <span className="text-base">{icon}</span>}
+                  </div>
+                </div>
+              );
+            };
+
+            return (
+              <div
+                key={b.id}
+                className={`bg-white rounded-2xl border border-stone-200 border-l-4 ${borderColor} p-4 sm:p-5 hover:shadow-sm transition`}
+              >
+                {/* Header row */}
+                <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
+                  <div className="min-w-0">
+                    <Link
+                      href={`/admin/buchungen/${b.id}`}
+                      className="text-base font-semibold text-stone-900 hover:text-[#c8a96e] truncate block"
+                    >
+                      {b.first_name} {b.last_name}
+                    </Link>
+                    <p className="text-xs text-stone-500 mt-0.5">
+                      {apartmentName} &middot; {formatDate(b.check_in)} &ndash; {formatDate(b.check_out)}
+                    </p>
+                  </div>
+                  <span
+                    className={`inline-block px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap ${statusClasses}`}
+                  >
+                    {statusLabel}
+                  </span>
+                </div>
+
+                {/* Buckets */}
+                <div className="divide-y divide-stone-100 border-t border-stone-100 pt-1">
+                  {bucketRow("Anzahlung", depositAmount, depositPaid, depositDone, depositOverdue, b.deposit_due_date)}
+                  {bucketRow("Restbetrag", remainderAmount, remainderPaid, remainderDone, remainderOverdue, b.remainder_due_date)}
+                </div>
+
+                {/* Footer total */}
+                <div className="flex items-center justify-between pt-2 mt-2 border-t border-stone-100 text-sm">
+                  <span className="text-stone-500">Offen gesamt</span>
+                  {totalOpen > 0.01 ? (
+                    <span className={`font-bold ${anyOverdue ? "text-red-600" : "text-stone-900"}`}>
+                      {formatCurrency(totalOpen)}
+                    </span>
+                  ) : (
+                    <span className="text-emerald-600 font-medium">
+                      {formatCurrency(0)} &middot; vollst&auml;ndig bezahlt
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
     </div>
