@@ -1,6 +1,8 @@
 /**
- * External iCal feed URLs for each apartment.
- * Synced via /api/ical/sync (Vercel Cron, täglich 06:00)
+ * External iCal feed URLs für jedes Apartment.
+ * Synced via /api/ical/sync (Vercel Cron, täglich 06:00) — gilt nur für
+ * Plattformen, die wir IMPORTIEREN (also fremde Belegung in unsere DB
+ * spiegeln).
  *
  * Mapping:
  * W1 (DG, 96m²)  = grossglockner-suite
@@ -8,18 +10,20 @@
  * W3 (~50m²)     = almrausch
  * W4 (~40m²)     = edelweiss
  *
- * Hinweis: Der Live-Cron liest aus der DB-Tabelle `ical_import_feeds`.
- * Diese Datei wird nur vom manuellen „iCal sync"-Button im Admin
- * (triggerICalSync()) und von der Settings-Anzeige genutzt — als
- * Fallback/Dokumentation, welche Feeds historisch eingerichtet waren.
+ * Aktuell keine externen Import-Quellen aktiv.
+ *
+ * - Smoobu: nicht mehr genutzt
+ * - Airbnb: deaktiviert (Buchungen werden manuell im Admin erfasst).
+ *   EXPORT an Airbnb läuft weiter über /api/ical/[apartment]/route.ts —
+ *   davon ist diese Datei nicht betroffen.
+ *
+ * Hinweis: Der Live-Cron liest primär aus der DB-Tabelle `ical_import_feeds`
+ * (im Admin unter „Einstellungen → iCal-Synchronisation" verwaltbar).
+ * Diese Datei dient nur dem manuellen „iCal sync"-Button (triggerICalSync()).
  */
 export const icalFeeds: Record<string, string[]> = {
-  "grossglockner-suite": [
-    "https://www.airbnb.de/calendar/ical/1662358419016161878.ics?t=c25400ade2ab4db39e32dbfcd42215e9",
-  ],
-  gletscherblick: [
-    "https://www.airbnb.de/calendar/ical/1658111635029895521.ics?t=2d6c4d44115d432db0d37eaf70b48d9d",
-  ],
+  "grossglockner-suite": [],
+  gletscherblick: [],
   almrausch: [],
   edelweiss: [],
 };
