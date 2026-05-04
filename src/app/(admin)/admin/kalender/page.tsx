@@ -3,7 +3,6 @@ import { getCalendarDataForYear } from "../actions";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import CalendarView from "@/components/admin/CalendarView";
 import BlockDateForm from "@/components/admin/BlockDateForm";
-import ICalSync from "@/components/admin/ICalDebug";
 
 export const metadata: Metadata = {
   title: "Kalender",
@@ -36,7 +35,6 @@ export default async function KalenderPage({
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <ICalSync />
           <BlockDateForm apartments={calendarApartments} />
         </div>
       </div>

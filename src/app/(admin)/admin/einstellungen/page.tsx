@@ -2,7 +2,6 @@ import { Metadata } from "next";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { getAdminProfiles, getAllSiteSettings, getIcalImportFeeds } from "../actions";
 import { apartments } from "@/data/apartments";
-import { icalFeeds } from "@/data/ical-feeds";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import SettingsPanel from "@/components/admin/SettingsPanel";
 
@@ -31,13 +30,12 @@ export default async function EinstellungenPage() {
     getIcalImportFeeds(),
   ]);
 
-  // Legacy static feed mapping – still used for the "Export-Feeds" block in the
-  // iCal section (those URLs are code-generated, apartment-id based).
-  const feedData = Object.entries(icalFeeds).map(([aptId, urls]) => ({
-    apartmentId: aptId,
-    apartmentName:
-      dbApartments.find((a) => a.id === aptId)?.name ?? aptId,
-    urls,
+  // Apartment-Liste für die "Export-Feeds"-Sektion (URLs werden code-seitig
+  // aus apartment-id gebildet — /api/ical/[apartmentId])
+  const feedData = dbApartments.map((apt) => ({
+    apartmentId: apt.id,
+    apartmentName: apt.name,
+    urls: [] as string[],
   }));
 
   // Editable import feeds (DB-backed)
