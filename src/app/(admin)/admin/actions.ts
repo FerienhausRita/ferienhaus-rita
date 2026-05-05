@@ -1136,8 +1136,14 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
     const paid = paidSums.get(b.id) ?? { deposit: 0, remainder: 0 };
     const depositAmount = Number(b.deposit_amount || 0);
     const remainderAmount = Number(b.remainder_amount || 0);
-    const depositOpen = Math.max(0, depositAmount - paid.deposit);
-    const remainderOpen = Math.max(0, remainderAmount - paid.remainder);
+    // Wenn der Bucket explizit als bezahlt markiert ist (paid_at gesetzt),
+    // gilt er als 0 offen — egal ob ein booking_payments-Eintrag existiert.
+    const depositOpen = b.deposit_paid_at
+      ? 0
+      : Math.max(0, depositAmount - paid.deposit);
+    const remainderOpen = b.remainder_paid_at
+      ? 0
+      : Math.max(0, remainderAmount - paid.remainder);
     return {
       ...b,
       deposit_paid_sum: Math.round(paid.deposit * 100) / 100,
