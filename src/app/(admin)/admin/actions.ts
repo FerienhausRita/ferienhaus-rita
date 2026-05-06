@@ -2268,10 +2268,13 @@ export async function updateDisplayName(newName: string) {
  */
 export async function inviteAdmin(email: string, displayName: string, role: "admin" | "viewer") {
   const supabase = createServerClient();
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
 
   // Use Supabase Admin API to invite user
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: { display_name: displayName },
+    redirectTo: `${siteUrl}/auth/callback`,
   });
 
   if (error) {
@@ -2322,8 +2325,12 @@ export async function inviteCleaningUser(email: string, displayName: string) {
     data: { user: inviter },
   } = await authClient.auth.getUser();
 
+  const siteUrl =
+    process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
+
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: { display_name: displayName },
+    redirectTo: `${siteUrl}/auth/callback`,
   });
   if (error) return { success: false, error: error.message };
 
