@@ -34,20 +34,22 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Protect admin routes (pages and API endpoints)
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin") || request.nextUrl.pathname.startsWith("/api/admin");
+  const path = request.nextUrl.pathname;
+
+  // ============================================
+  // ADMIN ROUTES
+  // ============================================
+  const isAdminRoute = path.startsWith("/admin") || path.startsWith("/api/admin");
   if (isAdminRoute) {
     if (!user) {
-      // API routes get JSON 401, pages get redirected to login
-      if (request.nextUrl.pathname.startsWith("/api/")) {
+      if (path.startsWith("/api/")) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
       const loginUrl = new URL("/auth/login", request.url);
-      loginUrl.searchParams.set("redirect", request.nextUrl.pathname);
+      loginUrl.searchParams.set("redirect", path);
       return NextResponse.redirect(loginUrl);
     }
 
-    // Check if user exists in admin_profiles
     const { data: profile } = await supabase
       .from("admin_profiles")
       .select("id, role")
@@ -55,8 +57,7 @@ export async function middleware(request: NextRequest) {
       .single();
 
     if (!profile) {
-      // User is authenticated but not an admin
-      if (request.nextUrl.pathname.startsWith("/api/")) {
+      if (path.startsWith("/api/")) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       await supabase.auth.signOut();
@@ -66,16 +67,62 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // Redirect authenticated admins away from login page
-  if (request.nextUrl.pathname === "/auth/login" && user) {
-    const { data: profile } = await supabase
+  // ============================================
+  // CLEANING ROUTES
+  // ============================================
+  const isCleaningRoute = path.startsWith("/reinigung") || path.startsWith("/api/cleaning");
+  if (isCleaningRoute) {
+    if (!user) {
+      if (path.startsWith("/api/")) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      const loginUrl = new URL("/auth/login", request.url);
+      loginUrl.searchParams.set("redirect", path);
+      return NextResponse.redirect(loginUrl);
+    }
+
+    const { data: cleaningProfile } = await supabase
+      .from("cleaning_profiles")
+      .select("id, active")
+      .eq("id", user.id)
+      .single();
+
+    if (!cleaningProfile || !cleaningProfile.active) {
+      if (path.startsWith("/api/")) {
+        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+      }
+      await supabase.auth.signOut();
+      const loginUrl = new URL("/auth/login", request.url);
+      loginUrl.searchParams.set(
+        "error",
+        cleaningProfile && !cleaningProfile.active ? "disabled" : "unauthorized"
+      );
+      return NextResponse.redirect(loginUrl);
+    }
+  }
+
+  // ============================================
+  // LOGIN PAGE: Eingeloggte Nutzer wegleiten
+  // ============================================
+  if (path === "/auth/login" && user) {
+    const { data: adminProfile } = await supabase
       .from("admin_profiles")
       .select("id")
       .eq("id", user.id)
       .single();
 
-    if (profile) {
+    if (adminProfile) {
       return NextResponse.redirect(new URL("/admin", request.url));
+    }
+
+    const { data: cleaningProfile } = await supabase
+      .from("cleaning_profiles")
+      .select("id, active")
+      .eq("id", user.id)
+      .single();
+
+    if (cleaningProfile && cleaningProfile.active) {
+      return NextResponse.redirect(new URL("/reinigung", request.url));
     }
   }
 
@@ -83,5 +130,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/api/admin/:path*", "/auth/login"],
+  matcher: [
+    "/admin/:path*",
+    "/api/admin/:path*",
+    "/reinigung/:path*",
+    "/api/cleaning/:path*",
+    "/auth/login",
+  ],
 };

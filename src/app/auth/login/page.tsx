@@ -57,14 +57,21 @@ export default function LoginPage() {
           <h1 className="font-serif text-2xl font-bold text-stone-900">
             Ferienhaus Rita
           </h1>
-          <p className="text-stone-500 text-sm mt-1">Admin-Dashboard</p>
+          <p className="text-stone-500 text-sm mt-1">Anmeldung</p>
         </div>
 
         {/* Error for unauthorized users */}
         {unauthorizedError && status === "idle" && (
           <div className="mb-6 p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-            Ihr Konto hat keinen Admin-Zugang. Bitte kontaktieren Sie den
+            Ihr Konto hat keinen Zugang. Bitte kontaktieren Sie den
             Administrator.
+          </div>
+        )}
+
+        {/* Error for disabled accounts */}
+        {searchParams?.get("error") === "disabled" && status === "idle" && (
+          <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-700">
+            Ihr Zugang wurde vom Administrator deaktiviert.
           </div>
         )}
 

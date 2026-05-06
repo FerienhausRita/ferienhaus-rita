@@ -6,11 +6,10 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const next = searchParams.get("next") || searchParams.get("redirect") || "/admin";
+  const explicitNext = searchParams.get("next") || searchParams.get("redirect");
 
-  const redirectTo = new URL(next, origin);
-
-  const response = NextResponse.redirect(redirectTo);
+  // Initialer Response (wird ggf. überschrieben sobald Rolle bekannt)
+  let response = NextResponse.redirect(new URL(explicitNext || "/admin", origin));
 
   const supabase = createSSRServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -29,29 +28,67 @@ export async function GET(request: NextRequest) {
     }
   );
 
+  let authOk = false;
+
   // PKCE flow: exchange code for session
   if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
-    if (!error) {
-      return response;
-    }
-    console.error("Code exchange failed:", error.message);
-  }
-
-  // Token hash flow (magic link without PKCE)
-  if (token_hash && type) {
+    if (!error) authOk = true;
+    else console.error("Code exchange failed:", error.message);
+  } else if (token_hash && type) {
+    // Token hash flow (magic link without PKCE)
     const { error } = await supabase.auth.verifyOtp({
       token_hash,
       type: type as "magiclink" | "email",
     });
-    if (!error) {
-      return response;
-    }
-    console.error("Token verification failed:", error.message);
+    if (!error) authOk = true;
+    else console.error("Token verification failed:", error.message);
   }
 
-  // If nothing worked, redirect to login with error
-  return NextResponse.redirect(
-    new URL("/auth/login?error=auth_failed", origin)
-  );
+  if (!authOk) {
+    return NextResponse.redirect(new URL("/auth/login?error=auth_failed", origin));
+  }
+
+  // Rollen-basiertes Routing: Admin geht nach /admin, Cleaning nach /reinigung
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let target = explicitNext;
+
+  if (!target && user) {
+    const { data: adminProfile } = await supabase
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+
+    if (adminProfile) {
+      target = "/admin";
+    } else {
+      const { data: cleaningProfile } = await supabase
+        .from("cleaning_profiles")
+        .select("id, active")
+        .eq("id", user.id)
+        .single();
+
+      if (cleaningProfile && cleaningProfile.active) {
+        target = "/reinigung";
+      } else if (cleaningProfile && !cleaningProfile.active) {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/auth/login?error=disabled", origin));
+      } else {
+        await supabase.auth.signOut();
+        return NextResponse.redirect(new URL("/auth/login?error=unauthorized", origin));
+      }
+    }
+  }
+
+  // Final redirect mit korrektem Target — Cookies aus dem ursprünglichen Response übernehmen
+  const finalResponse = NextResponse.redirect(new URL(target || "/admin", origin));
+  response.cookies.getAll().forEach((c) => {
+    finalResponse.cookies.set(c.name, c.value);
+  });
+  response = finalResponse;
+  return response;
 }

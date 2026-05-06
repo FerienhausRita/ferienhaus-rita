@@ -72,7 +72,7 @@ export default async function BookingDetailPage({
 }: {
   params: { id: string };
 }) {
-  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails, taxConfig, payments] = await Promise.all([
+  const [booking, notes, emailSchedule, meldeschein, lineItems, bankDetails, taxConfig, payments, defaultArrival, defaultDeparture] = await Promise.all([
     getBookingById(params.id),
     getBookingNotes(params.id),
     getEmailSchedule(params.id),
@@ -81,6 +81,8 @@ export default async function BookingDetailPage({
     getSiteSetting("bank_details"),
     getTaxConfigFromDB(),
     getBookingPayments(params.id),
+    getSiteSetting("default_arrival_time"),
+    getSiteSetting("default_departure_time"),
   ]);
 
   if (!booking) {
@@ -316,6 +318,11 @@ export default async function BookingDetailPage({
               initialInfants={booking.infants || 0}
               initialDogs={booking.dogs || 0}
               initialNotes={booking.notes || ""}
+              initialCleaningNote={(booking as { cleaning_note?: string | null }).cleaning_note ?? null}
+              initialArrivalTime={(booking as { arrival_time?: string | null }).arrival_time ?? null}
+              initialDepartureTime={(booking as { departure_time?: string | null }).departure_time ?? null}
+              defaultArrivalTime={(defaultArrival as string) || "16:00"}
+              defaultDepartureTime={(defaultDeparture as string) || "10:00"}
               isExternalChannel={!!booking.source_channel && booking.source_channel !== "Website"}
             />
           </div>

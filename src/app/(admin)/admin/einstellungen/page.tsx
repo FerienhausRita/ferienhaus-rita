@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
-import { getAdminProfiles, getAllSiteSettings, getIcalImportFeeds } from "../actions";
+import { getAdminProfiles, getAllSiteSettings, getIcalImportFeeds, getCleaningProfiles } from "../actions";
 import { apartments } from "@/data/apartments";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import SettingsPanel from "@/components/admin/SettingsPanel";
@@ -23,11 +23,12 @@ export default async function EinstellungenPage() {
     .eq("id", user?.id ?? "")
     .single();
 
-  const [admins, siteSettings, dbApartments, icalImportRows] = await Promise.all([
+  const [admins, siteSettings, dbApartments, icalImportRows, cleaningUsers] = await Promise.all([
     getAdminProfiles(),
     getAllSiteSettings(),
     getAllApartmentsWithPricing(),
     getIcalImportFeeds(),
+    getCleaningProfiles(),
   ]);
 
   // Apartment-Liste für die "Export-Feeds"-Sektion (URLs werden code-seitig
@@ -74,6 +75,7 @@ export default async function EinstellungenPage() {
         currentName={profile?.display_name || ""}
         currentRole={profile?.role || "admin"}
         admins={admins}
+        cleaningUsers={cleaningUsers}
         icalFeeds={feedData}
         icalImportFeeds={icalImportFeeds}
         exportBaseUrl={exportBaseUrl}

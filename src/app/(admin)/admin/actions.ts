@@ -2298,6 +2298,76 @@ export async function inviteAdmin(email: string, displayName: string, role: "adm
   return { success: true };
 }
 
+// ============================================================================
+// CLEANING USERS (Reinigungs-Portal)
+// ============================================================================
+
+export async function getCleaningProfiles() {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("cleaning_profiles")
+    .select("id, display_name, email, active, created_at")
+    .order("created_at", { ascending: true });
+  if (error) {
+    console.error("Error fetching cleaning profiles:", error);
+    return [];
+  }
+  return data ?? [];
+}
+
+export async function inviteCleaningUser(email: string, displayName: string) {
+  const supabase = createServerClient();
+  const authClient = createAuthServerClient();
+  const {
+    data: { user: inviter },
+  } = await authClient.auth.getUser();
+
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
+    data: { display_name: displayName },
+  });
+  if (error) return { success: false, error: error.message };
+
+  if (data.user) {
+    const { error: profileError } = await supabase
+      .from("cleaning_profiles")
+      .insert({
+        id: data.user.id,
+        display_name: displayName.trim(),
+        email: email.trim().toLowerCase(),
+        active: true,
+        invited_by: inviter?.id ?? null,
+      });
+    if (profileError) return { success: false, error: profileError.message };
+  }
+
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+export async function setCleaningUserActive(userId: string, active: boolean) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("cleaning_profiles")
+    .update({ active })
+    .eq("id", userId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+export async function removeCleaningUser(userId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("cleaning_profiles")
+    .delete()
+    .eq("id", userId);
+  if (error) return { success: false, error: error.message };
+  // Auth-User aus auth.users zusätzlich entfernen
+  await supabase.auth.admin.deleteUser(userId).catch(() => {});
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
 /**
  * Update admin role
  */
@@ -2644,6 +2714,9 @@ export async function updateBookingDetails(
     infants?: number;
     dogs?: number;
     notes?: string;
+    cleaning_note?: string | null;
+    arrival_time?: string | null;
+    departure_time?: string | null;
   }
 ) {
   const supabase = createServerClient();
@@ -2707,6 +2780,16 @@ export async function updateBookingDetails(
     dogs: merged.dogs,
     notes: updates.notes ?? booking.notes,
   };
+
+  if (updates.cleaning_note !== undefined) {
+    payload.cleaning_note = updates.cleaning_note;
+  }
+  if (updates.arrival_time !== undefined) {
+    payload.arrival_time = updates.arrival_time;
+  }
+  if (updates.departure_time !== undefined) {
+    payload.departure_time = updates.departure_time;
+  }
 
   // Recalculate price for Website bookings whenever anything price-relevant changed
   // (infants ändern den Preis nicht, lösen aber keinen Recalc aus)

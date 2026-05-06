@@ -16,6 +16,9 @@ import {
   sendBookingsExportEmailNow,
   sendTestEmail,
   type TestEmailType,
+  inviteCleaningUser,
+  setCleaningUserActive,
+  removeCleaningUser,
 } from "@/app/(admin)/admin/actions";
 
 /** Test-Mails — sendet jede Mail-Sorte an die Admin-Adresse */
@@ -158,11 +161,20 @@ interface ApartmentNameEntry {
   currentName: string;   // from DB override, falls back to default
 }
 
+interface CleaningProfile {
+  id: string;
+  display_name: string | null;
+  email: string;
+  active: boolean;
+  created_at: string;
+}
+
 interface SettingsPanelProps {
   currentUserId: string;
   currentName: string;
   currentRole: string;
   admins: AdminProfile[];
+  cleaningUsers?: CleaningProfile[];
   icalFeeds: ICalFeed[];
   icalImportFeeds: ICalImportFeed[];
   exportBaseUrl: string;
@@ -175,6 +187,7 @@ export default function SettingsPanel({
   currentName,
   currentRole,
   admins,
+  cleaningUsers = [],
   icalFeeds,
   icalImportFeeds,
   exportBaseUrl,
@@ -256,6 +269,28 @@ export default function SettingsPanel({
   );
   const [cleaningCfgLoading, setCleaningCfgLoading] = useState(false);
   const [cleaningCfgMessage, setCleaningCfgMessage] = useState<string | null>(null);
+
+  // Reinigungs-Zugänge (Portal-User)
+  const [cleaningUserList, setCleaningUserList] = useState<CleaningProfile[]>(cleaningUsers);
+  const [showInviteCleaning, setShowInviteCleaning] = useState(false);
+  const [cleaningInviteEmail, setCleaningInviteEmail] = useState("");
+  const [cleaningInviteName, setCleaningInviteName] = useState("");
+  const [cleaningInviteLoading, setCleaningInviteLoading] = useState(false);
+  const [cleaningInviteMessage, setCleaningInviteMessage] = useState<{
+    type: "success" | "error";
+    text: string;
+  } | null>(null);
+  const [cleaningRowBusy, setCleaningRowBusy] = useState<string | null>(null);
+
+  // Default An-/Abreisezeiten
+  const [defaultArrivalTime, setDefaultArrivalTime] = useState<string>(
+    (siteSettings.default_arrival_time as string) ?? "16:00"
+  );
+  const [defaultDepartureTime, setDefaultDepartureTime] = useState<string>(
+    (siteSettings.default_departure_time as string) ?? "10:00"
+  );
+  const [defaultTimesLoading, setDefaultTimesLoading] = useState(false);
+  const [defaultTimesMessage, setDefaultTimesMessage] = useState<string | null>(null);
 
   // E-Mail-Zeitplan
   const timingInit = siteSettings.email_timing ?? {};
@@ -622,6 +657,73 @@ export default function SettingsPanel({
     setCleaningCfgLoading(false);
     setCleaningCfgMessage(result.success ? "Gespeichert" : result.error || "Fehler");
     if (result.success) setTimeout(() => setCleaningCfgMessage(null), 3000);
+  };
+
+  const handleInviteCleaning = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCleaningInviteLoading(true);
+    setCleaningInviteMessage(null);
+    const result = await inviteCleaningUser(
+      cleaningInviteEmail.trim(),
+      cleaningInviteName.trim()
+    );
+    setCleaningInviteLoading(false);
+    if (result.success) {
+      setCleaningUserList((prev) => [
+        ...prev,
+        {
+          id: `tmp-${Date.now()}`,
+          display_name: cleaningInviteName.trim(),
+          email: cleaningInviteEmail.trim().toLowerCase(),
+          active: true,
+          created_at: new Date().toISOString(),
+        },
+      ]);
+      setCleaningInviteMessage({
+        type: "success",
+        text: `Einladung an ${cleaningInviteEmail.trim()} gesendet.`,
+      });
+      setCleaningInviteEmail("");
+      setCleaningInviteName("");
+      setShowInviteCleaning(false);
+    } else {
+      setCleaningInviteMessage({ type: "error", text: result.error || "Fehler" });
+    }
+  };
+
+  const handleToggleCleaningActive = async (user: CleaningProfile) => {
+    setCleaningRowBusy(user.id);
+    const result = await setCleaningUserActive(user.id, !user.active);
+    setCleaningRowBusy(null);
+    if (result.success) {
+      setCleaningUserList((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, active: !user.active } : u))
+      );
+    }
+  };
+
+  const handleRemoveCleaning = async (user: CleaningProfile) => {
+    if (!confirm(`Zugang für ${user.email} wirklich entfernen?`)) return;
+    setCleaningRowBusy(user.id);
+    const result = await removeCleaningUser(user.id);
+    setCleaningRowBusy(null);
+    if (result.success) {
+      setCleaningUserList((prev) => prev.filter((u) => u.id !== user.id));
+    }
+  };
+
+  const handleDefaultTimesSave = async () => {
+    setDefaultTimesLoading(true);
+    setDefaultTimesMessage(null);
+    const r1 = await updateSiteSetting("default_arrival_time", defaultArrivalTime);
+    const r2 = await updateSiteSetting("default_departure_time", defaultDepartureTime);
+    setDefaultTimesLoading(false);
+    if (r1.success && r2.success) {
+      setDefaultTimesMessage("Gespeichert");
+      setTimeout(() => setDefaultTimesMessage(null), 3000);
+    } else {
+      setDefaultTimesMessage("Fehler beim Speichern");
+    }
   };
 
   const handleTimingSave = async () => {
@@ -1302,7 +1404,180 @@ export default function SettingsPanel({
             </button>
             {cleaningCfgMessage && <p className={successClass}>{cleaningCfgMessage}</p>}
           </div>
+
+          {/* Default An-/Abreisezeiten */}
+          <div className="pt-5 mt-5 border-t border-stone-100">
+            <h3 className="font-medium text-stone-900 text-sm mb-1">
+              Standard An-/Abreisezeiten
+            </h3>
+            <p className="text-xs text-stone-500 mb-3">
+              Werden im Reinigungs-Portal angezeigt, wenn pro Buchung keine
+              individuelle Zeit hinterlegt ist.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-stone-500 mb-1">
+                  Anreise (Standard)
+                </label>
+                <input
+                  type="time"
+                  value={defaultArrivalTime}
+                  onChange={(e) => setDefaultArrivalTime(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-500 mb-1">
+                  Abreise (Standard)
+                </label>
+                <input
+                  type="time"
+                  value={defaultDepartureTime}
+                  onChange={(e) => setDefaultDepartureTime(e.target.value)}
+                  className={inputClass}
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-3 mt-3">
+              <button onClick={handleDefaultTimesSave} disabled={defaultTimesLoading} className={btnClass}>
+                {defaultTimesLoading ? "..." : "Speichern"}
+              </button>
+              {defaultTimesMessage && <p className={successClass}>{defaultTimesMessage}</p>}
+            </div>
+          </div>
         </div>
+      </Section>
+
+      {/* Reinigungs-Zugänge (Portal-User) */}
+      <Section
+        id="cleaning-users"
+        title="Reinigungs-Zugänge"
+        subtitle="Externe Reinigungskräfte mit Zugang zum Reinigungs-Portal (anonymisierte Buchungssicht)"
+        open={openSections.has("cleaning-users")}
+        onToggle={toggleSection}
+      >
+        {currentRole === "admin" && (
+          <div className="mb-4">
+            <button
+              onClick={() => setShowInviteCleaning(!showInviteCleaning)}
+              className="px-3 py-1.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors"
+            >
+              + Reinigung einladen
+            </button>
+          </div>
+        )}
+
+        {showInviteCleaning && (
+          <form onSubmit={handleInviteCleaning} className="p-4 mb-4 bg-stone-50 rounded-xl space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-stone-500 mb-1">Name</label>
+                <input
+                  type="text"
+                  value={cleaningInviteName}
+                  onChange={(e) => setCleaningInviteName(e.target.value)}
+                  placeholder="z. B. Maria Reinigungsservice"
+                  className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-stone-500 mb-1">E-Mail</label>
+                <input
+                  type="email"
+                  value={cleaningInviteEmail}
+                  onChange={(e) => setCleaningInviteEmail(e.target.value)}
+                  placeholder="reinigung@beispiel.at"
+                  className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="submit"
+                disabled={cleaningInviteLoading}
+                className="px-5 py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+              >
+                {cleaningInviteLoading ? "Wird eingeladen..." : "Einladung senden"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowInviteCleaning(false)}
+                className="px-4 py-2.5 text-sm font-medium text-stone-600"
+              >
+                Abbrechen
+              </button>
+            </div>
+            {cleaningInviteMessage && (
+              <p
+                className={`text-xs ${
+                  cleaningInviteMessage.type === "success" ? "text-emerald-600" : "text-red-600"
+                }`}
+              >
+                {cleaningInviteMessage.text}
+              </p>
+            )}
+          </form>
+        )}
+
+        {cleaningUserList.length === 0 ? (
+          <p className="text-sm text-stone-500 text-center py-6">
+            Noch keine Reinigungs-Zugänge eingerichtet.
+          </p>
+        ) : (
+          <div className="divide-y divide-stone-100">
+            {cleaningUserList.map((u) => (
+              <div
+                key={u.id}
+                className="py-3 flex flex-col sm:flex-row sm:items-center gap-2"
+              >
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-medium text-stone-900">
+                      {u.display_name || u.email}
+                    </span>
+                    <span
+                      className={`px-2 py-0.5 rounded-full text-xs font-medium ${
+                        u.active
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-stone-100 text-stone-500"
+                      }`}
+                    >
+                      {u.active ? "Aktiv" : "Deaktiviert"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-stone-500">{u.email}</p>
+                </div>
+                {currentRole === "admin" && (
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleToggleCleaningActive(u)}
+                      disabled={cleaningRowBusy === u.id}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                        u.active
+                          ? "bg-stone-100 text-stone-700 hover:bg-stone-200"
+                          : "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+                      } disabled:opacity-50`}
+                    >
+                      {u.active ? "Deaktivieren" : "Aktivieren"}
+                    </button>
+                    <button
+                      onClick={() => handleRemoveCleaning(u)}
+                      disabled={cleaningRowBusy === u.id}
+                      className="p-1.5 text-stone-300 hover:text-red-500 transition-colors"
+                      title="Entfernen"
+                    >
+                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
+                      </svg>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </Section>
 
       {/* Bewertungslink */}

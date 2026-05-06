@@ -21,6 +21,11 @@ interface BookingDetailsEditorProps {
   initialInfants: number;
   initialDogs: number;
   initialNotes: string;
+  initialCleaningNote?: string | null;
+  initialArrivalTime?: string | null;
+  initialDepartureTime?: string | null;
+  defaultArrivalTime?: string;
+  defaultDepartureTime?: string;
   isExternalChannel: boolean;
 }
 
@@ -35,6 +40,11 @@ export default function BookingDetailsEditor({
   initialInfants,
   initialDogs,
   initialNotes,
+  initialCleaningNote = null,
+  initialArrivalTime = null,
+  initialDepartureTime = null,
+  defaultArrivalTime = "16:00",
+  defaultDepartureTime = "10:00",
   isExternalChannel,
 }: BookingDetailsEditorProps) {
   const router = useRouter();
@@ -47,6 +57,9 @@ export default function BookingDetailsEditor({
   const [infants, setInfants] = useState(initialInfants);
   const [dogs, setDogs] = useState(initialDogs);
   const [notes, setNotes] = useState(initialNotes);
+  const [cleaningNote, setCleaningNote] = useState(initialCleaningNote ?? "");
+  const [arrivalTime, setArrivalTime] = useState(initialArrivalTime ?? "");
+  const [departureTime, setDepartureTime] = useState(initialDepartureTime ?? "");
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
@@ -92,6 +105,9 @@ export default function BookingDetailsEditor({
       infants,
       dogs,
       notes,
+      cleaning_note: cleaningNote.trim() ? cleaningNote.trim() : null,
+      arrival_time: arrivalTime.trim() ? arrivalTime : null,
+      departure_time: departureTime.trim() ? departureTime : null,
     });
     setLoading(false);
     if (result.success) {
@@ -113,6 +129,9 @@ export default function BookingDetailsEditor({
     setInfants(initialInfants);
     setDogs(initialDogs);
     setNotes(initialNotes);
+    setCleaningNote(initialCleaningNote ?? "");
+    setArrivalTime(initialArrivalTime ?? "");
+    setDepartureTime(initialDepartureTime ?? "");
     setEditing(false);
     setMessage(null);
   };
@@ -228,13 +247,66 @@ export default function BookingDetailsEditor({
           </div>
         </div>
         <div className="sm:col-span-2">
-          <label className="block text-xs text-stone-500 mb-1">Notizen</label>
+          <label className="block text-xs text-stone-500 mb-1">Notizen (intern)</label>
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}
             rows={2}
             className={inputClass}
           />
+        </div>
+
+        <div className="sm:col-span-2 pt-3 mt-1 border-t border-stone-200">
+          <p className="text-xs font-medium text-stone-600 uppercase tracking-wider mb-2">
+            Reinigungs-Portal
+          </p>
+        </div>
+
+        <div>
+          <label className="block text-xs text-stone-500 mb-1">
+            Anreisezeit (optional)
+          </label>
+          <input
+            type="time"
+            value={arrivalTime}
+            onChange={(e) => setArrivalTime(e.target.value)}
+            placeholder={defaultArrivalTime}
+            className={inputClass}
+          />
+          <p className="text-[11px] text-stone-400 mt-1">
+            Leer = Standard {defaultArrivalTime}
+          </p>
+        </div>
+        <div>
+          <label className="block text-xs text-stone-500 mb-1">
+            Abreisezeit (optional)
+          </label>
+          <input
+            type="time"
+            value={departureTime}
+            onChange={(e) => setDepartureTime(e.target.value)}
+            placeholder={defaultDepartureTime}
+            className={inputClass}
+          />
+          <p className="text-[11px] text-stone-400 mt-1">
+            Leer = Standard {defaultDepartureTime}
+          </p>
+        </div>
+
+        <div className="sm:col-span-2">
+          <label className="block text-xs text-stone-500 mb-1">
+            Notiz für die Reinigung
+          </label>
+          <textarea
+            value={cleaningNote}
+            onChange={(e) => setCleaningNote(e.target.value)}
+            rows={2}
+            placeholder="z. B. Babybett, besondere Hinweise"
+            className={inputClass}
+          />
+          <p className="text-[11px] text-stone-400 mt-1">
+            Wird im Reinigungs-Portal angezeigt — keine gästebezogenen Daten.
+          </p>
         </div>
       </div>
 
