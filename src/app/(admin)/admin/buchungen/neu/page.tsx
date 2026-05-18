@@ -4,6 +4,7 @@ import {
   getAllApartmentsWithPricing,
   getSeasonConfigsFromDB,
   getSeasonPeriodsFromDB,
+  getSpecialPeriodsFromDB,
   getTaxConfigFromDB,
 } from "@/lib/pricing-data";
 import ManualBookingForm from "@/components/admin/ManualBookingForm";
@@ -12,11 +13,12 @@ export const metadata: Metadata = { title: "Neue Buchung" };
 export const dynamic = "force-dynamic";
 
 export default async function NeueBuchungPage() {
-  const [apartments, seasonConfigs, seasonPeriods, taxConfig] =
+  const [apartments, seasonConfigs, seasonPeriods, specialPeriods, taxConfig] =
     await Promise.all([
       getAllApartmentsWithPricing(),
       getSeasonConfigsFromDB(),
       getSeasonPeriodsFromDB(),
+      getSpecialPeriodsFromDB(),
       getTaxConfigFromDB(),
     ]);
 
@@ -63,6 +65,7 @@ export default async function NeueBuchungPage() {
         apartments={aptData}
         seasonConfigs={seasonConfigs}
         seasonPeriods={seasonPeriods}
+        specialPeriods={specialPeriods}
         taxConfig={taxConfig}
       />
     </div>

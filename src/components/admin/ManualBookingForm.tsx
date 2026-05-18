@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { createManualBooking, checkBookingAvailability } from "@/app/(admin)/admin/actions";
 import { calculatePrice, formatCurrency, PriceBreakdown } from "@/lib/pricing";
-import type { SeasonConfig, SeasonPeriod } from "@/data/seasons";
+import type { SeasonConfig, SeasonPeriod, SpecialPeriod } from "@/data/seasons";
 import type { Apartment } from "@/data/apartments";
 
 interface ApartmentData {
@@ -26,6 +26,7 @@ interface ManualBookingFormProps {
   apartments: ApartmentData[];
   seasonConfigs: Record<string, SeasonConfig>;
   seasonPeriods: SeasonPeriod[];
+  specialPeriods: SpecialPeriod[];
   taxConfig: { localTaxPerNight: number; vatRate: number };
 }
 
@@ -36,6 +37,7 @@ export default function ManualBookingForm({
   apartments,
   seasonConfigs,
   seasonPeriods,
+  specialPeriods,
   taxConfig,
 }: ManualBookingFormProps) {
   const router = useRouter();
@@ -154,6 +156,7 @@ export default function ManualBookingForm({
         overrides: {
           seasonConfigs,
           seasonPeriods,
+          specialPeriods,
           localTaxPerNight: taxConfig.localTaxPerNight,
           vatRate: taxConfig.vatRate,
         },
@@ -161,7 +164,7 @@ export default function ManualBookingForm({
     } catch {
       return null;
     }
-  }, [selectedApartment, checkIn, checkOut, adults, children, dogs, seasonConfigs, seasonPeriods, taxConfig]);
+  }, [selectedApartment, checkIn, checkOut, adults, children, dogs, seasonConfigs, seasonPeriods, specialPeriods, taxConfig]);
 
   function validate(): boolean {
     const errs: Record<string, string> = {};

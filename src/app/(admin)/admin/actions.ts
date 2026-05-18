@@ -2912,15 +2912,16 @@ export async function createManualBooking(data: {
 }) {
   const supabase = createServerClient();
 
-  const { getApartmentWithPricing, getSeasonConfigsFromDB, getSeasonPeriodsFromDB, getTaxConfigFromDB } = await import("@/lib/pricing-data");
+  const { getApartmentWithPricing, getSeasonConfigsFromDB, getSeasonPeriodsFromDB, getSpecialPeriodsFromDB, getTaxConfigFromDB } = await import("@/lib/pricing-data");
   const { calculatePrice, calculateNights } = await import("@/lib/pricing");
 
   const apartment = await getApartmentWithPricing(data.apartment_id);
   if (!apartment) return { success: false, error: "Wohnung nicht gefunden" };
 
-  const [seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
+  const [seasonConfigs, seasonPeriods, specialPeriods, taxConfig] = await Promise.all([
     getSeasonConfigsFromDB(),
     getSeasonPeriodsFromDB(),
+    getSpecialPeriodsFromDB(),
     getTaxConfigFromDB(),
   ]);
 
@@ -2989,6 +2990,7 @@ export async function createManualBooking(data: {
         overrides: {
           seasonConfigs,
           seasonPeriods,
+          specialPeriods,
           localTaxPerNight: taxConfig.localTaxPerNight,
           localTaxIncluded: taxConfig.localTaxIncluded,
           localTaxExemptAge: taxConfig.localTaxExemptAge,
