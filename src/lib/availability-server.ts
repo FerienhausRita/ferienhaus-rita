@@ -61,6 +61,95 @@ export async function isAvailableDB(
   return true;
 }
 
+export interface BookingConflict {
+  type: "booking";
+  id: string;
+  first_name: string | null;
+  last_name: string | null;
+  check_in: string;
+  check_out: string;
+  status: string;
+}
+
+export interface BlockedDateConflict {
+  type: "blocked";
+  id: string;
+  start_date: string;
+  end_date: string;
+  reason: string | null;
+}
+
+export interface AvailabilityConflicts {
+  available: boolean;
+  beyondMaxDate: boolean;
+  maxDate: string | null;
+  bookings: BookingConflict[];
+  blocked: BlockedDateConflict[];
+}
+
+/**
+ * Detailed availability check — returns the actual conflicting bookings
+ * and blocked-date ranges so the UI can show meaningful warnings.
+ * `excludeBookingId` lets us ignore the booking currently being edited.
+ */
+export async function getAvailabilityConflicts(
+  apartmentId: string,
+  checkIn: string,
+  checkOut: string,
+  excludeBookingId?: string
+): Promise<AvailabilityConflicts> {
+  const supabase = createServerClient();
+
+  const maxDate = await getMaxBookingDate();
+  const beyondMaxDate = !!(maxDate && checkOut > maxDate);
+
+  let bookingsQuery = supabase
+    .from("bookings")
+    .select("id, first_name, last_name, check_in, check_out, status")
+    .eq("apartment_id", apartmentId)
+    .not("status", "eq", "cancelled")
+    .lt("check_in", checkOut)
+    .gt("check_out", checkIn);
+  if (excludeBookingId) {
+    bookingsQuery = bookingsQuery.neq("id", excludeBookingId);
+  }
+  const { data: bookings } = await bookingsQuery;
+
+  const { data: blocked } = await supabase
+    .from("blocked_dates")
+    .select("id, start_date, end_date, reason")
+    .eq("apartment_id", apartmentId)
+    .lt("start_date", checkOut)
+    .gt("end_date", checkIn);
+
+  const bookingConflicts: BookingConflict[] = (bookings ?? []).map((b) => ({
+    type: "booking",
+    id: b.id,
+    first_name: b.first_name,
+    last_name: b.last_name,
+    check_in: b.check_in,
+    check_out: b.check_out,
+    status: b.status,
+  }));
+
+  const blockedConflicts: BlockedDateConflict[] = (blocked ?? []).map((b) => ({
+    type: "blocked",
+    id: b.id,
+    start_date: b.start_date,
+    end_date: b.end_date,
+    reason: b.reason ?? null,
+  }));
+
+  return {
+    available:
+      !beyondMaxDate && bookingConflicts.length === 0 && blockedConflicts.length === 0,
+    beyondMaxDate,
+    maxDate,
+    bookings: bookingConflicts,
+    blocked: blockedConflicts,
+  };
+}
+
 /**
  * Get all unavailable dates for an apartment in a given month.
  * Returns ISO date strings (YYYY-MM-DD).

@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { createManualBooking } from "@/app/(admin)/admin/actions";
+import { createManualBooking, checkBookingAvailability } from "@/app/(admin)/admin/actions";
 import { calculatePrice, formatCurrency, PriceBreakdown } from "@/lib/pricing";
 import type { SeasonConfig, SeasonPeriod } from "@/data/seasons";
 import type { Apartment } from "@/data/apartments";
@@ -74,6 +74,37 @@ export default function ManualBookingForm({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Live-Verfügbarkeit
+  type Avail = Awaited<ReturnType<typeof checkBookingAvailability>>;
+  const [availability, setAvailability] = useState<Avail | null>(null);
+  const [availabilityChecking, setAvailabilityChecking] = useState(false);
+
+  useEffect(() => {
+    if (!apartmentId || !checkIn || !checkOut || checkIn >= checkOut) {
+      setAvailability(null);
+      return;
+    }
+    let cancelled = false;
+    setAvailabilityChecking(true);
+    const t = setTimeout(async () => {
+      try {
+        const res = await checkBookingAvailability(apartmentId, checkIn, checkOut);
+        if (!cancelled) setAvailability(res);
+      } finally {
+        if (!cancelled) setAvailabilityChecking(false);
+      }
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(t);
+    };
+  }, [apartmentId, checkIn, checkOut]);
+
+  const hasAvailabilityConflict =
+    availability !== null &&
+    availability.reason === "ok" &&
+    availability.available === false;
 
   const selectedApartment = apartments.find((a) => a.id === apartmentId);
 
@@ -153,6 +184,12 @@ export default function ManualBookingForm({
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!validate()) return;
+    if (hasAvailabilityConflict) {
+      setSubmitError(
+        "Der gewählte Zeitraum ist nicht verfügbar. Bitte Daten ändern oder die bestehende Buchung/Sperre prüfen."
+      );
+      return;
+    }
 
     setIsSubmitting(true);
     setSubmitError(null);
@@ -611,6 +648,69 @@ export default function ManualBookingForm({
         </div>
       )}
 
+      {/* Live-Verfügbarkeitsprüfung */}
+      {availabilityChecking && (
+        <div className="px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-xs text-stone-500 inline-flex items-center gap-2">
+          <svg className="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          Prüfe Verfügbarkeit…
+        </div>
+      )}
+
+      {!availabilityChecking && hasAvailabilityConflict && availability && (
+        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm space-y-2">
+          <div className="flex items-start gap-2">
+            <span className="text-red-600 text-base leading-none mt-0.5">⚠</span>
+            <div className="flex-1">
+              <p className="font-semibold text-red-700">Zeitraum nicht verfügbar</p>
+              <p className="text-red-600 text-xs mt-0.5">
+                Eine Buchung in diesem Zeitraum ist nicht möglich. Bitte Daten ändern.
+              </p>
+            </div>
+          </div>
+          <ul className="text-xs text-red-800 space-y-1 ml-6 list-disc">
+            {availability.beyondMaxDate && (
+              <li>
+                Maximales Buchungsdatum überschritten
+                {availability.maxDate ? ` (max. ${availability.maxDate})` : ""}
+              </li>
+            )}
+            {availability.bookings?.map((b) => {
+              const name =
+                [b.first_name, b.last_name].filter(Boolean).join(" ").trim() ||
+                "andere Buchung";
+              return (
+                <li key={b.id}>
+                  <span className="font-medium">Belegt:</span> {name} (
+                  {new Date(b.check_in + "T00:00:00").toLocaleDateString("de-AT")} –{" "}
+                  {new Date(b.check_out + "T00:00:00").toLocaleDateString("de-AT")})
+                  {b.status === "pending" && " · noch unbestätigt"}
+                </li>
+              );
+            })}
+            {availability.blocked?.map((x) => (
+              <li key={x.id}>
+                <span className="font-medium">Gesperrt:</span>{" "}
+                {x.reason || "ohne Grund"} (
+                {new Date(x.start_date + "T00:00:00").toLocaleDateString("de-AT")} –{" "}
+                {new Date(x.end_date + "T00:00:00").toLocaleDateString("de-AT")})
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {!availabilityChecking &&
+        availability?.reason === "ok" &&
+        availability.available && (
+          <div className="px-3 py-2 bg-emerald-50 border border-emerald-200 rounded-xl text-xs text-emerald-700 inline-flex items-center gap-2">
+            <span>✓</span>
+            Zeitraum verfügbar
+          </div>
+        )}
+
       {/* Error */}
       {submitError && (
         <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">
@@ -621,7 +721,8 @@ export default function ManualBookingForm({
       {/* Submit */}
       <button
         type="submit"
-        disabled={isSubmitting}
+        disabled={isSubmitting || hasAvailabilityConflict}
+        title={hasAvailabilityConflict ? "Zeitraum nicht verfügbar" : undefined}
         className="w-full py-3 bg-[#c8a96e] hover:bg-[#b89555] disabled:bg-stone-300 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
       >
         {isSubmitting ? (

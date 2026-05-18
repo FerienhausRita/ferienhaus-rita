@@ -2930,6 +2930,35 @@ export async function createManualBooking(data: {
 
   if (nights <= 0) return { success: false, error: "Ungültiger Zeitraum" };
 
+  // Verfügbarkeit prüfen — keine Doppelbuchungen, keine Overlap mit Sperren
+  {
+    const { getAvailabilityConflicts } = await import("@/lib/availability-server");
+    const conflicts = await getAvailabilityConflicts(
+      data.apartment_id,
+      data.check_in,
+      data.check_out
+    );
+    if (!conflicts.available) {
+      const parts: string[] = [];
+      if (conflicts.beyondMaxDate) {
+        parts.push(
+          `Zeitraum überschreitet maximales Buchungsdatum (${conflicts.maxDate})`
+        );
+      }
+      for (const b of conflicts.bookings) {
+        const name = [b.first_name, b.last_name].filter(Boolean).join(" ") || "andere Buchung";
+        parts.push(`${name} (${b.check_in} – ${b.check_out})`);
+      }
+      for (const x of conflicts.blocked) {
+        parts.push(`Gesperrt: ${x.reason || "ohne Grund"} (${x.start_date} – ${x.end_date})`);
+      }
+      return {
+        success: false,
+        error: `Zeitraum nicht verfügbar. Konflikt: ${parts.join("; ")}`,
+      };
+    }
+  }
+
   const sourceChannel = data.source_channel ?? "Website";
   const isExternalChannel = sourceChannel !== "Website";
 
@@ -4141,4 +4170,38 @@ export async function cancelInvoice(bookingId: string) {
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin/rechnungen");
   return { success: true };
+}
+
+/**
+ * Live-Verfügbarkeitsprüfung für die manuelle Buchung im Admin.
+ * Gibt Detail-Konflikte zurück, damit das Formular dem Admin sagen kann,
+ * WAS im Weg ist.
+ */
+export async function checkBookingAvailability(
+  apartmentId: string,
+  checkIn: string,
+  checkOut: string
+) {
+  if (!apartmentId || !checkIn || !checkOut) {
+    return {
+      available: false,
+      reason: "incomplete" as const,
+    };
+  }
+  if (checkIn >= checkOut) {
+    return {
+      available: false,
+      reason: "invalid_range" as const,
+    };
+  }
+  const { getAvailabilityConflicts } = await import("@/lib/availability-server");
+  const conflicts = await getAvailabilityConflicts(apartmentId, checkIn, checkOut);
+  return {
+    available: conflicts.available,
+    reason: "ok" as const,
+    beyondMaxDate: conflicts.beyondMaxDate,
+    maxDate: conflicts.maxDate,
+    bookings: conflicts.bookings,
+    blocked: conflicts.blocked,
+  };
 }
