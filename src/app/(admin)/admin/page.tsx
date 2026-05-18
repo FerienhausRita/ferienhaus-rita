@@ -299,13 +299,17 @@ export default async function AdminDashboard() {
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <span
-                      className={`text-xs font-medium ${
-                        paymentLabels[booking.payment_status]?.className ?? ""
-                      }`}
-                    >
-                      {paymentLabels[booking.payment_status]?.label ?? booking.payment_status}
-                    </span>
+                    {booking.status === "cancelled" ? (
+                      <span className="text-xs text-stone-400">&ndash;</span>
+                    ) : (
+                      <span
+                        className={`text-xs font-medium ${
+                          paymentLabels[booking.payment_status]?.className ?? ""
+                        }`}
+                      >
+                        {paymentLabels[booking.payment_status]?.label ?? booking.payment_status}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -341,13 +345,17 @@ export default async function AdminDashboard() {
                 <p className="text-sm font-medium text-stone-900">
                   {formatCurrency(Number(booking.total_price))}
                 </p>
-                <span
-                  className={`text-xs font-medium ${
-                    paymentLabels[booking.payment_status]?.className ?? ""
-                  }`}
-                >
-                  {paymentLabels[booking.payment_status]?.label ?? booking.payment_status}
-                </span>
+                {booking.status === "cancelled" ? (
+                  <span className="text-xs text-stone-400">&ndash;</span>
+                ) : (
+                  <span
+                    className={`text-xs font-medium ${
+                      paymentLabels[booking.payment_status]?.className ?? ""
+                    }`}
+                  >
+                    {paymentLabels[booking.payment_status]?.label ?? booking.payment_status}
+                  </span>
+                )}
               </div>
             </Link>
           ))}

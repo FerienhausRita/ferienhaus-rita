@@ -139,14 +139,18 @@ export default async function BookingsPage({
                     </span>
                   </td>
                   <td className="px-5 py-3">
-                    <span
-                      className={`text-xs font-medium ${
-                        paymentLabels[booking.payment_status]?.className ?? ""
-                      }`}
-                    >
-                      {paymentLabels[booking.payment_status]?.label ??
-                        booking.payment_status}
-                    </span>
+                    {booking.status === "cancelled" ? (
+                      <span className="text-xs text-stone-400">&ndash;</span>
+                    ) : (
+                      <span
+                        className={`text-xs font-medium ${
+                          paymentLabels[booking.payment_status]?.className ?? ""
+                        }`}
+                      >
+                        {paymentLabels[booking.payment_status]?.label ??
+                          booking.payment_status}
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
