@@ -34,6 +34,7 @@ function sortLink(searchParams: Record<string, string | undefined>, key: SortKey
   const params = new URLSearchParams();
   params.set("sort", key);
   params.set("dir", nextDir);
+  if (searchParams.filter === "overdue") params.set("filter", "overdue");
   return (
     <Link
       href={`/admin/zahlungen?${params.toString()}`}
@@ -49,44 +50,86 @@ function sortLink(searchParams: Record<string, string | undefined>, key: SortKey
 export default async function ZahlungenPage({
   searchParams,
 }: {
-  searchParams: { sort?: string; dir?: string };
+  searchParams: { sort?: string; dir?: string; filter?: string };
 }) {
   // Map UI sort keys to action sort columns
   const sortKey = (searchParams.sort as SortKey) ?? "due";
   const dbSort =
     sortKey === "name" ? "last_name" : sortKey === "open" ? "remainder_amount" : "deposit_due_date";
 
-  const [{ bookings, overdueCount, overdueBookingCount, totalOutstanding, totalOverdue }, nameMap] = await Promise.all([
+  const filter = searchParams.filter === "overdue" ? "overdue" : "all";
+
+  const [{ bookings: allBookings, overdueCount, overdueBookingCount, totalOutstanding, totalOverdue }, nameMap] = await Promise.all([
     getPaymentOverview(dbSort, searchParams.dir),
     getApartmentNameMap(),
   ]);
   const sp = searchParams as Record<string, string | undefined>;
   const today = new Date().toISOString().split("T")[0];
 
+  // Filter overdue: nur Buchungen, bei denen ein Bucket bereits über Fälligkeit ist
+  const bookings = filter === "overdue"
+    ? allBookings.filter((b) => {
+        const depositDone =
+          Number(b.deposit_amount || 0) === 0 ||
+          Number(b.deposit_open || 0) <= 0.01 ||
+          !!b.deposit_paid_at;
+        const remainderDone =
+          Number(b.remainder_amount || 0) === 0 ||
+          Number(b.remainder_open || 0) <= 0.01 ||
+          !!b.remainder_paid_at;
+        const dOverdue = !!(b.deposit_due_date && b.deposit_due_date < today && !depositDone);
+        const rOverdue = !!(b.remainder_due_date && b.remainder_due_date < today && !remainderDone);
+        return dOverdue || rOverdue;
+      })
+    : allBookings;
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
       <h1 className="text-2xl font-bold text-stone-900 mb-6">Zahlungen</h1>
 
-      {/* KPI Cards */}
+      {/* KPI Cards — klickbar, filtern die Liste unten */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
         {/* Insgesamt offen — alle ausstehenden Beträge, auch noch nicht fällige */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-5">
+        <Link
+          href="/admin/zahlungen"
+          className={`block rounded-2xl border p-5 transition-colors hover:border-[#c8a96e]/40 ${
+            filter === "all" ? "bg-white border-stone-300 ring-2 ring-[#c8a96e]/30" : "bg-white border-stone-200"
+          }`}
+        >
           <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Insgesamt offen</p>
           <p className="text-2xl font-bold text-stone-900">{formatCurrency(totalOutstanding)}</p>
           <p className="text-[11px] text-stone-400 mt-1">inkl. noch nicht f&auml;lliger Betr&auml;ge</p>
-        </div>
+        </Link>
 
         {/* Überfällig — Betrag */}
-        <div className={`rounded-2xl border p-5 ${totalOverdue > 0 ? "bg-red-50 border-red-200" : "bg-white border-stone-200"}`}>
+        <Link
+          href="/admin/zahlungen?filter=overdue"
+          className={`block rounded-2xl border p-5 transition-colors hover:border-red-300 ${
+            filter === "overdue" && totalOverdue > 0
+              ? "bg-red-50 border-red-300 ring-2 ring-red-200"
+              : totalOverdue > 0
+              ? "bg-red-50 border-red-200"
+              : "bg-white border-stone-200"
+          }`}
+        >
           <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">&Uuml;berf&auml;llig (Betrag)</p>
           <p className={`text-2xl font-bold ${totalOverdue > 0 ? "text-red-600" : "text-stone-900"}`}>
             {formatCurrency(totalOverdue)}
           </p>
           <p className="text-[11px] text-stone-400 mt-1">F&auml;lligkeit bereits &uuml;berschritten</p>
-        </div>
+        </Link>
 
         {/* Überfällig — Anzahl Buchungen */}
-        <div className={`rounded-2xl border p-5 ${overdueCount > 0 ? "bg-red-50 border-red-200" : "bg-white border-stone-200"}`}>
+        <Link
+          href="/admin/zahlungen?filter=overdue"
+          className={`block rounded-2xl border p-5 transition-colors hover:border-red-300 ${
+            filter === "overdue" && overdueCount > 0
+              ? "bg-red-50 border-red-300 ring-2 ring-red-200"
+              : overdueCount > 0
+              ? "bg-red-50 border-red-200"
+              : "bg-white border-stone-200"
+          }`}
+        >
           <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">&Uuml;berf&auml;llige Buchungen</p>
           <p className={`text-2xl font-bold ${overdueCount > 0 ? "text-red-600" : "text-stone-900"}`}>{overdueBookingCount}</p>
           <p className="text-[11px] text-stone-400 mt-1">
@@ -94,15 +137,35 @@ export default async function ZahlungenPage({
               ? `${overdueCount} fällige${overdueCount === 1 ? "r" : ""} Posten`
               : `${overdueCount} fällige Posten (Anzahlung + Restbetrag)`}
           </p>
-        </div>
+        </Link>
 
         {/* Offene Buchungen gesamt */}
-        <div className="bg-white rounded-2xl border border-stone-200 p-5">
+        <Link
+          href="/admin/zahlungen"
+          className={`block rounded-2xl border p-5 transition-colors hover:border-[#c8a96e]/40 ${
+            filter === "all" ? "bg-white border-stone-300 ring-2 ring-[#c8a96e]/30" : "bg-white border-stone-200"
+          }`}
+        >
           <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Offene Buchungen</p>
-          <p className="text-2xl font-bold text-stone-900">{bookings.length}</p>
+          <p className="text-2xl font-bold text-stone-900">{allBookings.length}</p>
           <p className="text-[11px] text-stone-400 mt-1">Noch nicht voll bezahlt</p>
-        </div>
+        </Link>
       </div>
+
+      {/* Aktiver Filter */}
+      {filter === "overdue" && (
+        <div className="mb-4 flex items-center justify-between gap-3 bg-red-50 border border-red-200 rounded-2xl px-4 py-3">
+          <p className="text-sm text-red-700">
+            <span className="font-medium">Gefiltert:</span> Nur überfällige Buchungen ({bookings.length})
+          </p>
+          <Link
+            href="/admin/zahlungen"
+            className="text-xs font-medium text-red-700 hover:text-red-900 underline"
+          >
+            Filter entfernen
+          </Link>
+        </div>
+      )}
 
       {/* Sort */}
       {bookings.length > 0 && (
@@ -117,7 +180,11 @@ export default async function ZahlungenPage({
       {/* Payment Cards */}
       {bookings.length === 0 ? (
         <div className="bg-white rounded-2xl border border-stone-200 p-8 text-center">
-          <p className="text-stone-500">Keine offenen Zahlungen</p>
+          <p className="text-stone-500">
+            {filter === "overdue"
+              ? "Keine überfälligen Zahlungen — alles im grünen Bereich."
+              : "Keine offenen Zahlungen"}
+          </p>
         </div>
       ) : (
         <div className="space-y-3">

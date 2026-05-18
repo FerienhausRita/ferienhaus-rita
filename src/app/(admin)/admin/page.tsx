@@ -151,7 +151,7 @@ export default async function AdminDashboard() {
 
         {/* \u00dcberf\u00e4llig \u2014 nur Anteile mit due_date < heute */}
         <Link
-          href="/admin/zahlungen"
+          href="/admin/zahlungen?filter=overdue"
           className={`rounded-2xl p-5 border hover:border-[#c8a96e]/30 transition-colors ${
             payments.totalOverdue > 0
               ? "bg-red-50 border-red-200"
