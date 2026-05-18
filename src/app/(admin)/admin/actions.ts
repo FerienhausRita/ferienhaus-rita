@@ -1161,15 +1161,30 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
     (b) => b.remainder_due_date && b.remainder_due_date < today && b.remainder_open > 0.01
   );
 
-  const totalOutstanding = enriched.reduce(
-    (sum, b) => sum + b.total_open,
-    0
-  );
+  const totalOutstanding = Math.round(
+    enriched.reduce((sum, b) => sum + b.total_open, 0) * 100
+  ) / 100;
+
+  // Summe der bereits überfälligen Beträge (Anzahlung + Restbetrag) in €
+  const totalOverdue = Math.round(
+    (overdueDeposits.reduce((s, b) => s + b.deposit_open, 0) +
+      overdueRemainders.reduce((s, b) => s + b.remainder_open, 0)) *
+      100
+  ) / 100;
+
+  // Anzahl betroffener Buchungen (eindeutig) — eine Buchung mit beiden Buckets
+  // überfällig zählt als 1, nicht 2
+  const overdueBookingIds = new Set<string>([
+    ...overdueDeposits.map((b) => b.id),
+    ...overdueRemainders.map((b) => b.id),
+  ]);
 
   return {
     bookings: enriched,
     overdueCount: overdueDeposits.length + overdueRemainders.length,
+    overdueBookingCount: overdueBookingIds.size,
     totalOutstanding,
+    totalOverdue,
   };
 }
 

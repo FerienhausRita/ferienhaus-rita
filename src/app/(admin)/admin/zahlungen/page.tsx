@@ -56,7 +56,7 @@ export default async function ZahlungenPage({
   const dbSort =
     sortKey === "name" ? "last_name" : sortKey === "open" ? "remainder_amount" : "deposit_due_date";
 
-  const [{ bookings, overdueCount, totalOutstanding }, nameMap] = await Promise.all([
+  const [{ bookings, overdueCount, overdueBookingCount, totalOutstanding, totalOverdue }, nameMap] = await Promise.all([
     getPaymentOverview(dbSort, searchParams.dir),
     getApartmentNameMap(),
   ]);
@@ -68,18 +68,39 @@ export default async function ZahlungenPage({
       <h1 className="text-2xl font-bold text-stone-900 mb-6">Zahlungen</h1>
 
       {/* KPI Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+        {/* Insgesamt offen — alle ausstehenden Beträge, auch noch nicht fällige */}
         <div className="bg-white rounded-2xl border border-stone-200 p-5">
-          <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Ausstehend gesamt</p>
+          <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Insgesamt offen</p>
           <p className="text-2xl font-bold text-stone-900">{formatCurrency(totalOutstanding)}</p>
+          <p className="text-[11px] text-stone-400 mt-1">inkl. noch nicht f&auml;lliger Betr&auml;ge</p>
         </div>
+
+        {/* Überfällig — Betrag */}
+        <div className={`rounded-2xl border p-5 ${totalOverdue > 0 ? "bg-red-50 border-red-200" : "bg-white border-stone-200"}`}>
+          <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">&Uuml;berf&auml;llig (Betrag)</p>
+          <p className={`text-2xl font-bold ${totalOverdue > 0 ? "text-red-600" : "text-stone-900"}`}>
+            {formatCurrency(totalOverdue)}
+          </p>
+          <p className="text-[11px] text-stone-400 mt-1">F&auml;lligkeit bereits &uuml;berschritten</p>
+        </div>
+
+        {/* Überfällig — Anzahl Buchungen */}
         <div className={`rounded-2xl border p-5 ${overdueCount > 0 ? "bg-red-50 border-red-200" : "bg-white border-stone-200"}`}>
-          <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">&Uuml;berf&auml;llig</p>
-          <p className={`text-2xl font-bold ${overdueCount > 0 ? "text-red-600" : "text-stone-900"}`}>{overdueCount}</p>
+          <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">&Uuml;berf&auml;llige Buchungen</p>
+          <p className={`text-2xl font-bold ${overdueCount > 0 ? "text-red-600" : "text-stone-900"}`}>{overdueBookingCount}</p>
+          <p className="text-[11px] text-stone-400 mt-1">
+            {overdueCount === overdueBookingCount
+              ? `${overdueCount} fällige${overdueCount === 1 ? "r" : ""} Posten`
+              : `${overdueCount} fällige Posten (Anzahlung + Restbetrag)`}
+          </p>
         </div>
+
+        {/* Offene Buchungen gesamt */}
         <div className="bg-white rounded-2xl border border-stone-200 p-5">
           <p className="text-xs text-stone-500 uppercase tracking-wider mb-1">Offene Buchungen</p>
           <p className="text-2xl font-bold text-stone-900">{bookings.length}</p>
+          <p className="text-[11px] text-stone-400 mt-1">Noch nicht voll bezahlt</p>
         </div>
       </div>
 
