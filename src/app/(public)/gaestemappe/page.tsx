@@ -8,7 +8,17 @@ import GuestGuideCategory, {
 export const metadata: Metadata = {
   title: "Gästemappe – Ferienhaus Rita",
   description:
-    "Alles Wichtige für Ihren Aufenthalt im Ferienhaus Rita in Kals am Großglockner: WLAN, Hausregeln, Tipps für die Region.",
+    "Alles Wichtige für Ihren Aufenthalt im Ferienhaus Rita in Kals am Großglockner.",
+  robots: {
+    index: false,
+    follow: false,
+    nocache: true,
+    googleBot: {
+      index: false,
+      follow: false,
+      noimageindex: true,
+    },
+  },
 };
 
 export const dynamic = "force-dynamic";

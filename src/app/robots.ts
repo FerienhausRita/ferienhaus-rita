@@ -5,7 +5,7 @@ export default function robots(): MetadataRoute.Robots {
     rules: {
       userAgent: "*",
       allow: "/",
-      disallow: ["/api/"],
+      disallow: ["/api/", "/gaestemappe", "/admin", "/meine-buchung", "/reinigung"],
     },
     sitemap: "https://www.ferienhaus-rita-kals.at/sitemap.xml",
   };
