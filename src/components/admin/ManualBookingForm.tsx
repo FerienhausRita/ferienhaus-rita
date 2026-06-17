@@ -257,6 +257,7 @@ export default function ManualBookingForm({
             <option value="Website">Website (Direktbuchung)</option>
             <option value="Booking.com">Booking.com</option>
             <option value="Airbnb">Airbnb</option>
+            <option value="Holidu">Holidu</option>
             <option value="Andere">Andere Plattform</option>
           </select>
         </div>

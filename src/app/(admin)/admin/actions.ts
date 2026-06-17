@@ -1105,6 +1105,7 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
     .in("status", ["confirmed", "pending"])
     .neq("payment_status", "paid")
     .neq("payment_status", "refunded")
+    .neq("payment_status", "platform_pending")
     .order(orderColumn, { ascending, nullsFirst: false });
 
   const all = bookings ?? [];
@@ -1186,6 +1187,76 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
     totalOutstanding,
     totalOverdue,
   };
+}
+
+/**
+ * Liste offener Plattform-Auszahlungen (externe Buchungen, payment_status =
+ * 'platform_pending'). Markiert überfällige (erwartetes Datum überschritten).
+ */
+export async function getPlatformPayouts() {
+  const supabase = createServerClient();
+  const today = new Date().toISOString().split("T")[0];
+
+  const { data } = await supabase
+    .from("bookings")
+    .select(
+      "id, apartment_id, first_name, last_name, check_in, check_out, total_price, source_channel, expected_payout_date, status"
+    )
+    .eq("payment_status", "platform_pending")
+    .neq("status", "cancelled")
+    .order("expected_payout_date", { ascending: true, nullsFirst: false });
+
+  const bookings = (data ?? []).map((b) => ({
+    ...b,
+    overdue: !!(b.expected_payout_date && b.expected_payout_date <= today),
+  }));
+
+  const overdueCount = bookings.filter((b) => b.overdue).length;
+  const totalPending =
+    Math.round(
+      bookings.reduce((s, b) => s + Number(b.total_price || 0), 0) * 100
+    ) / 100;
+
+  return { bookings, overdueCount, totalPending };
+}
+
+/**
+ * Bestätigt den Geldeingang einer Plattform-Auszahlung → Status 'paid'.
+ */
+export async function confirmPlatformPayout(bookingId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      payment_status: "paid",
+      payout_confirmed_at: new Date().toISOString(),
+    })
+    .eq("id", bookingId)
+    .eq("payment_status", "platform_pending");
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  return { success: true };
+}
+
+/**
+ * Setzt eine bestätigte Plattform-Auszahlung wieder auf 'platform_pending'.
+ */
+export async function revertPlatformPayout(bookingId: string) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      payment_status: "platform_pending",
+      payout_confirmed_at: null,
+    })
+    .eq("id", bookingId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  return { success: true };
 }
 
 /**
@@ -3113,6 +3184,21 @@ export async function createManualBooking(data: {
         },
       });
 
+  // Externe Buchungen: erwartetes Auszahlungsdatum je Kanal berechnen
+  let expectedPayoutDate: string | null = null;
+  if (isExternalChannel) {
+    const { getPlatformPayoutConfig, computeExpectedPayoutDate } = await import(
+      "@/lib/platform-payout"
+    );
+    const payoutCfg = await getPlatformPayoutConfig();
+    expectedPayoutDate = computeExpectedPayoutDate(
+      sourceChannel,
+      data.check_in,
+      data.check_out,
+      payoutCfg
+    );
+  }
+
   // Upsert guest (only if email provided)
   let guestData: { id: string; total_stays: number | null; total_revenue: number | null } | null = null;
   const emailTrimmed = data.email?.trim().toLowerCase() || "";
@@ -3171,8 +3257,11 @@ export async function createManualBooking(data: {
       status: data.status,
       guest_id: guestData?.id ?? null,
       source_channel: sourceChannel,
-      // Externe Kanäle: Zahlung läuft über Plattform → als bezahlt markieren
-      payment_status: isExternalChannel ? "paid" : "unpaid",
+      // Externe Kanäle: Auszahlung läuft über die Plattform und kommt erst
+      // später an → Status "platform_pending" + erwartetes Auszahlungsdatum.
+      // Erst nach Bestätigung des Geldeingangs wird auf "paid" gesetzt.
+      payment_status: isExternalChannel ? "platform_pending" : "unpaid",
+      expected_payout_date: expectedPayoutDate,
       deposit_amount: 0,
       remainder_amount: 0,
     })

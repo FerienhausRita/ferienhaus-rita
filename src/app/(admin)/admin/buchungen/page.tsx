@@ -38,6 +38,7 @@ const paymentLabels: Record<string, { label: string; className: string }> = {
   deposit_paid: { label: "Anzahlung", className: "text-amber-600" },
   paid: { label: "Bezahlt", className: "text-emerald-600" },
   refunded: { label: "Erstattet", className: "text-stone-500" },
+  platform_pending: { label: "Auszahlung offen", className: "text-amber-600" },
 };
 
 export default async function BookingsPage({

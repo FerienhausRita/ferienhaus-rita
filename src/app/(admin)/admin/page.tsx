@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getDashboardStats, getAnalyticsData, getPaymentOverview } from "./actions";
+import { getDashboardStats, getAnalyticsData, getPaymentOverview, getPlatformPayouts } from "./actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
 import RevenueChart from "@/components/admin/RevenueChart";
 import OccupancyStats from "@/components/admin/OccupancyStats";
@@ -39,14 +39,16 @@ const paymentLabels: Record<string, { label: string; className: string }> = {
   deposit_paid: { label: "Anzahlung", className: "text-amber-600" },
   paid: { label: "Bezahlt", className: "text-emerald-600" },
   refunded: { label: "Erstattet", className: "text-stone-500" },
+  platform_pending: { label: "Auszahlung offen", className: "text-amber-600" },
 };
 
 export default async function AdminDashboard() {
-  const [stats, analytics, payments, nameMap] = await Promise.all([
+  const [stats, analytics, payments, nameMap, platformPayouts] = await Promise.all([
     getDashboardStats(),
     getAnalyticsData(),
     getPaymentOverview(),
     getApartmentNameMap(),
+    getPlatformPayouts(),
   ]);
 
   const getApartmentName = (id: string) => nameMap.get(id) ?? id;
@@ -63,6 +65,22 @@ export default async function AdminDashboard() {
         </div>
         <ExportButton />
       </div>
+
+      {/* Hinweis: überfällige Plattform-Auszahlungen */}
+      {platformPayouts.overdueCount > 0 && (
+        <Link
+          href="/admin/zahlungen"
+          className="block mb-6 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 hover:border-red-300 transition-colors"
+        >
+          <p className="text-sm font-semibold text-red-700">
+            {platformPayouts.overdueCount} Plattform-Auszahlung
+            {platformPayouts.overdueCount === 1 ? "" : "en"} fällig — Bankeingang prüfen
+          </p>
+          <p className="text-xs text-red-600 mt-0.5">
+            Externe Buchungen, deren erwartete Auszahlung überschritten ist. Jetzt prüfen und bestätigen →
+          </p>
+        </Link>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">

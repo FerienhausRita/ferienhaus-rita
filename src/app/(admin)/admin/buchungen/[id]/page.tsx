@@ -13,6 +13,7 @@ import EmailTimeline from "@/components/admin/EmailTimeline";
 import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
 import DepositTracker from "@/components/admin/DepositTracker";
 import BookingPriceEditor from "@/components/admin/BookingPriceEditor";
+import PlatformPayoutStatus from "@/components/admin/PlatformPayoutStatus";
 import GuestDataEditor from "@/components/admin/GuestDataEditor";
 import InvoiceSection from "@/components/admin/InvoiceSection";
 import { getMeldeschein } from "../../actions";
@@ -217,6 +218,12 @@ export default async function BookingDetailPage({
                 {booking.source_channel}. Es werden <strong>keine automatischen
                 E-Mails</strong> versendet und keine Anzahlung berechnet.
               </p>
+              <PlatformPayoutStatus
+                bookingId={booking.id}
+                paymentStatus={booking.payment_status}
+                channel={booking.source_channel}
+                expectedPayoutDate={(booking as { expected_payout_date?: string | null }).expected_payout_date ?? null}
+              />
             </div>
           </div>
         </div>

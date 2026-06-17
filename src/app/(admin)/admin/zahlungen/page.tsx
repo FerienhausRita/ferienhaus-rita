@@ -1,7 +1,8 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getPaymentOverview } from "../actions";
+import { getPaymentOverview, getPlatformPayouts } from "../actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
+import PlatformPayouts from "@/components/admin/PlatformPayouts";
 
 export const metadata: Metadata = {
   title: "Zahlungen",
@@ -59,10 +60,24 @@ export default async function ZahlungenPage({
 
   const filter = searchParams.filter === "overdue" ? "overdue" : "all";
 
-  const [{ bookings: allBookings, overdueCount, overdueBookingCount, totalOutstanding, totalOverdue }, nameMap] = await Promise.all([
+  const [{ bookings: allBookings, overdueCount, overdueBookingCount, totalOutstanding, totalOverdue }, nameMap, platformPayouts] = await Promise.all([
     getPaymentOverview(dbSort, searchParams.dir),
     getApartmentNameMap(),
+    getPlatformPayouts(),
   ]);
+
+  const platformPayoutBookings = platformPayouts.bookings.map((b) => ({
+    id: b.id,
+    first_name: b.first_name,
+    last_name: b.last_name,
+    apartment_name: nameMap.get(b.apartment_id) ?? b.apartment_id,
+    check_in: b.check_in,
+    check_out: b.check_out,
+    total_price: Number(b.total_price || 0),
+    source_channel: b.source_channel,
+    expected_payout_date: b.expected_payout_date,
+    overdue: b.overdue,
+  }));
   const sp = searchParams as Record<string, string | undefined>;
   const today = new Date().toISOString().split("T")[0];
 
@@ -151,6 +166,9 @@ export default async function ZahlungenPage({
           <p className="text-[11px] text-stone-400 mt-1">Noch nicht voll bezahlt</p>
         </Link>
       </div>
+
+      {/* Plattform-Auszahlungen (externe Buchungen) */}
+      <PlatformPayouts bookings={platformPayoutBookings} />
 
       {/* Aktiver Filter */}
       {filter === "overdue" && (
