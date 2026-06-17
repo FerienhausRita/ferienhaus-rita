@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit } from "@/app/(admin)/admin/actions";
+import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit, recalculateDepositPlan } from "@/app/(admin)/admin/actions";
 import { useRouter } from "next/navigation";
 
 function formatCurrency(amount: number) {
@@ -61,6 +61,7 @@ export default function DepositTracker({
   paymentStatus,
   payments = [],
 }: DepositTrackerProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState<string | null>(null);
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
@@ -109,12 +110,33 @@ export default function DepositTracker({
         </div>
         <div className="p-5">
           <p className="text-sm text-stone-500">
-            Noch keine Zahlungsbeträge berechnet. Buchung bestätigen um Anzahlung/Rest zu berechnen.
+            Noch kein Zahlungsplan (Anzahlung/Restbetrag) hinterlegt.
           </p>
           <div className="mt-3 flex items-center justify-between text-sm">
             <span className="text-stone-600">Gesamtbetrag</span>
             <span className="font-semibold text-stone-900">{formatCurrency(totalPrice)}</span>
           </div>
+
+          {totalPrice > 0 && (
+            <button
+              onClick={async () => {
+                setLoading("plan");
+                setMessage(null);
+                const r = await recalculateDepositPlan(bookingId);
+                setLoading(null);
+                if (r.success) {
+                  setMessage({ type: "success", text: "Zahlungsplan berechnet" });
+                  router.refresh();
+                } else {
+                  setMessage({ type: "error", text: r.error || "Fehler" });
+                }
+              }}
+              disabled={loading !== null}
+              className="mt-3 w-full py-1.5 px-3 rounded-lg text-xs font-medium bg-[#c8a96e] hover:bg-[#b89555] text-white transition-colors disabled:opacity-50"
+            >
+              {loading === "plan" ? "Berechne…" : "Zahlungsplan berechnen (Anzahlung/Restbetrag)"}
+            </button>
+          )}
 
           {/* Manual payment even without deposit setup */}
           <button
@@ -173,8 +195,6 @@ export default function DepositTracker({
       setMessage({ type: "error", text: result.error || "Fehler" });
     }
   };
-
-  const router = useRouter();
 
   const handleSaveDepositOverride = async () => {
     const depAmount = parseFloat(editDepAmount);

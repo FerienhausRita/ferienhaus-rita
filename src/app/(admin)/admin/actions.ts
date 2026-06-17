@@ -1145,13 +1145,23 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
     const remainderOpen = b.remainder_paid_at
       ? 0
       : Math.max(0, remainderAmount - paid.remainder);
+
+    // Fallback: bestätigte/unbezahlte Buchung OHNE Anzahlung/Restbetrag-Plan
+    // (z. B. Alt-Import) hätte sonst 0 offen, obwohl der volle Betrag aussteht.
+    const hasPlan = depositAmount > 0 || remainderAmount > 0;
+    const noPlan = !hasPlan && !b.deposit_paid_at && !b.remainder_paid_at;
+    const totalOpen = noPlan
+      ? Number(b.total_price || 0)
+      : depositOpen + remainderOpen;
+
     return {
       ...b,
       deposit_paid_sum: Math.round(paid.deposit * 100) / 100,
       remainder_paid_sum: Math.round(paid.remainder * 100) / 100,
       deposit_open: Math.round(depositOpen * 100) / 100,
       remainder_open: Math.round(remainderOpen * 100) / 100,
-      total_open: Math.round((depositOpen + remainderOpen) * 100) / 100,
+      total_open: Math.round(totalOpen * 100) / 100,
+      no_plan: noPlan,
     };
   });
 
@@ -1187,6 +1197,116 @@ export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
     totalOutstanding,
     totalOverdue,
   };
+}
+
+/**
+ * Berechnet/erneuert den Anzahlung-/Restbetrag-Plan einer Buchung aus dem
+ * aktuellen Gesamtpreis. Für bestätigte Direktbuchungen, denen (z. B. durch
+ * Import) noch kein Zahlungsplan zugewiesen wurde.
+ */
+export async function recalculateDepositPlan(bookingId: string) {
+  const supabase = createServerClient();
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("total_price, check_in, source_channel, deposit_paid_at, remainder_paid_at")
+    .eq("id", bookingId)
+    .single();
+  if (!booking) return { success: false, error: "Buchung nicht gefunden" };
+
+  const channel = (booking.source_channel as string | null) ?? "Website";
+  if (channel !== "Website") {
+    return { success: false, error: "Externe Buchung — kein Anzahlungsplan" };
+  }
+  if (booking.deposit_paid_at || booking.remainder_paid_at) {
+    return { success: false, error: "Es wurde bereits eine Zahlung verbucht" };
+  }
+
+  const { getDepositConfig, computeDepositSplit } = await import("@/lib/deposit-config");
+  const cfg = await getDepositConfig();
+  const split = computeDepositSplit({
+    totalPrice: Number(booking.total_price || 0),
+    checkIn: booking.check_in as string,
+    config: cfg,
+  });
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      deposit_amount: split.deposit_amount,
+      deposit_due_date: split.deposit_due_date,
+      remainder_amount: split.remainder_amount,
+      remainder_due_date: split.remainder_due_date,
+    })
+    .eq("id", bookingId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Setzt/korrigiert die Buchungsquelle einer bestehenden Buchung und passt den
+ * Zahlungsstatus entsprechend an — pro Buchung, keine Massenänderung.
+ *
+ * - Plattform (Booking.com/Airbnb/Holidu/Andere): wird zu 'platform_pending'
+ *   mit erwartetem Auszahlungsdatum; Anzahlungsplan wird entfernt
+ *   (nur wenn noch nichts bezahlt ist).
+ * - Direkt (Website): erwartetes Auszahlungsdatum wird entfernt; war der
+ *   Status 'platform_pending', wird er auf 'unpaid' zurückgesetzt. Ein
+ *   Anzahlungsplan wird NICHT automatisch erzeugt (dafür gibt es den Button).
+ */
+export async function updateBookingChannel(bookingId: string, channel: string) {
+  const supabase = createServerClient();
+  const { data: b } = await supabase
+    .from("bookings")
+    .select("source_channel, payment_status, check_in, check_out, deposit_paid_at, remainder_paid_at")
+    .eq("id", bookingId)
+    .single();
+  if (!b) return { success: false, error: "Buchung nicht gefunden" };
+
+  const isExternal = channel !== "Website";
+  const anyPaid =
+    !!b.deposit_paid_at || !!b.remainder_paid_at || b.payment_status === "paid";
+
+  const update: Record<string, unknown> = {
+    source_channel: isExternal ? channel : "Website",
+  };
+
+  if (isExternal) {
+    const { getPlatformPayoutConfig, computeExpectedPayoutDate } = await import(
+      "@/lib/platform-payout"
+    );
+    const cfg = await getPlatformPayoutConfig();
+    update.expected_payout_date = computeExpectedPayoutDate(
+      channel,
+      b.check_in as string,
+      b.check_out as string,
+      cfg
+    );
+    // Nur umstellen, wenn noch nichts vereinnahmt wurde
+    if (!anyPaid) {
+      update.payment_status = "platform_pending";
+      update.deposit_amount = 0;
+      update.deposit_due_date = null;
+      update.remainder_amount = 0;
+      update.remainder_due_date = null;
+    }
+  } else {
+    update.expected_payout_date = null;
+    update.payout_confirmed_at = null;
+    if (b.payment_status === "platform_pending") {
+      update.payment_status = "unpaid";
+    }
+  }
+
+  const { error } = await supabase.from("bookings").update(update).eq("id", bookingId);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin");
+  return { success: true };
 }
 
 /**

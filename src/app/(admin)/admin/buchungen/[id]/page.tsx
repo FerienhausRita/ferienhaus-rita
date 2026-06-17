@@ -14,6 +14,7 @@ import InvoiceNumberEdit from "@/components/admin/InvoiceNumberEdit";
 import DepositTracker from "@/components/admin/DepositTracker";
 import BookingPriceEditor from "@/components/admin/BookingPriceEditor";
 import PlatformPayoutStatus from "@/components/admin/PlatformPayoutStatus";
+import BookingChannelEditor from "@/components/admin/BookingChannelEditor";
 import GuestDataEditor from "@/components/admin/GuestDataEditor";
 import InvoiceSection from "@/components/admin/InvoiceSection";
 import { getMeldeschein } from "../../actions";
@@ -240,8 +241,12 @@ export default async function BookingDetailPage({
         <div className="lg:col-span-2 space-y-6">
           {/* Booking Details */}
           <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
-            <div className="px-5 py-4 border-b border-stone-100">
+            <div className="px-5 py-4 border-b border-stone-100 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <h2 className="font-semibold text-stone-900">Buchungsdetails</h2>
+              <BookingChannelEditor
+                bookingId={booking.id}
+                currentChannel={booking.source_channel ?? null}
+              />
             </div>
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-2 gap-4">
