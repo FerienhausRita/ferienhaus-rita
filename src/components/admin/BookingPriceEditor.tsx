@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateBookingPrices, recalculateBookingPricesAction, addBookingLineItem, deleteBookingLineItem } from "@/app/(admin)/admin/actions";
+import { updateBookingPrices, addBookingLineItem, deleteBookingLineItem } from "@/app/(admin)/admin/actions";
 
 interface LineItem {
   id?: string;
@@ -155,60 +155,6 @@ export default function BookingPriceEditor({
     });
   }
 
-  // Recalculate in edit mode: populate unit prices from pricing engine
-  function handleRecalculate() {
-    startTransition(async () => {
-      const result = await recalculateBookingPricesAction(bookingId);
-      if (result.success && result.prices) {
-        setEditPPN(result.prices.pricePerNight);
-        setEditNights(result.prices.nights);
-        setEditCF(result.prices.cleaningFee);
-        setDiscount(result.prices.discountAmount);
-        setMessage("Preise neu berechnet – bitte prüfen und speichern");
-      } else {
-        setMessage(`Fehler: ${result.error}`);
-      }
-    });
-  }
-
-  // Recalculate + save in one step (for read mode)
-  function handleRecalculateAndSave() {
-    if (
-      !confirm(
-        "Alle Preise werden aus der Wohnungs- und Saison-Konfiguration neu berechnet (inkl. Ortstaxe). Manuelle Anpassungen wie ein abweichender Übernachtungspreis gehen dabei verloren. Fortfahren?"
-      )
-    ) {
-      return;
-    }
-    startTransition(async () => {
-      const result = await recalculateBookingPricesAction(bookingId);
-      if (result.success && result.prices) {
-        const saveResult = await updateBookingPrices(
-          bookingId,
-          {
-            price_per_night: result.prices.pricePerNight,
-            extra_guests_total: result.prices.extraGuestsTotal,
-            dogs_total: result.prices.dogsTotal,
-            cleaning_fee: result.prices.cleaningFee,
-            local_tax_total: result.prices.localTaxTotal,
-            discount_amount: result.prices.discountAmount,
-            nights: result.prices.nights,
-          },
-          items // bestehende Line Items beibehalten
-        );
-        if (saveResult.success) {
-          setMessage("Preise neu berechnet und gespeichert");
-          router.refresh();
-          setTimeout(() => setMessage(""), 3000);
-        } else {
-          setMessage(`Fehler beim Speichern: ${saveResult.error}`);
-        }
-      } else {
-        setMessage(`Fehler: ${result.error}`);
-      }
-    });
-  }
-
   // Lesemodus: Position sofort hinzufügen
   function handleReadAdd() {
     if (!readLabel.trim() || !readAmount) return;
@@ -265,29 +211,13 @@ export default function BookingPriceEditor({
       <div>
         <div className="flex items-center justify-between mb-4">
           <h2 className="text-lg font-semibold text-stone-900">Preisaufschlüsselung</h2>
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handleRecalculateAndSave}
-              disabled={isPending}
-              title="Berechnet Übernachtungspreis, Saison, Zusatzgäste, Hunde und Ortstaxe frisch aus der Wohnungs-Konfiguration. Manuelle Preisanpassungen werden überschrieben, Zusatzpositionen bleiben erhalten."
-              className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
-            >
-              {isPending ? "Berechne..." : "Neu berechnen"}
-            </button>
-            <button
-              onClick={() => setEditing(true)}
-              className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
-            >
-              Bearbeiten
-            </button>
-          </div>
+          <button
+            onClick={() => setEditing(true)}
+            className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
+          >
+            Bearbeiten
+          </button>
         </div>
-
-        <p className="text-[11px] text-stone-400 -mt-2 mb-3">
-          „Neu berechnen" setzt die Preise aus der Wohnungs-Konfiguration neu
-          (Grundpreis, Saison, Ortstaxe) — manuelle Anpassungen gehen verloren,
-          Zusatzpositionen bleiben erhalten.
-        </p>
 
         <table className="w-full text-sm">
           <tbody className="divide-y divide-stone-100">
@@ -667,13 +597,6 @@ export default function BookingPriceEditor({
 
         {/* Actions */}
         <div className="flex gap-2 pt-2">
-          <button
-            onClick={handleRecalculate}
-            disabled={isPending}
-            className="px-4 bg-blue-50 hover:bg-blue-100 text-blue-700 text-sm font-medium py-2 rounded-lg transition-colors border border-blue-200 disabled:opacity-50"
-          >
-            {isPending ? "Berechne..." : "Neu berechnen"}
-          </button>
           <button
             onClick={handleSave}
             disabled={isPending}
