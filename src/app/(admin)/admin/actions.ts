@@ -3790,35 +3790,55 @@ export async function updateBookingPrices(
     }
   }
 
-  // Update deposit/remainder proportionally if they exist
+  // Anzahlung/Restbetrag an den neuen Gesamtpreis anpassen.
   const { data: booking } = await supabase
     .from("bookings")
     .select("deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status, check_in")
     .eq("id", bookingId)
     .single();
 
-  if (booking && booking.deposit_amount && !booking.deposit_paid_at && !booking.remainder_paid_at) {
-    // Recalculate deposit/remainder mit Anreise-Check — bei Anreise innerhalb
-    // der Restbetrag-Frist gibt es keine Anzahlung mehr, sondern Volldeposition.
-    const { getDepositConfig, computeDepositSplit } = await import(
-      "@/lib/deposit-config"
-    );
-    const depositCfg = await getDepositConfig();
-    const split = computeDepositSplit({
-      totalPrice,
-      checkIn: booking.check_in as string,
-      config: depositCfg,
-    });
+  if (booking) {
+    const depositPaid = !!booking.deposit_paid_at;
+    const remainderPaid = !!booking.remainder_paid_at;
+    const hasPlan =
+      Number(booking.deposit_amount || 0) > 0 ||
+      Number(booking.remainder_amount || 0) > 0;
 
-    await supabase
-      .from("bookings")
-      .update({
-        deposit_amount: split.deposit_amount,
-        deposit_due_date: split.deposit_due_date,
-        remainder_amount: split.remainder_amount,
-        remainder_due_date: split.remainder_due_date,
-      })
-      .eq("id", bookingId);
+    if (hasPlan && !depositPaid && !remainderPaid) {
+      // Noch nichts bezahlt → komplette Neu-Aufteilung (mit Anreise-Check:
+      // bei Anreise innerhalb der Restbetrag-Frist Volldeposition statt Anzahlung).
+      const { getDepositConfig, computeDepositSplit } = await import(
+        "@/lib/deposit-config"
+      );
+      const depositCfg = await getDepositConfig();
+      const split = computeDepositSplit({
+        totalPrice,
+        checkIn: booking.check_in as string,
+        config: depositCfg,
+      });
+
+      await supabase
+        .from("bookings")
+        .update({
+          deposit_amount: split.deposit_amount,
+          deposit_due_date: split.deposit_due_date,
+          remainder_amount: split.remainder_amount,
+          remainder_due_date: split.remainder_due_date,
+        })
+        .eq("id", bookingId);
+    } else if (depositPaid && !remainderPaid) {
+      // Anzahlung bereits bezahlt → diese bleibt unangetastet, der Restbetrag
+      // absorbiert die Differenz zum neuen Gesamtpreis.
+      const newRemainder = Math.max(
+        0,
+        Math.round((totalPrice - Number(booking.deposit_amount || 0)) * 100) / 100
+      );
+      await supabase
+        .from("bookings")
+        .update({ remainder_amount: newRemainder })
+        .eq("id", bookingId);
+    }
+    // beides bezahlt → unverändert lassen
   }
 
   revalidatePath(`/admin/buchungen/${bookingId}`);
@@ -3858,6 +3878,13 @@ export async function recalculateBookingPricesAction(bookingId: string) {
     return { success: false as const, error: "Apartment-Konfiguration nicht gefunden" };
   }
 
+  // Ortstaxe wird (Admin-Entscheidung) immer in den Buchungs-Gesamtpreis
+  // aufgenommen. Die Engine liefert bei `included=false` zwar localTaxTotal=0,
+  // berechnet die Höhe aber immer als localTaxHint (Erw. × Nächte × Satz).
+  const localTaxForBooking = calculated.localTaxHint;
+  const localTaxDelta =
+    calculated.localTaxTotal === 0 ? localTaxForBooking : 0;
+
   return {
     success: true as const,
     prices: {
@@ -3865,9 +3892,9 @@ export async function recalculateBookingPricesAction(bookingId: string) {
       extraGuestsTotal: calculated.extraGuestsTotal,
       dogsTotal: calculated.dogsTotal,
       cleaningFee: calculated.cleaningFee,
-      localTaxTotal: calculated.localTaxTotal,
+      localTaxTotal: localTaxForBooking,
       discountAmount: calculated.discountAmount,
-      totalPrice: calculated.total,
+      totalPrice: Math.round((calculated.total + localTaxDelta) * 100) / 100,
       nights: calculated.nights,
     },
   };

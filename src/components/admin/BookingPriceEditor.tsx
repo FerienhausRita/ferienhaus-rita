@@ -168,6 +168,13 @@ export default function BookingPriceEditor({
 
   // Recalculate + save in one step (for read mode)
   function handleRecalculateAndSave() {
+    if (
+      !confirm(
+        "Alle Preise werden aus der Wohnungs- und Saison-Konfiguration neu berechnet (inkl. Ortstaxe). Manuelle Anpassungen wie ein abweichender Übernachtungspreis gehen dabei verloren. Fortfahren?"
+      )
+    ) {
+      return;
+    }
     startTransition(async () => {
       const result = await recalculateBookingPricesAction(bookingId);
       if (result.success && result.prices) {
