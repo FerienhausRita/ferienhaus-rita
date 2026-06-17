@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, ReactNode } from "react";
+import Link from "next/link";
 import {
   updateDisplayName,
   inviteAdmin,
@@ -792,8 +793,33 @@ export default function SettingsPanel({
     "px-4 py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50";
   const successClass = "text-xs text-emerald-600 mt-1";
 
+  const catHeader = "text-xs font-semibold uppercase tracking-wider text-stone-400 pt-2";
+
   return (
     <div className="space-y-6">
+      {/* Inhalte & Preise — eigene Seiten, hierher verschoben */}
+      <div>
+        <p className={catHeader}>Inhalte &amp; Preise</p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-2">
+          {[
+            { href: "/admin/preise", label: "Preise", desc: "Saison- & Wohnungspreise" },
+            { href: "/admin/karte", label: "Karte", desc: "Points of Interest" },
+            { href: "/admin/gaestemappe", label: "Gästemappe", desc: "WLAN, Hausregeln, Tipps" },
+          ].map((c) => (
+            <Link
+              key={c.href}
+              href={c.href}
+              className="block bg-white rounded-2xl border border-stone-200 p-4 hover:border-[#c8a96e]/40 transition-colors"
+            >
+              <p className="font-medium text-stone-900 text-sm">{c.label}</p>
+              <p className="text-xs text-stone-500 mt-0.5">{c.desc}</p>
+            </Link>
+          ))}
+        </div>
+      </div>
+
+      <p className={catHeader}>Konto &amp; Stammdaten</p>
+
       {/* Account */}
       <Section id="account" title="Mein Konto" open={openSections.has("account")} onToggle={toggleSection}>
         <div className="space-y-3">
@@ -1047,6 +1073,8 @@ export default function SettingsPanel({
       </Section>
 
       {/* Maximales Buchungsdatum */}
+      <p className={catHeader}>Buchung &amp; Abrechnung</p>
+
       <Section id="max-date" title="Buchungszeitraum begrenzen" subtitle="Buchungen nur bis zu einem bestimmten Datum zulassen" open={openSections.has("max-date")} onToggle={toggleSection}>
         <div className="space-y-4">
           <div className="flex items-center gap-3">
@@ -1218,6 +1246,8 @@ export default function SettingsPanel({
       </Section>
 
       {/* Check-in Informationen */}
+      <p className={catHeader}>Gäste-Kommunikation</p>
+
       <Section id="checkin" title="Check-in Informationen" subtitle="Werden automatisch vor dem Check-in an Gäste gesendet" open={openSections.has("checkin")} onToggle={toggleSection}>
         <div className="space-y-3">
           <div>
@@ -1370,6 +1400,8 @@ export default function SettingsPanel({
           </div>
         </div>
       </Section>
+
+      <p className={catHeader}>Reinigung</p>
 
       {/* Reinigungs-Konfiguration */}
       <Section
@@ -1628,6 +1660,8 @@ export default function SettingsPanel({
           </div>
         )}
       </Section>
+
+      <p className={catHeader}>Weiteres &amp; System</p>
 
       {/* Bewertungslink */}
       <Section id="review" title="Bewertungslink" subtitle="Google-Bewertungslink in Danke-Mails einbinden" open={openSections.has("review")} onToggle={toggleSection}>

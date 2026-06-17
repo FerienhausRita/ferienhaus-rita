@@ -80,29 +80,20 @@ const navItems = [
     ),
   },
   {
-    label: "Reinigung",
-    href: "/admin/reinigung",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Hausmeister",
-    href: "/admin/hausmeister",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M9 17.25v1.007a3 3 0 01-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0115 18.257V17.25m6-12V15a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 15V5.25m18 0A2.25 2.25 0 0018.75 3H5.25A2.25 2.25 0 003 5.25m18 0V12a2.25 2.25 0 01-2.25 2.25H5.25A2.25 2.25 0 013 12V5.25" />
-      </svg>
-    ),
-  },
-  {
     label: "Warteliste",
     href: "/admin/warteliste",
     icon: (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+      </svg>
+    ),
+  },
+  {
+    label: "Reinigung",
+    href: "/admin/reinigung",
+    icon: (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
       </svg>
     ),
   },
@@ -116,34 +107,6 @@ const navItems = [
     ),
   },
   {
-    label: "Preise",
-    href: "/admin/preise",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 7.756a4.5 4.5 0 100 8.488M7.5 10.5h5.25m-5.25 3h5.25M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Karte",
-    href: "/admin/karte",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
-        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 10.5c0 7.142-7.5 11.25-7.5 11.25S4.5 17.642 4.5 10.5a7.5 7.5 0 1115 0z" />
-      </svg>
-    ),
-  },
-  {
-    label: "Gästemappe",
-    href: "/admin/gaestemappe",
-    icon: (
-      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
-      </svg>
-    ),
-  },
-  {
     label: "Einstellungen",
     href: "/admin/einstellungen",
     icon: (
@@ -152,6 +115,25 @@ const navItems = [
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
       </svg>
     ),
+  },
+];
+
+const NAV_GROUPS: { title: string | null; hrefs: string[] }[] = [
+  {
+    title: "Tagesgeschäft",
+    hrefs: ["/admin", "/admin/buchungen", "/admin/kalender", "/admin/zahlungen", "/admin/rechnungen"],
+  },
+  {
+    title: "Gäste & Kommunikation",
+    hrefs: ["/admin/gaeste", "/admin/nachrichten", "/admin/chat", "/admin/warteliste"],
+  },
+  {
+    title: "Betrieb",
+    hrefs: ["/admin/reinigung", "/admin/aufgaben"],
+  },
+  {
+    title: null,
+    hrefs: ["/admin/einstellungen"],
   },
 ];
 
@@ -195,28 +177,43 @@ export default function AdminSidebar({ userName, userEmail }: AdminSidebarProps)
 
       {/* Navigation */}
       <nav className="flex-1 py-4 px-3 overflow-y-auto">
-        <ul className="space-y-1">
-          {navItems.map((item) => (
-            <li key={item.href}>
-              <Link
-                href={item.href}
-                className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-                  isActive(item.href)
-                    ? "bg-[#c8a96e]/10 text-[#c8a96e]"
-                    : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
-                }`}
-              >
-                {item.icon}
-                <span className="flex-1">{item.label}</span>
-                {item.label === "Chat" && chatUnread > 0 && (
-                  <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
-                    {chatUnread}
-                  </span>
-                )}
-              </Link>
-            </li>
-          ))}
-        </ul>
+        {NAV_GROUPS.map((group) => {
+          const items = group.hrefs
+            .map((h) => navItems.find((i) => i.href === h))
+            .filter((i): i is (typeof navItems)[number] => Boolean(i));
+          if (items.length === 0) return null;
+          return (
+            <div key={group.title || "_"} className="mb-4 last:mb-0">
+              {group.title && (
+                <p className="px-3 mb-1 text-[10px] font-semibold uppercase tracking-wider text-stone-400">
+                  {group.title}
+                </p>
+              )}
+              <ul className="space-y-1">
+                {items.map((item) => (
+                  <li key={item.href}>
+                    <Link
+                      href={item.href}
+                      className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-colors ${
+                        isActive(item.href)
+                          ? "bg-[#c8a96e]/10 text-[#c8a96e]"
+                          : "text-stone-600 hover:bg-stone-50 hover:text-stone-900"
+                      }`}
+                    >
+                      {item.icon}
+                      <span className="flex-1">{item.label}</span>
+                      {item.label === "Chat" && chatUnread > 0 && (
+                        <span className="w-5 h-5 bg-red-500 text-white text-[10px] font-bold rounded-full flex items-center justify-center">
+                          {chatUnread}
+                        </span>
+                      )}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          );
+        })}
       </nav>
 
       {/* User */}

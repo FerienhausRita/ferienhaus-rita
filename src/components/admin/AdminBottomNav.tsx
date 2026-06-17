@@ -46,12 +46,13 @@ const mainNav = [
 ];
 
 const moreItems = [
-  { label: "Chat", href: "/admin/chat" },
+  { label: "Zahlungen", href: "/admin/zahlungen" },
+  { label: "Rechnungen", href: "/admin/rechnungen" },
   { label: "Gäste", href: "/admin/gaeste" },
+  { label: "Chat", href: "/admin/chat" },
+  { label: "Warteliste", href: "/admin/warteliste" },
+  { label: "Reinigung", href: "/admin/reinigung" },
   { label: "Aufgaben", href: "/admin/aufgaben" },
-  { label: "Preise", href: "/admin/preise" },
-  { label: "Karte", href: "/admin/karte" },
-  { label: "Gästemappe", href: "/admin/gaestemappe" },
   { label: "Einstellungen", href: "/admin/einstellungen" },
 ];
 
