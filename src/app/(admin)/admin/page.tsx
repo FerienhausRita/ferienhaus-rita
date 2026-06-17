@@ -42,6 +42,14 @@ const paymentLabels: Record<string, { label: string; className: string }> = {
   platform_pending: { label: "Auszahlung offen", className: "text-amber-600" },
 };
 
+// Farb-Töne für die Handlungsbedarf-Kacheln (nur aktiv, wenn count > 0)
+const TONES: Record<string, { wrap: string; icon: string; num: string }> = {
+  amber: { wrap: "bg-amber-50 border-amber-200", icon: "bg-amber-100 text-amber-700", num: "text-amber-700" },
+  blue: { wrap: "bg-blue-50 border-blue-200", icon: "bg-blue-100 text-blue-700", num: "text-blue-700" },
+  red: { wrap: "bg-red-50 border-red-200", icon: "bg-red-100 text-red-700", num: "text-red-700" },
+};
+const IDLE = { wrap: "bg-white border-stone-200 hover:border-stone-300", icon: "bg-stone-100 text-stone-400", num: "text-stone-800" };
+
 export default async function AdminDashboard() {
   const [stats, analytics, payments, nameMap, platformPayouts] = await Promise.all([
     getDashboardStats(),
@@ -53,149 +61,153 @@ export default async function AdminDashboard() {
 
   const getApartmentName = (id: string) => nameMap.get(id) ?? id;
 
+  const heute = new Date().toLocaleDateString("de-AT", {
+    weekday: "long",
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
+
+  const actionItems = [
+    {
+      label: "Offene Anfragen",
+      count: stats.pendingCount,
+      href: "/admin/buchungen?filter=pending",
+      tone: "amber",
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+      ),
+    },
+    {
+      label: "Ungelesene Nachrichten",
+      count: stats.unreadMessages,
+      href: "/admin/nachrichten",
+      tone: "blue",
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+        </svg>
+      ),
+    },
+    {
+      label: "Überfällige Zahlungen",
+      count: payments.overdueBookingCount,
+      href: "/admin/zahlungen?filter=overdue",
+      tone: "red",
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+        </svg>
+      ),
+    },
+    {
+      label: "Plattform-Auszahlungen",
+      count: platformPayouts.overdueCount,
+      href: "/admin/zahlungen",
+      tone: "red",
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.6}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0z" />
+        </svg>
+      ),
+    },
+  ];
+
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
-      {/* Page Header */}
-      <div className="flex items-start justify-between mb-8">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4 mb-8">
         <div>
-          <h1 className="text-2xl font-bold text-stone-900">Dashboard</h1>
-          <p className="text-stone-500 text-sm mt-1">
-            Willkommen im Admin-Bereich von Ferienhaus Rita
+          <p className="text-[11px] uppercase tracking-[0.2em] text-[#c8a96e] font-semibold mb-1">
+            Ferienhaus Rita
           </p>
+          <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight">
+            Übersicht
+          </h1>
+          <p className="text-stone-500 text-sm mt-1 capitalize">{heute}</p>
         </div>
         <ExportButton />
       </div>
 
-      {/* Hinweis: überfällige Plattform-Auszahlungen */}
-      {platformPayouts.overdueCount > 0 && (
-        <Link
-          href="/admin/zahlungen"
-          className="block mb-6 bg-red-50 border border-red-200 rounded-2xl px-5 py-4 hover:border-red-300 transition-colors"
-        >
-          <p className="text-sm font-semibold text-red-700">
-            {platformPayouts.overdueCount} Plattform-Auszahlung
-            {platformPayouts.overdueCount === 1 ? "" : "en"} fällig — Bankeingang prüfen
-          </p>
-          <p className="text-xs text-red-600 mt-0.5">
-            Externe Buchungen, deren erwartete Auszahlung überschritten ist. Jetzt prüfen und bestätigen →
-          </p>
-        </Link>
-      )}
-
-      {/* KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
-        <Link
-          href="/admin/buchungen?filter=pending"
-          className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-amber-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-stone-900">
-            {stats.pendingCount}
-          </p>
-          <p className="text-sm text-stone-500">Offene Anfragen</p>
-        </Link>
-
-        <div className="bg-white rounded-2xl p-5 border border-stone-200">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-emerald-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M14.25 7.756a4.5 4.5 0 100 8.488M7.5 10.5h5.25m-5.25 3h5.25M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-stone-900">
-            {formatCurrency(stats.monthRevenue)}
-          </p>
-          <p className="text-sm text-stone-500">Umsatz diesen Monat</p>
+      {/* Handlungsbedarf */}
+      <div className="mb-8">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 mb-2">
+          Handlungsbedarf
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {actionItems.map((a) => {
+            const active = a.count > 0;
+            const t = active ? TONES[a.tone] : IDLE;
+            return (
+              <Link
+                key={a.label}
+                href={a.href}
+                className={`flex items-center gap-3 rounded-2xl border p-4 transition-colors ${t.wrap}`}
+              >
+                <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${t.icon}`}>
+                  {a.icon}
+                </span>
+                <div className="min-w-0">
+                  <p className={`text-2xl font-bold tabular-nums leading-none ${t.num}`}>
+                    {a.count}
+                  </p>
+                  <p className="text-xs text-stone-500 mt-1 truncate">{a.label}</p>
+                </div>
+              </Link>
+            );
+          })}
         </div>
+      </div>
 
-        <Link
-          href="/admin/buchungen?filter=pending"
-          className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center">
-              <svg className="w-5 h-5 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
+      {/* Kennzahlen */}
+      <div className="mb-8">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-stone-400 mb-2">
+          Kennzahlen
+        </p>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          {/* Umsatz diesen Monat */}
+          <div className="relative bg-white rounded-2xl border border-stone-200 p-5 overflow-hidden">
+            <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#c8a96e] to-[#e3cda0]" />
+            <p className="text-xs uppercase tracking-wider text-stone-400">Umsatz diesen Monat</p>
+            <p className="mt-2 font-serif text-3xl font-bold text-stone-900 tabular-nums">
+              {formatCurrency(stats.monthRevenue)}
+            </p>
           </div>
-          <p className="text-2xl font-bold text-amber-600">
-            {formatCurrency(stats.pendingRevenue)}
-          </p>
-          <p className="text-sm text-stone-500">Offene Anfragen ({stats.pendingCount})</p>
-        </Link>
 
-        <Link
-          href="/admin/nachrichten"
-          className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-blue-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
-              </svg>
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-stone-900">
-            {stats.unreadMessages}
-          </p>
-          <p className="text-sm text-stone-500">Ungelesene Nachrichten</p>
-        </Link>
+          {/* Wert offener Anfragen */}
+          <Link
+            href="/admin/buchungen?filter=pending"
+            className="relative bg-white rounded-2xl border border-stone-200 p-5 overflow-hidden hover:border-[#c8a96e]/40 transition-colors"
+          >
+            <div className="absolute inset-x-0 top-0 h-1 bg-amber-300" />
+            <p className="text-xs uppercase tracking-wider text-stone-400">Wert offener Anfragen</p>
+            <p className="mt-2 font-serif text-3xl font-bold text-stone-900 tabular-nums">
+              {formatCurrency(stats.pendingRevenue)}
+            </p>
+            <p className="text-xs text-stone-400 mt-1">
+              {stats.pendingCount} {stats.pendingCount === 1 ? "Anfrage" : "Anfragen"}
+            </p>
+          </Link>
 
-        {/* Insgesamt offen \u2014 alle noch nicht bezahlten Betr\u00e4ge (auch zuk\u00fcnftig f\u00e4llige) */}
-        <Link
-          href="/admin/zahlungen"
-          className="bg-white rounded-2xl p-5 border border-stone-200 hover:border-[#c8a96e]/30 transition-colors"
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center">
-              <svg className="w-5 h-5 text-stone-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0115.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 013 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 00-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 01-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 003 15h-.75M15 10.5a3 3 0 11-6 0 3 3 0 016 0zm3 0h.008v.008H18V10.5zm-12 0h.008v.008H6V10.5z" />
-              </svg>
-            </div>
-          </div>
-          <p className="text-2xl font-bold text-stone-900">
-            {formatCurrency(payments.totalOutstanding)}
-          </p>
-          <p className="text-sm text-stone-500">Insgesamt offen</p>
-        </Link>
-
-        {/* \u00dcberf\u00e4llig \u2014 nur Anteile mit due_date < heute */}
-        <Link
-          href="/admin/zahlungen?filter=overdue"
-          className={`rounded-2xl p-5 border hover:border-[#c8a96e]/30 transition-colors ${
-            payments.totalOverdue > 0
-              ? "bg-red-50 border-red-200"
-              : "bg-white border-stone-200"
-          }`}
-        >
-          <div className="flex items-center gap-3 mb-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-              payments.totalOverdue > 0 ? "bg-red-100" : "bg-emerald-100"
-            }`}>
-              <svg className={`w-5 h-5 ${payments.totalOverdue > 0 ? "text-red-600" : "text-emerald-600"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
-              </svg>
-            </div>
-          </div>
-          <p className={`text-2xl font-bold ${payments.totalOverdue > 0 ? "text-red-600" : "text-stone-900"}`}>
-            {formatCurrency(payments.totalOverdue)}
-          </p>
-          <p className="text-sm text-stone-500">
-            {payments.totalOverdue > 0
-              ? `\u00dcberf\u00e4llig (${payments.overdueBookingCount} Buchung${
-                  payments.overdueBookingCount === 1 ? "" : "en"
-                })`
-              : "Nichts \u00fcberf\u00e4llig"}
-          </p>
-        </Link>
+          {/* Insgesamt offen */}
+          <Link
+            href="/admin/zahlungen"
+            className="relative bg-white rounded-2xl border border-stone-200 p-5 overflow-hidden hover:border-[#c8a96e]/40 transition-colors"
+          >
+            <div className={`absolute inset-x-0 top-0 h-1 ${payments.totalOverdue > 0 ? "bg-red-400" : "bg-stone-200"}`} />
+            <p className="text-xs uppercase tracking-wider text-stone-400">Insgesamt offen</p>
+            <p className="mt-2 font-serif text-3xl font-bold text-stone-900 tabular-nums">
+              {formatCurrency(payments.totalOutstanding)}
+            </p>
+            <p className={`text-xs mt-1 ${payments.totalOverdue > 0 ? "text-red-600 font-medium" : "text-stone-400"}`}>
+              {payments.totalOverdue > 0
+                ? `davon ${formatCurrency(payments.totalOverdue)} überfällig`
+                : "nichts überfällig"}
+            </p>
+          </Link>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
