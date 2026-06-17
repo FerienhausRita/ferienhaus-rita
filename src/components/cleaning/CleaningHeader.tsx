@@ -3,13 +3,16 @@
 import { createAuthBrowserClient } from "@/lib/supabase/auth-client";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import Link from "next/link";
 
 export default function CleaningHeader({
   userName,
   userEmail,
+  isAdmin = false,
 }: {
   userName: string;
   userEmail: string;
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
@@ -40,19 +43,32 @@ export default function CleaningHeader({
             <p className="text-sm font-medium text-stone-900 leading-tight truncate max-w-[12rem]">
               {userName}
             </p>
-            {userEmail && (
-              <p className="text-xs text-stone-500 leading-tight truncate max-w-[12rem]">
-                @{userEmail}
-              </p>
+            {isAdmin ? (
+              <p className="text-xs text-[#c8a96e] leading-tight">Admin-Ansicht</p>
+            ) : (
+              userEmail && (
+                <p className="text-xs text-stone-500 leading-tight truncate max-w-[12rem]">
+                  @{userEmail}
+                </p>
+              )
             )}
           </div>
-          <button
-            onClick={handleLogout}
-            disabled={busy}
-            className="text-xs px-3 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium transition disabled:opacity-50"
-          >
-            Abmelden
-          </button>
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              className="text-xs px-3 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium transition"
+            >
+              ← Admin-Dashboard
+            </Link>
+          ) : (
+            <button
+              onClick={handleLogout}
+              disabled={busy}
+              className="text-xs px-3 py-1.5 rounded-full bg-stone-100 hover:bg-stone-200 text-stone-700 font-medium transition disabled:opacity-50"
+            >
+              Abmelden
+            </button>
+          )}
         </div>
       </div>
     </header>

@@ -73,8 +73,16 @@ export async function middleware(request: NextRequest) {
   // Login-Seite ist öffentlich erreichbar (sonst Redirect-Schleife)
   const isCleaningLogin = path === "/reinigung/login";
 
-  // Eingeloggte, aktive Reinigungs-User von der Login-Seite wegleiten
+  // Eingeloggte, aktive Reinigungs-User (oder Admins) von der Login-Seite wegleiten
   if (isCleaningLogin && user) {
+    const { data: adminProfile } = await supabase
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+    if (adminProfile) {
+      return NextResponse.redirect(new URL("/reinigung", request.url));
+    }
     const { data: cleaningProfile } = await supabase
       .from("cleaning_profiles")
       .select("id, active")
@@ -96,23 +104,32 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(new URL("/reinigung/login", request.url));
     }
 
-    const { data: cleaningProfile } = await supabase
-      .from("cleaning_profiles")
-      .select("id, active")
+    // Admins haben immer Zugriff aufs Reinigungs-Portal — NICHT ausloggen.
+    const { data: adminProfile } = await supabase
+      .from("admin_profiles")
+      .select("id")
       .eq("id", user.id)
       .single();
 
-    if (!cleaningProfile || !cleaningProfile.active) {
-      if (path.startsWith("/api/")) {
-        return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    if (!adminProfile) {
+      const { data: cleaningProfile } = await supabase
+        .from("cleaning_profiles")
+        .select("id, active")
+        .eq("id", user.id)
+        .single();
+
+      if (!cleaningProfile || !cleaningProfile.active) {
+        if (path.startsWith("/api/")) {
+          return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+        }
+        await supabase.auth.signOut();
+        const loginUrl = new URL("/reinigung/login", request.url);
+        loginUrl.searchParams.set(
+          "error",
+          cleaningProfile && !cleaningProfile.active ? "disabled" : "unauthorized"
+        );
+        return NextResponse.redirect(loginUrl);
       }
-      await supabase.auth.signOut();
-      const loginUrl = new URL("/reinigung/login", request.url);
-      loginUrl.searchParams.set(
-        "error",
-        cleaningProfile && !cleaningProfile.active ? "disabled" : "unauthorized"
-      );
-      return NextResponse.redirect(loginUrl);
     }
   }
 

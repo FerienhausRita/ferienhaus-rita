@@ -127,6 +127,15 @@ export default async function ReinigungPage({
               ? "Reinigung am Anreisetag"
               : `${cleaningCfg.buffer_days} Tag${cleaningCfg.buffer_days === 1 ? "" : "e"} Puffer vor Anreise`}
           </p>
+          <Link
+            href="/reinigung"
+            className="inline-flex items-center gap-1 text-xs text-[#c8a96e] hover:text-[#b89555] font-medium mt-1.5"
+          >
+            Externes Reinigungs-Portal öffnen
+            <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14 5l7 7m0 0l-7 7m7-7H3" />
+            </svg>
+          </Link>
         </div>
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
           {/* View Toggle */}

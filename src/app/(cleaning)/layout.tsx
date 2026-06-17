@@ -28,13 +28,31 @@ export default async function CleaningLayout({
         .single()
     : { data: null };
 
+  // Admins dürfen das Portal ebenfalls sehen — ohne Cleaning-Profil.
+  const { data: adminProfile } = user && !profile
+    ? await supabase
+        .from("admin_profiles")
+        .select("display_name")
+        .eq("id", user.id)
+        .single()
+    : { data: null };
+
   const userName =
-    profile?.display_name || profile?.username || "Reinigung";
+    profile?.display_name ||
+    profile?.username ||
+    adminProfile?.display_name ||
+    "Reinigung";
 
   return (
     <div className="min-h-screen bg-stone-50">
-      {/* Header nur für eingeloggte Reinigungs-User (nicht auf der Login-Seite) */}
-      {profile && <CleaningHeader userName={userName} userEmail={profile.username ?? ""} />}
+      {/* Header für eingeloggte Reinigungs-User oder Admins (nicht auf der Login-Seite) */}
+      {(profile || adminProfile) && (
+        <CleaningHeader
+          userName={userName}
+          userEmail={profile?.username ?? ""}
+          isAdmin={!profile && !!adminProfile}
+        />
+      )}
       <main className="pb-12">{children}</main>
     </div>
   );
