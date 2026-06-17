@@ -123,7 +123,7 @@ export default async function AdminDashboard() {
           <p className="text-[11px] uppercase tracking-[0.2em] text-[#c8a96e] font-semibold mb-1">
             Ferienhaus Rita
           </p>
-          <h1 className="font-serif text-3xl font-bold text-stone-900 leading-tight">
+          <h1 className="text-2xl font-bold text-stone-900 leading-tight">
             Übersicht
           </h1>
           <p className="text-stone-500 text-sm mt-1 capitalize">{heute}</p>
@@ -171,7 +171,7 @@ export default async function AdminDashboard() {
           <div className="relative bg-white rounded-2xl border border-stone-200 p-5 overflow-hidden">
             <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-[#c8a96e] to-[#e3cda0]" />
             <p className="text-xs uppercase tracking-wider text-stone-400">Umsatz diesen Monat</p>
-            <p className="mt-2 font-serif text-3xl font-bold text-stone-900 tabular-nums">
+            <p className="mt-2 text-2xl font-bold text-stone-900 tabular-nums">
               {formatCurrency(stats.monthRevenue)}
             </p>
           </div>
@@ -183,7 +183,7 @@ export default async function AdminDashboard() {
           >
             <div className="absolute inset-x-0 top-0 h-1 bg-amber-300" />
             <p className="text-xs uppercase tracking-wider text-stone-400">Wert offener Anfragen</p>
-            <p className="mt-2 font-serif text-3xl font-bold text-stone-900 tabular-nums">
+            <p className="mt-2 text-2xl font-bold text-stone-900 tabular-nums">
               {formatCurrency(stats.pendingRevenue)}
             </p>
             <p className="text-xs text-stone-400 mt-1">
@@ -198,7 +198,7 @@ export default async function AdminDashboard() {
           >
             <div className={`absolute inset-x-0 top-0 h-1 ${payments.totalOverdue > 0 ? "bg-red-400" : "bg-stone-200"}`} />
             <p className="text-xs uppercase tracking-wider text-stone-400">Insgesamt offen</p>
-            <p className="mt-2 font-serif text-3xl font-bold text-stone-900 tabular-nums">
+            <p className="mt-2 text-2xl font-bold text-stone-900 tabular-nums">
               {formatCurrency(payments.totalOutstanding)}
             </p>
             <p className={`text-xs mt-1 ${payments.totalOverdue > 0 ? "text-red-600 font-medium" : "text-stone-400"}`}>

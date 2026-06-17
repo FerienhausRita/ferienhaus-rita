@@ -525,8 +525,10 @@ function TaxConfigSection({
 }: {
   taxConfig: PricingEditorProps["taxConfig"];
 }) {
-  const [localTax, setLocalTax] = useState(taxConfig.localTaxPerNight);
-  const [vatRate, setVatRate] = useState(taxConfig.vatRate);
+  // Als String halten, damit beim Tippen Zwischenstände ("2,", "2.6") nicht
+  // verworfen werden und ein Komma als Dezimaltrennzeichen erlaubt ist.
+  const [localTax, setLocalTax] = useState(String(taxConfig.localTaxPerNight));
+  const [vatRate, setVatRate] = useState(String(taxConfig.vatRate));
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState<{
     type: "success" | "error";
@@ -534,12 +536,23 @@ function TaxConfigSection({
   } | null>(null);
 
   const handleSave = async () => {
+    const localTaxNum = parseFloat(localTax.replace(",", "."));
+    const vatNum = parseFloat(vatRate.replace(",", "."));
+    if (!Number.isFinite(localTaxNum) || localTaxNum < 0) {
+      setStatus({ type: "error", message: "Ortstaxe: ungültiger Betrag" });
+      return;
+    }
+    if (!Number.isFinite(vatNum) || vatNum < 0 || vatNum > 1) {
+      setStatus({ type: "error", message: "MwSt.-Satz muss zwischen 0 und 1 liegen" });
+      return;
+    }
+
     setSaving(true);
     setStatus(null);
 
     const [r1, r2] = await Promise.all([
-      updateTaxConfig("local_tax", localTax),
-      updateTaxConfig("vat", vatRate),
+      updateTaxConfig("local_tax", localTaxNum),
+      updateTaxConfig("vat", vatNum),
     ]);
 
     if (r1.success && r2.success) {
@@ -562,11 +575,11 @@ function TaxConfigSection({
             Ortstaxe pro Person/Nacht
           </label>
           <input
-            type="number"
-            step="0.01"
-            min="0"
+            type="text"
+            inputMode="decimal"
             value={localTax}
-            onChange={(e) => setLocalTax(Number(e.target.value))}
+            onChange={(e) => setLocalTax(e.target.value)}
+            placeholder="z. B. 2,60"
             className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
           />
         </div>
@@ -575,12 +588,11 @@ function TaxConfigSection({
             MwSt.-Satz
           </label>
           <input
-            type="number"
-            step="0.01"
-            min="0"
-            max="1"
+            type="text"
+            inputMode="decimal"
             value={vatRate}
-            onChange={(e) => setVatRate(Number(e.target.value))}
+            onChange={(e) => setVatRate(e.target.value)}
+            placeholder="z. B. 0,10"
             className="w-full px-3 py-2 bg-stone-50 border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
           />
           <p className="text-xs text-stone-400 mt-1">

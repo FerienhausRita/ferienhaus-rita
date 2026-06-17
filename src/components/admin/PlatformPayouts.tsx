@@ -40,6 +40,10 @@ export default function PlatformPayouts({
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [amount, setAmount] = useState("");
 
+  const overdueCount = bookings.filter((b) => b.overdue).length;
+  // Standardmäßig eingeklappt — aber offen, wenn etwas überfällig ist.
+  const [open, setOpen] = useState(overdueCount > 0);
+
   if (bookings.length === 0) return null;
 
   const openConfirm = (b: PlatformPayoutBooking) => {
@@ -66,16 +70,36 @@ export default function PlatformPayouts({
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden mb-6">
-      <div className="px-5 py-4 border-b border-stone-100 flex items-center justify-between">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="w-full px-5 py-4 border-b border-stone-100 flex items-center justify-between text-left hover:bg-stone-50 transition-colors"
+      >
         <div>
           <h2 className="font-semibold text-stone-900">Plattform-Auszahlungen</h2>
           <p className="text-xs text-stone-500 mt-0.5">
             Externe Buchungen — Geldeingang prüfen und bestätigen
           </p>
         </div>
-        <span className="text-xs text-stone-500">{bookings.length} offen</span>
-      </div>
-      <div className="divide-y divide-stone-100">
+        <div className="flex items-center gap-3 shrink-0">
+          <span className="text-xs text-stone-500">{bookings.length} offen</span>
+          {overdueCount > 0 && (
+            <span className="text-xs px-2 py-0.5 rounded-full bg-red-100 text-red-700 font-medium">
+              {overdueCount} fällig
+            </span>
+          )}
+          <svg
+            className={`w-5 h-5 text-stone-400 transition-transform ${open ? "rotate-180" : ""}`}
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={1.5}
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5" />
+          </svg>
+        </div>
+      </button>
+      <div className={`divide-y divide-stone-100 ${open ? "" : "hidden"}`}>
         {bookings.map((b) => (
           <div
             key={b.id}
