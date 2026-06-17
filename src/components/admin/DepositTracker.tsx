@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit, recalculateDepositPlan } from "@/app/(admin)/admin/actions";
 import { useRouter } from "next/navigation";
+import SendReminderButton from "@/components/admin/SendReminderButton";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("de-AT", {
@@ -426,6 +427,16 @@ export default function DepositTracker({
                 {loading === "deposit" ? "..." : "Als bezahlt markieren"}
               </button>
             )}
+            {depositOverdue && (
+              <div className="mt-2">
+                <SendReminderButton
+                  bookingId={bookingId}
+                  bucket="deposit"
+                  label="Zahlungserinnerung senden"
+                  className="w-full py-1.5 px-3 rounded-lg text-xs font-medium border border-[#c8a96e] text-[#c8a96e] hover:bg-[#c8a96e] hover:text-white transition-colors disabled:opacity-50"
+                />
+              </div>
+            )}
           </div>
         )}
 
@@ -476,6 +487,16 @@ export default function DepositTracker({
             )}
             {!remainderPaidAt && !depositPaidAt && (
               <p className="mt-1 text-xs text-stone-400 italic">Erst Anzahlung markieren</p>
+            )}
+            {remainderOverdue && (
+              <div className="mt-2">
+                <SendReminderButton
+                  bookingId={bookingId}
+                  bucket="remainder"
+                  label="Zahlungserinnerung senden"
+                  className="w-full py-1.5 px-3 rounded-lg text-xs font-medium border border-[#c8a96e] text-[#c8a96e] hover:bg-[#c8a96e] hover:text-white transition-colors disabled:opacity-50"
+                />
+              </div>
             )}
           </div>
         )}

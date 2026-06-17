@@ -1310,6 +1310,153 @@ export async function updateBookingChannel(bookingId: string, channel: string) {
 }
 
 /**
+ * Versendet eine Zahlungserinnerung (Anzahlung oder Restbetrag) für eine
+ * konkrete Buchung. Der Betrag wird DYNAMISCH aus der DB ermittelt
+ * (offener Bucket = Soll − bereits verbuchte Zahlungen), ebenso Fälligkeit
+ * und Bankdaten. Manuell auslösbar bei überfälligen/offenen Zahlungen.
+ */
+export async function sendBookingPaymentReminder(
+  bookingId: string,
+  bucket: "deposit" | "remainder"
+) {
+  const supabase = createServerClient();
+  const { data: b } = await supabase
+    .from("bookings")
+    .select("*")
+    .eq("id", bookingId)
+    .single();
+  if (!b) return { success: false, error: "Buchung nicht gefunden" };
+
+  const channel = (b.source_channel as string | null) ?? "Website";
+  if (channel !== "Website") {
+    return { success: false, error: "Externe Buchung — Zahlung läuft über die Plattform" };
+  }
+  if (!b.email) return { success: false, error: "Keine E-Mail-Adresse hinterlegt" };
+
+  const apartment = await getApartmentWithPricing(b.apartment_id);
+  if (!apartment) return { success: false, error: "Wohnung nicht gefunden" };
+
+  const { data: bankRow } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "bank_details")
+    .single();
+  const bankDetails = normalizeBankDetails(
+    bankRow?.value as Record<string, unknown> | null | undefined
+  );
+  if (!bankDetails) return { success: false, error: "Bankdaten nicht konfiguriert" };
+
+  // Offene Beträge dynamisch aus der DB
+  const { data: pays } = await supabase
+    .from("booking_payments")
+    .select("applies_to, amount")
+    .eq("booking_id", bookingId);
+  let paidDeposit = 0;
+  let paidRemainder = 0;
+  for (const p of pays ?? []) {
+    if (p.applies_to === "deposit") paidDeposit += Number(p.amount || 0);
+    else if (p.applies_to === "remainder") paidRemainder += Number(p.amount || 0);
+  }
+  const depositOpen = b.deposit_paid_at
+    ? 0
+    : Math.max(0, Number(b.deposit_amount || 0) - paidDeposit);
+  const remainderOpen = b.remainder_paid_at
+    ? 0
+    : Math.max(0, Number(b.remainder_amount || 0) - paidRemainder);
+
+  const total = Number(b.total_price);
+  const localTax = Number(b.local_tax_total || 0);
+  const baseGuests = (apartment as { baseGuests?: number }).baseGuests ?? 2;
+  const extraGuests = Math.max(0, b.adults + (b.children ?? 0) - baseGuests);
+  const bookingData = {
+    id: b.id,
+    firstName: b.first_name,
+    lastName: b.last_name,
+    email: b.email,
+    phone: b.phone,
+    street: b.street,
+    zip: b.zip,
+    city: b.city,
+    country: b.country,
+    notes: b.notes || "",
+    checkIn: new Date(b.check_in),
+    checkOut: new Date(b.check_out),
+    adults: b.adults,
+    children: b.children,
+    infants: b.infants ?? 0,
+    dogs: b.dogs,
+    nights: b.nights,
+    totalPrice: total,
+    pricePerNight: Number(b.price_per_night),
+    extraGuestsTotal: Number(b.extra_guests_total || 0),
+    dogsTotal: Number(b.dogs_total || 0),
+    cleaningFee: Number(b.cleaning_fee || 0),
+    localTaxTotal: localTax,
+    vatAmount: ((total - localTax) / 1.1) * 0.1,
+    extraGuests,
+    extraPersonPrice: apartment.extraAdultPrice ?? apartment.extraPersonPrice,
+    dogFeePerNight: apartment.firstDogFee ?? apartment.dogFee,
+    firstDogFee: apartment.firstDogFee ?? apartment.dogFee,
+    additionalDogFee: apartment.additionalDogFee ?? 7.5,
+  };
+
+  const today = new Date().toISOString().split("T")[0];
+  const email = await import("@/lib/email");
+  type EmailBooking = Parameters<typeof email.sendDepositReminder>[0];
+  type EmailApartment = Parameters<typeof email.sendDepositReminder>[1];
+
+  try {
+    if (bucket === "deposit") {
+      if (depositOpen <= 0.01) {
+        return { success: false, error: "Anzahlung ist bereits bezahlt" };
+      }
+      await email.sendDepositReminder(
+        bookingData as EmailBooking,
+        apartment as unknown as EmailApartment,
+        bankDetails,
+        depositOpen,
+        (b.deposit_due_date as string) || today
+      );
+    } else {
+      if (remainderOpen <= 0.01) {
+        return { success: false, error: "Restbetrag ist bereits bezahlt" };
+      }
+      await email.sendRemainderReminder(
+        bookingData as EmailBooking,
+        apartment as unknown as EmailApartment,
+        bankDetails,
+        remainderOpen,
+        (b.remainder_due_date as string) || today
+      );
+    }
+  } catch (e) {
+    return {
+      success: false,
+      error: e instanceof Error ? e.message : "Versand fehlgeschlagen",
+    };
+  }
+
+  // In der Mail-Timeline protokollieren (best effort)
+  await supabase
+    .from("email_schedule")
+    .insert({
+      booking_id: bookingId,
+      email_type: bucket === "deposit" ? "deposit_reminder" : "remainder_reminder",
+      scheduled_for: new Date().toISOString(),
+      status: "sent",
+      sent_at: new Date().toISOString(),
+    })
+    .then(
+      () => {},
+      () => {}
+    );
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  return { success: true };
+}
+
+/**
  * Liste offener Plattform-Auszahlungen (externe Buchungen, payment_status =
  * 'platform_pending'). Markiert überfällige (erwartetes Datum überschritten).
  */

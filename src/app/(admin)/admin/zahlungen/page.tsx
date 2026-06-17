@@ -3,6 +3,7 @@ import Link from "next/link";
 import { getPaymentOverview, getPlatformPayouts } from "../actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
 import PlatformPayouts from "@/components/admin/PlatformPayouts";
+import SendReminderButton from "@/components/admin/SendReminderButton";
 
 export const metadata: Metadata = {
   title: "Zahlungen",
@@ -262,7 +263,8 @@ export default async function ZahlungenPage({
               paid: number,
               done: boolean,
               overdue: boolean,
-              dueDate: string | null | undefined
+              dueDate: string | null | undefined,
+              bucket: "deposit" | "remainder"
             ) => {
               if (amount === 0) return null;
               const hasPayments = paid > 0.01;
@@ -275,24 +277,36 @@ export default async function ZahlungenPage({
               const icon = done ? "✓" : partial ? "🟠" : overdue ? "⚠" : null;
 
               return (
-                <div className="flex items-center justify-between gap-3 py-1.5 text-sm">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="text-stone-500 w-20 shrink-0">{label}</span>
-                    {dueDate && (
-                      <span className={`text-xs ${overdue ? "text-red-500" : "text-stone-400"}`}>
-                        f&auml;llig {formatDate(dueDate)}
-                      </span>
-                    )}
+                <div className="py-1.5 text-sm">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-baseline gap-2 min-w-0">
+                      <span className="text-stone-500 w-20 shrink-0">{label}</span>
+                      {dueDate && (
+                        <span className={`text-xs ${overdue ? "text-red-500" : "text-stone-400"}`}>
+                          f&auml;llig {formatDate(dueDate)}
+                        </span>
+                      )}
+                    </div>
+                    <div className={`flex items-center gap-1.5 font-medium whitespace-nowrap ${amountColor}`}>
+                      {partial && (
+                        <span className="text-xs text-stone-500 font-normal">
+                          {formatCurrency(paid)} von
+                        </span>
+                      )}
+                      <span>{formatCurrency(amount)}</span>
+                      {icon && <span className="text-base">{icon}</span>}
+                    </div>
                   </div>
-                  <div className={`flex items-center gap-1.5 font-medium whitespace-nowrap ${amountColor}`}>
-                    {partial && (
-                      <span className="text-xs text-stone-500 font-normal">
-                        {formatCurrency(paid)} von
-                      </span>
-                    )}
-                    <span>{formatCurrency(amount)}</span>
-                    {icon && <span className="text-base">{icon}</span>}
-                  </div>
+                  {overdue && !done && (
+                    <div className="flex justify-end mt-1.5">
+                      <SendReminderButton
+                        bookingId={b.id}
+                        bucket={bucket}
+                        label="Erinnerung senden"
+                        className="text-xs px-3 py-1 rounded-lg border border-[#c8a96e] text-[#c8a96e] hover:bg-[#c8a96e] hover:text-white font-medium transition-colors disabled:opacity-50 whitespace-nowrap"
+                      />
+                    </div>
+                  )}
                 </div>
               );
             };
@@ -324,8 +338,8 @@ export default async function ZahlungenPage({
 
                 {/* Buckets */}
                 <div className="divide-y divide-stone-100 border-t border-stone-100 pt-1">
-                  {bucketRow("Anzahlung", depositAmount, depositPaid, depositDone, depositOverdue, b.deposit_due_date)}
-                  {bucketRow("Restbetrag", remainderAmount, remainderPaid, remainderDone, remainderOverdue, b.remainder_due_date)}
+                  {bucketRow("Anzahlung", depositAmount, depositPaid, depositDone, depositOverdue, b.deposit_due_date, "deposit")}
+                  {bucketRow("Restbetrag", remainderAmount, remainderPaid, remainderDone, remainderOverdue, b.remainder_due_date, "remainder")}
                 </div>
 
                 {/* Footer total */}
