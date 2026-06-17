@@ -677,7 +677,7 @@ export default function SettingsPanel({
       setCleaningUserList((prev) => [
         ...prev,
         {
-          id: `tmp-${Date.now()}`,
+          id: result.id ?? `tmp-${Date.now()}`,
           display_name: cleaningInviteName.trim(),
           username: uname,
           email: "",

@@ -2408,7 +2408,7 @@ export async function createCleaningUser(
   }
 
   revalidatePath("/admin/einstellungen");
-  return { success: true, username: uname };
+  return { success: true, username: uname, id: data.user.id };
 }
 
 /**
