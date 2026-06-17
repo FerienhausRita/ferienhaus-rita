@@ -3361,6 +3361,10 @@ export async function updateBookingDetails(
 
   if (updateError) return { success: false, error: updateError.message };
 
+  // Überdeckung (z. B. nachträgliche Ortstaxe bei bezahlter Buchung) wieder
+  // als offenen Restbetrag darstellen.
+  await reconcileOverageAfterTotalChange(supabase, bookingId);
+
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin/buchungen");
   revalidatePath("/admin");
@@ -4260,8 +4264,12 @@ export async function updateBookingPrices(
         .update({ remainder_amount: newRemainder })
         .eq("id", bookingId);
     }
-    // beides bezahlt → unverändert lassen
+    // beides bezahlt → ggf. Überdeckung als offenen Restbetrag darstellen
   }
+
+  // Falls der neue Gesamtpreis über die bereits bezahlte Plan-Summe steigt
+  // (z. B. nachträgliche Ortstaxe bei voll bezahlter Buchung).
+  await reconcileOverageAfterTotalChange(supabase, bookingId);
 
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin/buchungen");
@@ -4328,6 +4336,72 @@ export async function recalculateBookingPricesAction(bookingId: string) {
  * konfigurationsbasierten Werte (Grundpreis, Saison, Ortstaxe) — nur die Summe.
  * Wird von den Lesemodus-Positionsaktionen genutzt.
  */
+/**
+ * Wenn der Gesamtpreis nach einer (Teil-)Zahlung über die bereits bezahlte
+ * Plan-Summe (Anzahlung + Restbetrag) steigt — z. B. nachträglich
+ * hinzugefügte Ortstaxe — wird die Differenz wieder als offener Restbetrag
+ * dargestellt. Der bereits bezahlte Restbetrag bleibt als Ledger-Eintrag
+ * erhalten, sodass nur die Differenz offen erscheint.
+ * Idempotent: ohne Überdeckung passiert nichts.
+ */
+async function reconcileOverageAfterTotalChange(
+  supabase: ReturnType<typeof createServerClient>,
+  bookingId: string
+) {
+  const { data: b } = await supabase
+    .from("bookings")
+    .select(
+      "total_price, deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status, remainder_due_date, check_in"
+    )
+    .eq("id", bookingId)
+    .single();
+  if (!b) return;
+
+  const total = Number(b.total_price || 0);
+  const dep = Number(b.deposit_amount || 0);
+  const rem = Number(b.remainder_amount || 0);
+  const uncovered = Math.round((total - (dep + rem)) * 100) / 100;
+
+  const anyPaid = !!b.deposit_paid_at || !!b.remainder_paid_at;
+  // Nur eingreifen, wenn schon etwas bezahlt wurde UND der Plan den neuen
+  // Gesamtpreis nicht mehr deckt. Unbezahlte Buchungen regeln die normalen
+  // Split-/Recompute-Pfade.
+  if (!anyPaid || uncovered <= 0.01) return;
+
+  // Bereits bezahlten Restbetrag als Ledger-Eintrag sichern (falls per
+  // Toggle bezahlt und noch kein Eintrag existiert), damit nur die Differenz
+  // offen erscheint.
+  if (b.remainder_paid_at && rem > 0.01) {
+    const { data: remLedger } = await supabase
+      .from("booking_payments")
+      .select("id")
+      .eq("booking_id", bookingId)
+      .eq("applies_to", "remainder")
+      .limit(1);
+    if (!remLedger || remLedger.length === 0) {
+      await supabase.from("booking_payments").insert({
+        booking_id: bookingId,
+        amount: rem,
+        paid_at: new Date().toISOString().split("T")[0],
+        method: "other",
+        applies_to: "remainder",
+        note: "Automatisch erfasst: vor nachträglicher Preisänderung bereits bezahlt",
+      });
+    }
+  }
+
+  await supabase
+    .from("bookings")
+    .update({
+      remainder_amount: Math.round((rem + uncovered) * 100) / 100,
+      remainder_due_date:
+        b.remainder_due_date ?? new Date().toISOString().split("T")[0],
+      remainder_paid_at: null,
+      payment_status: "deposit_paid",
+    })
+    .eq("id", bookingId);
+}
+
 async function recomputeBookingTotalAndPayments(
   supabase: ReturnType<typeof createServerClient>,
   bookingId: string
@@ -4391,6 +4465,10 @@ async function recomputeBookingTotalAndPayments(
   }
 
   await supabase.from("bookings").update(update).eq("id", bookingId);
+  // Falls der neue Gesamtpreis über die bereits bezahlte Plan-Summe steigt
+  // (z. B. nachträgliche Ortstaxe bei voll bezahlter Buchung), Differenz
+  // wieder als offenen Restbetrag darstellen.
+  await reconcileOverageAfterTotalChange(supabase, bookingId);
   return total;
 }
 

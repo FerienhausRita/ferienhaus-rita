@@ -84,15 +84,20 @@ export default function DepositTracker({
   const remainderPercent =
     totalPrice > 0 ? Math.round((remainderAmount / totalPrice) * 100) : 0;
 
-  // Running totals from ledger
+  // Verbuchte Zahlungen aus dem Ledger (booking_payments)
   const depositPaidSum = payments
     .filter((p) => p.applies_to === "deposit")
     .reduce((s, p) => s + Number(p.amount || 0), 0);
   const remainderPaidSum = payments
     .filter((p) => p.applies_to === "remainder")
     .reduce((s, p) => s + Number(p.amount || 0), 0);
-  const depositOpen = Math.max(0, depositAmount - depositPaidSum);
-  const remainderOpen = Math.max(0, remainderAmount - remainderPaidSum);
+
+  // Effektiv bezahlt je Bucket: per Flag bezahlt → voller Bucket-Betrag,
+  // sonst die im Ledger verbuchte Summe. (Konsistent für ALLE Anzeigen.)
+  const depositPaidEffective = depositPaidAt ? depositAmount : depositPaidSum;
+  const remainderPaidEffective = remainderPaidAt ? remainderAmount : remainderPaidSum;
+  const depositOpen = Math.max(0, depositAmount - depositPaidEffective);
+  const remainderOpen = Math.max(0, remainderAmount - remainderPaidEffective);
 
   const today = new Date().toISOString().split("T")[0];
   const depositOverdue = depositDueDate && depositDueDate < today && !depositPaidAt;
@@ -256,8 +261,9 @@ export default function DepositTracker({
   };
 
   // Progress calculation
-  const paidAmount = (depositPaidAt ? depositAmount : 0) + (remainderPaidAt ? remainderAmount : 0);
-  const progressPercent = totalPrice > 0 ? Math.round((paidAmount / totalPrice) * 100) : 0;
+  const paidAmount = depositPaidEffective + remainderPaidEffective;
+  const progressPercent = totalPrice > 0 ? Math.min(100, Math.round((paidAmount / totalPrice) * 100)) : 0;
+  const overpaid = Math.round((paidAmount - totalPrice) * 100) / 100;
 
   // Suggest remaining amount for manual payment
   const suggestedAmount = !depositPaidAt
@@ -372,6 +378,11 @@ export default function DepositTracker({
             <span>{formatCurrency(paidAmount)} bezahlt</span>
             <span>{formatCurrency(totalPrice)} gesamt</span>
           </div>
+          {overpaid > 0.01 && (
+            <div className="mb-1.5 rounded-lg bg-amber-50 border border-amber-200 px-2.5 py-1.5 text-xs text-amber-800">
+              ⚠ Überzahlung: {formatCurrency(overpaid)} mehr bezahlt als der aktuelle Gesamtpreis.
+            </div>
+          )}
           <div className="h-2 bg-stone-100 rounded-full overflow-hidden">
             <div
               className={`h-full rounded-full transition-all ${
