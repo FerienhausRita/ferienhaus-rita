@@ -1222,20 +1222,49 @@ export async function getPlatformPayouts() {
 
 /**
  * Bestätigt den Geldeingang einer Plattform-Auszahlung → Status 'paid'.
+ * payoutAmount = tatsächlich erhaltener Netto-Betrag (nach Plattform-Gebühr).
  */
-export async function confirmPlatformPayout(bookingId: string) {
+export async function confirmPlatformPayout(
+  bookingId: string,
+  payoutAmount?: number
+) {
   const supabase = createServerClient();
+  const update: Record<string, unknown> = {
+    payment_status: "paid",
+    payout_confirmed_at: new Date().toISOString(),
+  };
+  if (payoutAmount !== undefined && Number.isFinite(payoutAmount)) {
+    update.payout_amount = Math.round(payoutAmount * 100) / 100;
+  }
   const { error } = await supabase
     .from("bookings")
-    .update({
-      payment_status: "paid",
-      payout_confirmed_at: new Date().toISOString(),
-    })
+    .update(update)
     .eq("id", bookingId)
     .eq("payment_status", "platform_pending");
   if (error) return { success: false, error: error.message };
   revalidatePath("/admin/zahlungen");
   revalidatePath("/admin");
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  return { success: true };
+}
+
+/**
+ * Aktualisiert nur den Netto-Auszahlungsbetrag (z. B. Korrektur im Nachhinein).
+ */
+export async function updatePlatformPayoutAmount(
+  bookingId: string,
+  payoutAmount: number
+) {
+  if (!Number.isFinite(payoutAmount) || payoutAmount < 0) {
+    return { success: false, error: "Betrag ungültig" };
+  }
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("bookings")
+    .update({ payout_amount: Math.round(payoutAmount * 100) / 100 })
+    .eq("id", bookingId);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/zahlungen");
   revalidatePath(`/admin/buchungen/${bookingId}`);
   return { success: true };
 }

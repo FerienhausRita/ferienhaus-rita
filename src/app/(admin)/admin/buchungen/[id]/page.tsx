@@ -223,6 +223,12 @@ export default async function BookingDetailPage({
                 paymentStatus={booking.payment_status}
                 channel={booking.source_channel}
                 expectedPayoutDate={(booking as { expected_payout_date?: string | null }).expected_payout_date ?? null}
+                totalPrice={Number(booking.total_price || 0)}
+                payoutAmount={
+                  (booking as { payout_amount?: number | null }).payout_amount != null
+                    ? Number((booking as { payout_amount?: number | null }).payout_amount)
+                    : null
+                }
               />
             </div>
           </div>

@@ -37,21 +37,31 @@ export default function PlatformPayouts({
 }) {
   const router = useRouter();
   const [busy, setBusy] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+  const [amount, setAmount] = useState("");
 
   if (bookings.length === 0) return null;
 
+  const openConfirm = (b: PlatformPayoutBooking) => {
+    setConfirmId(b.id);
+    setAmount(Number(b.total_price).toFixed(2)); // vorausgefüllt mit Buchungswert
+  };
+
   const handleConfirm = async (b: PlatformPayoutBooking) => {
-    if (
-      !confirm(
-        `Auszahlung für ${b.first_name} ${b.last_name} (${b.source_channel}) als erhalten markieren? Die Buchung gilt dann als bezahlt.`
-      )
-    )
+    const net = parseFloat(amount);
+    if (!Number.isFinite(net) || net < 0) {
+      alert("Bitte einen gültigen Auszahlungsbetrag eingeben.");
       return;
+    }
     setBusy(b.id);
-    const r = await confirmPlatformPayout(b.id);
+    const r = await confirmPlatformPayout(b.id, net);
     setBusy(null);
-    if (r.success) router.refresh();
-    else alert(`Fehler: ${r.error}`);
+    if (r.success) {
+      setConfirmId(null);
+      router.refresh();
+    } else {
+      alert(`Fehler: ${r.error}`);
+    }
   };
 
   return (
@@ -96,16 +106,42 @@ export default function PlatformPayouts({
               </p>
             </div>
             <div className="flex items-center gap-3 shrink-0">
-              <span className="font-semibold text-stone-900 text-sm">
+              <span className="font-semibold text-stone-900 text-sm" title="Buchungswert (brutto)">
                 {formatCurrency(Number(b.total_price))}
               </span>
-              <button
-                onClick={() => handleConfirm(b)}
-                disabled={busy === b.id}
-                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-medium transition disabled:opacity-50"
-              >
-                {busy === b.id ? "..." : "Auszahlung erhalten"}
-              </button>
+              {confirmId === b.id ? (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-stone-500">Erhalten:</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={amount}
+                    onChange={(e) => setAmount(e.target.value)}
+                    autoFocus
+                    className="w-24 text-right rounded-lg border border-stone-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"
+                  />
+                  <button
+                    onClick={() => handleConfirm(b)}
+                    disabled={busy === b.id}
+                    className="text-xs px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition disabled:opacity-50"
+                  >
+                    {busy === b.id ? "..." : "OK"}
+                  </button>
+                  <button
+                    onClick={() => setConfirmId(null)}
+                    className="text-xs px-2 py-1.5 text-stone-500 hover:text-stone-700"
+                  >
+                    ✕
+                  </button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => openConfirm(b)}
+                  className="text-xs px-3 py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-medium transition"
+                >
+                  Auszahlung erhalten
+                </button>
+              )}
             </div>
           </div>
         ))}
