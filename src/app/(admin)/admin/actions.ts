@@ -979,18 +979,26 @@ export async function recordManualPayment(
     updateData.remainder_paid_at = paidAtIso;
   }
 
-  // Compute new overall payment_status
-  const depositDone =
-    (updateData.deposit_paid_at || booking.deposit_paid_at) ||
-    depositAmount === 0;
-  const remainderDone =
-    (updateData.remainder_paid_at || booking.remainder_paid_at) ||
-    remainderAmount === 0;
-
-  if (depositDone && remainderDone) {
-    updateData.payment_status = "paid";
-  } else if (depositDone) {
-    updateData.payment_status = "deposit_paid";
+  // Gesamtstatus aus dem tatsächlich bezahlten Betrag vs. Gesamtpreis
+  // ableiten (Single Source of Truth = total_price). Deckt auch den Fall ab,
+  // dass der Restbetrag vor der Anzahlung beglichen wird.
+  const depPaidEff =
+    updateData.deposit_paid_at || booking.deposit_paid_at
+      ? depositAmount
+      : depositPaidSoFar;
+  const remPaidEff =
+    updateData.remainder_paid_at || booking.remainder_paid_at
+      ? remainderAmount
+      : remainderPaidSoFar;
+  const paidTotal = Math.round((depPaidEff + remPaidEff) * 100) / 100;
+  const target = Number(booking.total_price || 0);
+  if (target > 0) {
+    updateData.payment_status =
+      paidTotal >= target - 0.01
+        ? "paid"
+        : paidTotal > 0.01
+        ? "deposit_paid"
+        : "unpaid";
   }
 
   if (Object.keys(updateData).length > 0) {
