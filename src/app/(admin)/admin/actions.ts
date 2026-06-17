@@ -4379,10 +4379,15 @@ async function reconcileOverageAfterTotalChange(
       .eq("applies_to", "remainder")
       .limit(1);
     if (!remLedger || remLedger.length === 0) {
+      // Ursprüngliches Zahldatum erhalten (für korrekten Audit-Trail),
+      // Fallback heute.
+      const paidDate =
+        (b.remainder_paid_at as string | null)?.split("T")[0] ??
+        new Date().toISOString().split("T")[0];
       await supabase.from("booking_payments").insert({
         booking_id: bookingId,
         amount: rem,
-        paid_at: new Date().toISOString().split("T")[0],
+        paid_at: paidDate,
         method: "other",
         applies_to: "remainder",
         note: "Automatisch erfasst: vor nachträglicher Preisänderung bereits bezahlt",
