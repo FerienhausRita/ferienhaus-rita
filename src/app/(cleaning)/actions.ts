@@ -26,13 +26,21 @@ export async function getCleaningBookings(): Promise<CleaningBooking[]> {
   } = await supabase.auth.getUser();
   if (!user) throw new Error("Unauthorized");
 
-  // Auth-Check: cleaning_profile + active
+  // Auth-Check: aktives cleaning_profile ODER Admin (Admins dürfen das Portal sehen)
   const { data: profile } = await supabase
     .from("cleaning_profiles")
     .select("id, active")
     .eq("id", user.id)
     .single();
-  if (!profile || !profile.active) throw new Error("Forbidden");
+
+  if (!profile || !profile.active) {
+    const { data: adminProfile } = await supabase
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+    if (!adminProfile) throw new Error("Forbidden");
+  }
 
   const { data, error } = await supabase
     .from("cleaning_bookings")
