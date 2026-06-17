@@ -70,15 +70,30 @@ export async function middleware(request: NextRequest) {
   // ============================================
   // CLEANING ROUTES
   // ============================================
-  const isCleaningRoute = path.startsWith("/reinigung") || path.startsWith("/api/cleaning");
+  // Login-Seite ist öffentlich erreichbar (sonst Redirect-Schleife)
+  const isCleaningLogin = path === "/reinigung/login";
+
+  // Eingeloggte, aktive Reinigungs-User von der Login-Seite wegleiten
+  if (isCleaningLogin && user) {
+    const { data: cleaningProfile } = await supabase
+      .from("cleaning_profiles")
+      .select("id, active")
+      .eq("id", user.id)
+      .single();
+    if (cleaningProfile && cleaningProfile.active) {
+      return NextResponse.redirect(new URL("/reinigung", request.url));
+    }
+  }
+
+  const isCleaningRoute =
+    (path.startsWith("/reinigung") && !isCleaningLogin) ||
+    path.startsWith("/api/cleaning");
   if (isCleaningRoute) {
     if (!user) {
       if (path.startsWith("/api/")) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-      const loginUrl = new URL("/auth/login", request.url);
-      loginUrl.searchParams.set("redirect", path);
-      return NextResponse.redirect(loginUrl);
+      return NextResponse.redirect(new URL("/reinigung/login", request.url));
     }
 
     const { data: cleaningProfile } = await supabase
@@ -92,7 +107,7 @@ export async function middleware(request: NextRequest) {
         return NextResponse.json({ error: "Forbidden" }, { status: 403 });
       }
       await supabase.auth.signOut();
-      const loginUrl = new URL("/auth/login", request.url);
+      const loginUrl = new URL("/reinigung/login", request.url);
       loginUrl.searchParams.set(
         "error",
         cleaningProfile && !cleaningProfile.active ? "disabled" : "unauthorized"

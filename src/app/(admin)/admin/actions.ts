@@ -2324,7 +2324,7 @@ export async function getCleaningProfiles() {
   const supabase = createServerClient();
   const { data, error } = await supabase
     .from("cleaning_profiles")
-    .select("id, display_name, email, active, created_at")
+    .select("id, display_name, username, email, active, created_at")
     .order("created_at", { ascending: true });
   if (error) {
     console.error("Error fetching cleaning profiles:", error);
@@ -2333,36 +2333,99 @@ export async function getCleaningProfiles() {
   return data ?? [];
 }
 
-export async function inviteCleaningUser(email: string, displayName: string) {
+/**
+ * Legt einen Reinigungs-Zugang mit Benutzername + Passwort an.
+ * Kein Mailversand — das Konto wird direkt bestätigt erstellt.
+ */
+export async function createCleaningUser(
+  username: string,
+  displayName: string,
+  password: string
+) {
+  const {
+    isValidCleaningUsername,
+    cleaningUsernameToEmail,
+    normalizeCleaningUsername,
+  } = await import("@/lib/cleaning-auth");
+
+  const uname = normalizeCleaningUsername(username);
+  if (!isValidCleaningUsername(uname)) {
+    return {
+      success: false,
+      error:
+        "Benutzername ungültig: 3–40 Zeichen, nur Kleinbuchstaben, Ziffern und . _ -",
+    };
+  }
+  if (!password || password.length < 6) {
+    return { success: false, error: "Passwort muss mindestens 6 Zeichen haben" };
+  }
+
   const supabase = createServerClient();
   const authClient = createAuthServerClient();
   const {
     data: { user: inviter },
   } = await authClient.auth.getUser();
 
-  const siteUrl =
-    process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
+  // Benutzername bereits vergeben?
+  const { data: existing } = await supabase
+    .from("cleaning_profiles")
+    .select("id")
+    .ilike("username", uname)
+    .maybeSingle();
+  if (existing) {
+    return { success: false, error: "Benutzername ist bereits vergeben" };
+  }
 
-  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
-    data: { display_name: displayName },
-    redirectTo: `${siteUrl}/auth/callback`,
+  const email = cleaningUsernameToEmail(uname);
+
+  const { data, error } = await supabase.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { display_name: displayName.trim() },
   });
-  if (error) return { success: false, error: error.message };
+  if (error || !data.user) {
+    return {
+      success: false,
+      error: error?.message ?? "Konto konnte nicht erstellt werden",
+    };
+  }
 
-  if (data.user) {
-    const { error: profileError } = await supabase
-      .from("cleaning_profiles")
-      .insert({
-        id: data.user.id,
-        display_name: displayName.trim(),
-        email: email.trim().toLowerCase(),
-        active: true,
-        invited_by: inviter?.id ?? null,
-      });
-    if (profileError) return { success: false, error: profileError.message };
+  const { error: profileError } = await supabase
+    .from("cleaning_profiles")
+    .insert({
+      id: data.user.id,
+      username: uname,
+      display_name: displayName.trim(),
+      email,
+      active: true,
+      invited_by: inviter?.id ?? null,
+    });
+  if (profileError) {
+    // Rollback: Auth-User wieder entfernen, damit kein Waise zurückbleibt
+    await supabase.auth.admin.deleteUser(data.user.id).catch(() => {});
+    return { success: false, error: profileError.message };
   }
 
   revalidatePath("/admin/einstellungen");
+  return { success: true, username: uname };
+}
+
+/**
+ * Setzt das Passwort eines Reinigungs-Zugangs neu.
+ */
+export async function resetCleaningUserPassword(
+  userId: string,
+  newPassword: string
+) {
+  if (!newPassword || newPassword.length < 6) {
+    return { success: false, error: "Passwort muss mindestens 6 Zeichen haben" };
+  }
+  const supabase = createServerClient();
+  const { error } = await supabase.auth.admin.updateUserById(userId, {
+    password: newPassword,
+  });
+  if (error) return { success: false, error: error.message };
   return { success: true };
 }
 

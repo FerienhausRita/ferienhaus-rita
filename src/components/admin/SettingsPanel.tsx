@@ -16,7 +16,8 @@ import {
   sendBookingsExportEmailNow,
   sendTestEmail,
   type TestEmailType,
-  inviteCleaningUser,
+  createCleaningUser,
+  resetCleaningUserPassword,
   setCleaningUserActive,
   removeCleaningUser,
 } from "@/app/(admin)/admin/actions";
@@ -164,6 +165,7 @@ interface ApartmentNameEntry {
 interface CleaningProfile {
   id: string;
   display_name: string | null;
+  username: string | null;
   email: string;
   active: boolean;
   created_at: string;
@@ -270,11 +272,12 @@ export default function SettingsPanel({
   const [cleaningCfgLoading, setCleaningCfgLoading] = useState(false);
   const [cleaningCfgMessage, setCleaningCfgMessage] = useState<string | null>(null);
 
-  // Reinigungs-Zugänge (Portal-User)
+  // Reinigungs-Zugänge (Portal-User) — Benutzername + Passwort
   const [cleaningUserList, setCleaningUserList] = useState<CleaningProfile[]>(cleaningUsers);
   const [showInviteCleaning, setShowInviteCleaning] = useState(false);
-  const [cleaningInviteEmail, setCleaningInviteEmail] = useState("");
+  const [cleaningInviteUsername, setCleaningInviteUsername] = useState("");
   const [cleaningInviteName, setCleaningInviteName] = useState("");
+  const [cleaningInvitePassword, setCleaningInvitePassword] = useState("");
   const [cleaningInviteLoading, setCleaningInviteLoading] = useState(false);
   const [cleaningInviteMessage, setCleaningInviteMessage] = useState<{
     type: "success" | "error";
@@ -663,9 +666,11 @@ export default function SettingsPanel({
     e.preventDefault();
     setCleaningInviteLoading(true);
     setCleaningInviteMessage(null);
-    const result = await inviteCleaningUser(
-      cleaningInviteEmail.trim(),
-      cleaningInviteName.trim()
+    const uname = cleaningInviteUsername.trim().toLowerCase();
+    const result = await createCleaningUser(
+      uname,
+      cleaningInviteName.trim(),
+      cleaningInvitePassword
     );
     setCleaningInviteLoading(false);
     if (result.success) {
@@ -674,21 +679,38 @@ export default function SettingsPanel({
         {
           id: `tmp-${Date.now()}`,
           display_name: cleaningInviteName.trim(),
-          email: cleaningInviteEmail.trim().toLowerCase(),
+          username: uname,
+          email: "",
           active: true,
           created_at: new Date().toISOString(),
         },
       ]);
       setCleaningInviteMessage({
         type: "success",
-        text: `Einladung an ${cleaningInviteEmail.trim()} gesendet.`,
+        text: `Zugang „${uname}" angelegt. Benutzername + Passwort an die Reinigungskraft weitergeben.`,
       });
-      setCleaningInviteEmail("");
+      setCleaningInviteUsername("");
       setCleaningInviteName("");
+      setCleaningInvitePassword("");
       setShowInviteCleaning(false);
     } else {
       setCleaningInviteMessage({ type: "error", text: result.error || "Fehler" });
     }
+  };
+
+  const handleResetCleaningPassword = async (user: CleaningProfile) => {
+    const newPw = prompt(
+      `Neues Passwort für „${user.username || user.display_name}" (min. 6 Zeichen):`
+    );
+    if (newPw === null) return;
+    if (newPw.length < 6) {
+      alert("Passwort muss mindestens 6 Zeichen haben.");
+      return;
+    }
+    setCleaningRowBusy(user.id);
+    const result = await resetCleaningUserPassword(user.id, newPw);
+    setCleaningRowBusy(null);
+    alert(result.success ? "Passwort wurde geändert." : `Fehler: ${result.error}`);
   };
 
   const handleToggleCleaningActive = async (user: CleaningProfile) => {
@@ -703,7 +725,7 @@ export default function SettingsPanel({
   };
 
   const handleRemoveCleaning = async (user: CleaningProfile) => {
-    if (!confirm(`Zugang für ${user.email} wirklich entfernen?`)) return;
+    if (!confirm(`Zugang „${user.username || user.display_name}" wirklich entfernen?`)) return;
     setCleaningRowBusy(user.id);
     const result = await removeCleaningUser(user.id);
     setCleaningRowBusy(null);
@@ -1452,7 +1474,7 @@ export default function SettingsPanel({
       <Section
         id="cleaning-users"
         title="Reinigungs-Zugänge"
-        subtitle="Externe Reinigungskräfte mit Zugang zum Reinigungs-Portal (anonymisierte Buchungssicht)"
+        subtitle="Login mit Benutzername + Passwort. Reinigungskräfte sehen eine anonymisierte Buchungssicht (ohne Namen/Kontakt/Preise)."
         open={openSections.has("cleaning-users")}
         onToggle={toggleSection}
       >
@@ -1462,7 +1484,7 @@ export default function SettingsPanel({
               onClick={() => setShowInviteCleaning(!showInviteCleaning)}
               className="px-3 py-1.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-lg transition-colors"
             >
-              + Reinigung einladen
+              + Zugang anlegen
             </button>
           </div>
         )}
@@ -1471,7 +1493,7 @@ export default function SettingsPanel({
           <form onSubmit={handleInviteCleaning} className="p-4 mb-4 bg-stone-50 rounded-xl space-y-3">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-stone-500 mb-1">Name</label>
+                <label className="block text-xs font-medium text-stone-500 mb-1">Anzeigename</label>
                 <input
                   type="text"
                   value={cleaningInviteName}
@@ -1482,16 +1504,36 @@ export default function SettingsPanel({
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-stone-500 mb-1">E-Mail</label>
+                <label className="block text-xs font-medium text-stone-500 mb-1">Benutzername</label>
                 <input
-                  type="email"
-                  value={cleaningInviteEmail}
-                  onChange={(e) => setCleaningInviteEmail(e.target.value)}
-                  placeholder="reinigung@beispiel.at"
+                  type="text"
+                  value={cleaningInviteUsername}
+                  onChange={(e) => setCleaningInviteUsername(e.target.value)}
+                  placeholder="z. B. maria"
+                  autoCapitalize="none"
+                  spellCheck={false}
                   className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
                   required
                 />
+                <p className="text-[11px] text-stone-400 mt-1">
+                  Kleinbuchstaben, Ziffern, . _ - (3–40 Zeichen)
+                </p>
               </div>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-stone-500 mb-1">Passwort</label>
+              <input
+                type="text"
+                value={cleaningInvitePassword}
+                onChange={(e) => setCleaningInvitePassword(e.target.value)}
+                placeholder="min. 6 Zeichen"
+                autoComplete="new-password"
+                className="w-full px-3 py-2.5 bg-white border border-stone-200 rounded-xl text-sm text-stone-900 font-mono focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+                required
+              />
+              <p className="text-[11px] text-stone-400 mt-1">
+                Sichtbar eingegeben — Benutzername + Passwort danach an die Reinigungskraft weitergeben.
+              </p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -1499,7 +1541,7 @@ export default function SettingsPanel({
                 disabled={cleaningInviteLoading}
                 className="px-5 py-2.5 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
               >
-                {cleaningInviteLoading ? "Wird eingeladen..." : "Einladung senden"}
+                {cleaningInviteLoading ? "Wird angelegt..." : "Zugang anlegen"}
               </button>
               <button
                 type="button"
@@ -1535,7 +1577,7 @@ export default function SettingsPanel({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-medium text-stone-900">
-                      {u.display_name || u.email}
+                      {u.display_name || u.username}
                     </span>
                     <span
                       className={`px-2 py-0.5 rounded-full text-xs font-medium ${
@@ -1547,10 +1589,17 @@ export default function SettingsPanel({
                       {u.active ? "Aktiv" : "Deaktiviert"}
                     </span>
                   </div>
-                  <p className="text-xs text-stone-500">{u.email}</p>
+                  <p className="text-xs text-stone-500">Benutzername: {u.username}</p>
                 </div>
                 {currentRole === "admin" && (
                   <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleResetCleaningPassword(u)}
+                      disabled={cleaningRowBusy === u.id}
+                      className="px-3 py-1.5 text-xs font-medium rounded-lg bg-stone-100 text-stone-700 hover:bg-stone-200 transition-colors disabled:opacity-50"
+                    >
+                      Passwort
+                    </button>
                     <button
                       onClick={() => handleToggleCleaningActive(u)}
                       disabled={cleaningRowBusy === u.id}

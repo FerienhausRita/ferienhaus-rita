@@ -18,7 +18,7 @@ export default function CleaningHeader({
     setBusy(true);
     const supabase = createAuthBrowserClient();
     await supabase.auth.signOut();
-    router.replace("/auth/login");
+    router.replace("/reinigung/login");
   };
 
   return (
@@ -40,9 +40,11 @@ export default function CleaningHeader({
             <p className="text-sm font-medium text-stone-900 leading-tight truncate max-w-[12rem]">
               {userName}
             </p>
-            <p className="text-xs text-stone-500 leading-tight truncate max-w-[12rem]">
-              {userEmail}
-            </p>
+            {userEmail && (
+              <p className="text-xs text-stone-500 leading-tight truncate max-w-[12rem]">
+                @{userEmail}
+              </p>
+            )}
           </div>
           <button
             onClick={handleLogout}

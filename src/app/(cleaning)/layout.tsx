@@ -20,19 +20,21 @@ export default async function CleaningLayout({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: profile } = await supabase
-    .from("cleaning_profiles")
-    .select("display_name, email")
-    .eq("id", user?.id ?? "")
-    .single();
+  const { data: profile } = user
+    ? await supabase
+        .from("cleaning_profiles")
+        .select("display_name, username")
+        .eq("id", user.id)
+        .single()
+    : { data: null };
 
   const userName =
-    profile?.display_name || user?.email?.split("@")[0] || "Reinigung";
-  const userEmail = profile?.email || user?.email || "";
+    profile?.display_name || profile?.username || "Reinigung";
 
   return (
     <div className="min-h-screen bg-stone-50">
-      <CleaningHeader userName={userName} userEmail={userEmail} />
+      {/* Header nur für eingeloggte Reinigungs-User (nicht auf der Login-Seite) */}
+      {profile && <CleaningHeader userName={userName} userEmail={profile.username ?? ""} />}
       <main className="pb-12">{children}</main>
     </div>
   );
