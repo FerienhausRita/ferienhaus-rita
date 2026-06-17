@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { updateBookingPrices, recalculateBookingPricesAction } from "@/app/(admin)/admin/actions";
+import { updateBookingPrices, recalculateBookingPricesAction, addBookingLineItem, deleteBookingLineItem } from "@/app/(admin)/admin/actions";
 
 interface LineItem {
   id?: string;
@@ -101,6 +101,11 @@ export default function BookingPriceEditor({
   const [newLabel, setNewLabel] = useState("");
   const [newAmount, setNewAmount] = useState("");
   const [message, setMessage] = useState("");
+
+  // Lesemodus: Zusatzposition direkt hinzufügen (sofort gespeichert)
+  const [showReadAdd, setShowReadAdd] = useState(false);
+  const [readLabel, setReadLabel] = useState("");
+  const [readAmount, setReadAmount] = useState("");
 
   // Auto-calculated totals from unit values
   const calcAccommodation = round2(editPPN * editNights);
@@ -204,6 +209,41 @@ export default function BookingPriceEditor({
     });
   }
 
+  // Lesemodus: Position sofort hinzufügen
+  function handleReadAdd() {
+    if (!readLabel.trim() || !readAmount) return;
+    const amt = parseFloat(readAmount);
+    if (!Number.isFinite(amt)) return;
+    startTransition(async () => {
+      const result = await addBookingLineItem(bookingId, readLabel.trim(), amt);
+      if (result.success) {
+        setReadLabel("");
+        setReadAmount("");
+        setShowReadAdd(false);
+        setMessage("Position hinzugefügt");
+        router.refresh();
+        setTimeout(() => setMessage(""), 2000);
+      } else {
+        setMessage(`Fehler: ${result.error}`);
+      }
+    });
+  }
+
+  // Lesemodus: Position sofort löschen
+  function handleReadDelete(lineItemId: string, label: string) {
+    if (!confirm(`Position „${label}" entfernen?`)) return;
+    startTransition(async () => {
+      const result = await deleteBookingLineItem(bookingId, lineItemId);
+      if (result.success) {
+        setMessage("Position entfernt");
+        router.refresh();
+        setTimeout(() => setMessage(""), 2000);
+      } else {
+        setMessage(`Fehler: ${result.error}`);
+      }
+    });
+  }
+
   function handleCancel() {
     setEditPPN(initialPPN);
     setEditNights(nights);
@@ -229,6 +269,7 @@ export default function BookingPriceEditor({
             <button
               onClick={handleRecalculateAndSave}
               disabled={isPending}
+              title="Berechnet Übernachtungspreis, Saison, Zusatzgäste, Hunde und Ortstaxe frisch aus der Wohnungs-Konfiguration. Manuelle Preisanpassungen werden überschrieben, Zusatzpositionen bleiben erhalten."
               className="text-xs text-blue-600 hover:text-blue-800 font-medium disabled:opacity-50"
             >
               {isPending ? "Berechne..." : "Neu berechnen"}
@@ -241,6 +282,12 @@ export default function BookingPriceEditor({
             </button>
           </div>
         </div>
+
+        <p className="text-[11px] text-stone-400 -mt-2 mb-3">
+          „Neu berechnen" setzt die Preise aus der Wohnungs-Konfiguration neu
+          (Grundpreis, Saison, Ortstaxe) — manuelle Anpassungen gehen verloren,
+          Zusatzpositionen bleiben erhalten.
+        </p>
 
         <table className="w-full text-sm">
           <tbody className="divide-y divide-stone-100">
@@ -364,8 +411,24 @@ export default function BookingPriceEditor({
 
             {/* Zusätzliche Positionen */}
             {initialLineItems.map((li, i) => (
-              <tr key={i}>
-                <td className="py-2 text-stone-900">{li.label}</td>
+              <tr key={li.id ?? i}>
+                <td className="py-2 text-stone-900">
+                  <span className="flex items-center gap-1.5">
+                    {li.label}
+                    {li.id && (
+                      <button
+                        onClick={() => handleReadDelete(li.id!, li.label)}
+                        disabled={isPending}
+                        className="text-red-300 hover:text-red-600 disabled:opacity-40"
+                        title="Position entfernen"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    )}
+                  </span>
+                </td>
                 <td className="py-2 text-right font-medium text-stone-900">
                   {formatCurrency(li.amount)}
                 </td>
@@ -381,6 +444,53 @@ export default function BookingPriceEditor({
             </tr>
           </tfoot>
         </table>
+
+        {/* Zusatzposition direkt hinzufügen (ohne Bearbeiten-Modus) */}
+        <div className="mt-3">
+          {!showReadAdd ? (
+            <button
+              onClick={() => setShowReadAdd(true)}
+              className="text-xs text-[#c8a96e] hover:text-[#b89555] font-medium"
+            >
+              + Position hinzufügen
+            </button>
+          ) : (
+            <div className="flex gap-2 items-center">
+              <input
+                type="text"
+                placeholder="Bezeichnung"
+                value={readLabel}
+                onChange={(e) => setReadLabel(e.target.value)}
+                className="flex-1 rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+              />
+              <input
+                type="number"
+                step="0.01"
+                placeholder="Betrag"
+                value={readAmount}
+                onChange={(e) => setReadAmount(e.target.value)}
+                className="w-24 text-right rounded-lg border border-stone-200 px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-[#c8a96e]/50"
+              />
+              <button
+                onClick={handleReadAdd}
+                disabled={!readLabel.trim() || !readAmount || isPending}
+                className="px-3 py-1.5 bg-[#c8a96e] hover:bg-[#b89555] text-white rounded-lg text-sm font-medium disabled:opacity-40"
+              >
+                {isPending ? "..." : "Speichern"}
+              </button>
+              <button
+                onClick={() => {
+                  setShowReadAdd(false);
+                  setReadLabel("");
+                  setReadAmount("");
+                }}
+                className="px-2 py-1.5 text-sm text-stone-500 hover:text-stone-700"
+              >
+                Abbrechen
+              </button>
+            </div>
+          )}
+        </div>
 
         {/* Plausibility check: show warning if stored total doesn't match computed */}
         {Math.abs(initialTotal - round2(initialAccommodationTotal + initialEG + initialDogs + initialCF + initialLT - initialDiscount + initialLineItems.reduce((s, l) => s + l.amount, 0))) > 0.02 && (

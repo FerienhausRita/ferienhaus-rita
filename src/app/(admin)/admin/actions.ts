@@ -2905,28 +2905,53 @@ export async function updateBookingDetails(
         payload.nights = breakdown.nights;
         payload.extra_guests_total = breakdown.extraGuestsTotal;
         payload.dogs_total = breakdown.dogsTotal;
-        payload.local_tax_total = breakdown.localTaxTotal;
 
         // Apartment-spezifische Felder + Gesamtpreis nur für Website-Buchungen.
         // Externe Channels behalten ihren manuell eingetragenen Total.
         if (!isExternal) {
+          // Ortstaxe gehört (Vorgabe) in den Gesamtpreis. Engine liefert bei
+          // included=false zwar localTaxTotal=0, aber localTaxHint immer.
+          const localTaxForBooking = breakdown.localTaxHint;
+          payload.local_tax_total = localTaxForBooking;
           payload.price_per_night = breakdown.basePrice;
           payload.cleaning_fee = breakdown.cleaningFee;
-          payload.total_price = breakdown.total;
 
-          // Anzahlung & Restbetrag mit dem neuen Total proportional anpassen —
-          // aber nur, wenn noch nichts bezahlt ist und die Buchung schon
-          // bestätigt war (sonst werden die Werte erst beim Bestätigen gesetzt).
-          const nothingPaid =
-            !booking.deposit_paid_at && !booking.remainder_paid_at;
+          // Gesamtpreis konsistent aus allen Teilen bilden — inkl. Ortstaxe,
+          // bestehendem Rabatt und manuellen Zusatzpositionen, damit nichts
+          // verloren geht.
+          const { data: liRows } = await supabase
+            .from("booking_line_items")
+            .select("amount")
+            .eq("booking_id", bookingId);
+          const lineItemsSum = (liRows ?? []).reduce(
+            (s, r) => s + Number(r.amount || 0),
+            0
+          );
+          const discount = Number(booking.discount_amount || 0);
+          const newTotal =
+            Math.round(
+              (breakdown.basePrice * breakdown.nights +
+                breakdown.extraGuestsTotal +
+                breakdown.dogsTotal +
+                breakdown.cleaningFee +
+                localTaxForBooking -
+                discount +
+                lineItemsSum) *
+                100
+            ) / 100;
+          payload.total_price = newTotal;
+
+          // Anzahlung & Restbetrag mit dem neuen Total anpassen.
+          const depositPaid = !!booking.deposit_paid_at;
+          const remainderPaid = !!booking.remainder_paid_at;
           const wasConfirmed = booking.status === "confirmed";
-          if (nothingPaid && wasConfirmed) {
+          if (!depositPaid && !remainderPaid && wasConfirmed) {
             const { getDepositConfig, computeDepositSplit } = await import(
               "@/lib/deposit-config"
             );
             const cfg = await getDepositConfig();
             const split = computeDepositSplit({
-              totalPrice: breakdown.total,
+              totalPrice: newTotal,
               checkIn: merged.check_in,
               config: cfg,
             });
@@ -2934,7 +2959,19 @@ export async function updateBookingDetails(
             payload.deposit_due_date = split.deposit_due_date;
             payload.remainder_amount = split.remainder_amount;
             payload.remainder_due_date = split.remainder_due_date;
+          } else if (depositPaid && !remainderPaid) {
+            // Anzahlung bezahlt → Restbetrag absorbiert die Differenz
+            payload.remainder_amount = Math.max(
+              0,
+              Math.round(
+                (newTotal - Number(booking.deposit_amount || 0)) * 100
+              ) / 100
+            );
           }
+        } else {
+          // Externe Buchung: dependent positions wie bisher, Ortstaxe bleibt 0,
+          // manueller Gesamtpreis unangetastet.
+          payload.local_tax_total = breakdown.localTaxTotal;
         }
       } else if (datesOrApartmentChanged) {
         // Fallback: zumindest nights mitziehen, falls recalc null lieferte
@@ -3898,6 +3935,128 @@ export async function recalculateBookingPricesAction(bookingId: string) {
       nights: calculated.nights,
     },
   };
+}
+
+/**
+ * Rechnet den Gesamtpreis aus den gespeicherten Preisfeldern + allen
+ * Zusatzpositionen neu und passt Anzahlung/Restbetrag an. Verändert KEINE
+ * konfigurationsbasierten Werte (Grundpreis, Saison, Ortstaxe) — nur die Summe.
+ * Wird von den Lesemodus-Positionsaktionen genutzt.
+ */
+async function recomputeBookingTotalAndPayments(
+  supabase: ReturnType<typeof createServerClient>,
+  bookingId: string
+) {
+  const { data: b } = await supabase
+    .from("bookings")
+    .select(
+      "price_per_night, nights, extra_guests_total, dogs_total, cleaning_fee, local_tax_total, discount_amount, deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, check_in"
+    )
+    .eq("id", bookingId)
+    .single();
+  if (!b) return;
+
+  const { data: liRows } = await supabase
+    .from("booking_line_items")
+    .select("amount")
+    .eq("booking_id", bookingId);
+  const lineItemsSum = (liRows ?? []).reduce(
+    (s, r) => s + Number(r.amount || 0),
+    0
+  );
+
+  const total =
+    Math.round(
+      (Number(b.price_per_night || 0) * Number(b.nights || 0) +
+        Number(b.extra_guests_total || 0) +
+        Number(b.dogs_total || 0) +
+        Number(b.cleaning_fee || 0) +
+        Number(b.local_tax_total || 0) -
+        Number(b.discount_amount || 0) +
+        lineItemsSum) *
+        100
+    ) / 100;
+
+  const update: Record<string, unknown> = { total_price: total };
+
+  const depositPaid = !!b.deposit_paid_at;
+  const remainderPaid = !!b.remainder_paid_at;
+  const hasPlan =
+    Number(b.deposit_amount || 0) > 0 || Number(b.remainder_amount || 0) > 0;
+
+  if (hasPlan && !depositPaid && !remainderPaid) {
+    const { getDepositConfig, computeDepositSplit } = await import(
+      "@/lib/deposit-config"
+    );
+    const cfg = await getDepositConfig();
+    const split = computeDepositSplit({
+      totalPrice: total,
+      checkIn: b.check_in as string,
+      config: cfg,
+    });
+    update.deposit_amount = split.deposit_amount;
+    update.deposit_due_date = split.deposit_due_date;
+    update.remainder_amount = split.remainder_amount;
+    update.remainder_due_date = split.remainder_due_date;
+  } else if (depositPaid && !remainderPaid) {
+    update.remainder_amount = Math.max(
+      0,
+      Math.round((total - Number(b.deposit_amount || 0)) * 100) / 100
+    );
+  }
+
+  await supabase.from("bookings").update(update).eq("id", bookingId);
+  return total;
+}
+
+/**
+ * Fügt eine Zusatzposition hinzu (Lesemodus, ohne Engine-Neuberechnung).
+ */
+export async function addBookingLineItem(
+  bookingId: string,
+  label: string,
+  amount: number
+) {
+  if (!label.trim()) return { success: false, error: "Bezeichnung fehlt" };
+  if (!Number.isFinite(amount)) return { success: false, error: "Betrag ungültig" };
+
+  const supabase = createServerClient();
+  const { error } = await supabase.from("booking_line_items").insert({
+    booking_id: bookingId,
+    label: label.trim(),
+    amount,
+  });
+  if (error) return { success: false, error: error.message };
+
+  await recomputeBookingTotalAndPayments(supabase, bookingId);
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/**
+ * Löscht eine Zusatzposition (Lesemodus, ohne Engine-Neuberechnung).
+ */
+export async function deleteBookingLineItem(
+  bookingId: string,
+  lineItemId: string
+) {
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("booking_line_items")
+    .delete()
+    .eq("id", lineItemId)
+    .eq("booking_id", bookingId);
+  if (error) return { success: false, error: error.message };
+
+  await recomputeBookingTotalAndPayments(supabase, bookingId);
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/buchungen");
+  revalidatePath("/admin");
+  return { success: true };
 }
 
 /**
