@@ -211,6 +211,13 @@ export default function BookingFlow({
 
   const belowMinNights = nightsCount > 0 && nightsCount < minNights;
 
+  // Vorausgewählte Wohnung (z.B. via ?apartment=) nur dann zur Buchung
+  // freigeben, wenn sie im gewählten Zeitraum tatsächlich verfügbar ist.
+  const isSelectedApartmentAvailable =
+    !!selectedApartment &&
+    !checkingAvailability &&
+    availableApartments.some((a) => a.id === selectedApartment.id);
+
   function handleApplyDiscount() {
     setDiscountError(null);
     if (!discountCode.trim()) return;
@@ -475,7 +482,7 @@ export default function BookingFlow({
                   />
                 )}
 
-                {selectedApartment && priceBreakdown && (
+                {selectedApartment && priceBreakdown && isSelectedApartmentAvailable && (
                   <div ref={priceSectionRef} className="mt-8 bg-white rounded-2xl border border-stone-200 shadow-sm p-6 sm:p-8">
                     <h3 className="text-lg font-semibold text-stone-900 mb-4">
                       Preisübersicht – {selectedApartment.name}
