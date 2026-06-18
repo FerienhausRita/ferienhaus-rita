@@ -68,20 +68,17 @@ export default async function EinstellungenPage() {
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto">
-      <h1 className="text-2xl font-bold text-stone-900 mb-6">Einstellungen</h1>
-      <SettingsPanel
-        currentUserId={user?.id ?? ""}
-        currentName={profile?.display_name || ""}
-        currentRole={profile?.role || "admin"}
-        admins={admins}
-        cleaningUsers={cleaningUsers}
-        icalFeeds={feedData}
-        icalImportFeeds={icalImportFeeds}
-        exportBaseUrl={exportBaseUrl}
-        siteSettings={siteSettings}
-        apartmentNames={apartmentNames}
-      />
-    </div>
+    <SettingsPanel
+      currentUserId={user?.id ?? ""}
+      currentName={profile?.display_name || ""}
+      currentRole={profile?.role || "admin"}
+      admins={admins}
+      cleaningUsers={cleaningUsers}
+      icalFeeds={feedData}
+      icalImportFeeds={icalImportFeeds}
+      exportBaseUrl={exportBaseUrl}
+      siteSettings={siteSettings}
+      apartmentNames={apartmentNames}
+    />
   );
 }

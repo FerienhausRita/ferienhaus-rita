@@ -4984,7 +4984,7 @@ async function isAdminRequest(): Promise<boolean> {
 }
 
 function revalidateApartmentPhotos() {
-  revalidatePath("/admin/fotos");
+  revalidatePath("/admin/einstellungen/fotos");
   revalidatePath("/wohnungen");
   revalidatePath("/wohnungen/[slug]", "page");
   revalidatePath("/buchen");
@@ -5141,7 +5141,7 @@ export interface ApartmentContentInput {
 }
 
 function revalidateApartmentContent() {
-  revalidatePath("/admin/wohnungen");
+  revalidatePath("/admin/einstellungen/wohnungen");
   revalidatePath("/wohnungen");
   revalidatePath("/wohnungen/[slug]", "page");
   revalidatePath("/buchen");

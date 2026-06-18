@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { apartments as staticApartments } from "@/data/apartments";
 import { getApartmentNameMap } from "@/lib/pricing-data";
-import { getApartmentImages } from "../actions";
+import { getApartmentImages } from "@/app/(admin)/admin/actions";
 import PhotoManager, {
   type ApartmentPhotos,
 } from "@/components/admin/PhotoManager";
@@ -10,7 +10,7 @@ export const metadata: Metadata = { title: "Fotos" };
 
 export const dynamic = "force-dynamic";
 
-export default async function FotosPage() {
+export default async function FotosSettingsPage() {
   const nameMap = await getApartmentNameMap();
 
   const apartments: ApartmentPhotos[] = await Promise.all(
@@ -23,16 +23,12 @@ export default async function FotosPage() {
   );
 
   return (
-    <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
-      <header className="mb-8">
-        <h1 className="font-serif text-3xl font-bold text-stone-900">Fotos</h1>
-        <p className="text-stone-500 mt-1">
-          Fotos je Wohnung hochladen, löschen und per Drag-&amp;-Drop sortieren.
-          Solange keine eigenen Fotos hochgeladen sind, zeigt die Website die
-          Standard-Fotos.
-        </p>
-      </header>
-
+    <div>
+      <p className="text-stone-500 mb-6">
+        Fotos je Wohnung hochladen, löschen und per Drag-&amp;-Drop sortieren.
+        Solange keine eigenen Fotos hochgeladen sind, zeigt die Website die
+        Standard-Fotos.
+      </p>
       <PhotoManager apartments={apartments} />
     </div>
   );
