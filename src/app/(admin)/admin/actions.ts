@@ -5118,3 +5118,100 @@ export async function reorderApartmentImages(
   revalidateApartmentPhotos();
   return { success: true };
 }
+
+// ============================================
+// WOHNUNGSINHALTE (Detailseiten-Texte/Ausstattung)
+// ============================================
+
+export interface ApartmentContentInput {
+  name?: string | null;
+  subtitle?: string | null;
+  description?: string | null;
+  shortDescription?: string | null;
+  floor?: string | null;
+  size?: number | null;
+  bedrooms?: number | null;
+  bathrooms?: number | null;
+  maxGuests?: number | null;
+  baseGuests?: number | null;
+  available?: boolean | null;
+  features?: string[] | null;
+  highlights?: string[] | null;
+  amenities?: { category: string; items: string[] }[] | null;
+}
+
+function revalidateApartmentContent() {
+  revalidatePath("/admin/wohnungen");
+  revalidatePath("/wohnungen");
+  revalidatePath("/wohnungen/[slug]", "page");
+  revalidatePath("/buchen");
+  revalidatePath("/preise");
+  revalidatePath("/");
+}
+
+/** Speichert die überschriebenen Inhalte einer Wohnung (Upsert in apartment_content). */
+export async function updateApartmentContent(
+  apartmentId: string,
+  content: ApartmentContentInput
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) {
+    return { success: false, error: "Nicht autorisiert" };
+  }
+  if (!apartmentId) return { success: false, error: "Ungültige Wohnung" };
+
+  const supabase = createServerClient();
+
+  // Name läuft weiter über apartment_pricing.name_override (keine Duplizierung).
+  if (content.name !== undefined) {
+    const nameResult = await updateApartmentName(apartmentId, content.name ?? null);
+    if (!nameResult.success) return nameResult;
+  }
+
+  const row = {
+    apartment_id: apartmentId,
+    subtitle: content.subtitle ?? null,
+    description: content.description ?? null,
+    short_description: content.shortDescription ?? null,
+    floor: content.floor ?? null,
+    size: content.size ?? null,
+    bedrooms: content.bedrooms ?? null,
+    bathrooms: content.bathrooms ?? null,
+    max_guests: content.maxGuests ?? null,
+    base_guests: content.baseGuests ?? null,
+    features: content.features ?? null,
+    highlights: content.highlights ?? null,
+    amenities: content.amenities ?? null,
+    available: content.available ?? null,
+    updated_at: new Date().toISOString(),
+  };
+
+  const { error } = await supabase
+    .from("apartment_content")
+    .upsert(row, { onConflict: "apartment_id" });
+  if (error) return { success: false, error: error.message };
+
+  revalidateApartmentContent();
+  return { success: true };
+}
+
+/** Setzt eine Wohnung auf die statischen Standard-Inhalte zurück (Zeile löschen). */
+export async function deleteApartmentContent(
+  apartmentId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) {
+    return { success: false, error: "Nicht autorisiert" };
+  }
+
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("apartment_content")
+    .delete()
+    .eq("apartment_id", apartmentId);
+  if (error) return { success: false, error: error.message };
+
+  // Name-Override ebenfalls zurücksetzen.
+  await updateApartmentName(apartmentId, null);
+
+  revalidateApartmentContent();
+  return { success: true };
+}

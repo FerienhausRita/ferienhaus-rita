@@ -7,7 +7,7 @@
  */
 
 import { createServerClient } from "@/lib/supabase/server";
-import { apartments, Apartment, getApartmentById as getStaticApartment, getApartmentBySlug as getStaticApartmentBySlug } from "@/data/apartments";
+import { apartments, Apartment, AmenityGroup, getApartmentById as getStaticApartment, getApartmentBySlug as getStaticApartmentBySlug } from "@/data/apartments";
 import { seasonConfigs as staticSeasonConfigs, seasonPeriods as staticSeasonPeriods, SeasonConfig, SeasonPeriod, SpecialPeriod, defaultSpecialPeriods } from "@/data/seasons";
 import { localTax as staticLocalTax, vat as staticVat } from "@/data/taxes";
 
@@ -38,13 +38,40 @@ export function apartmentImageUrl(storagePath: string): string {
 }
 
 /**
+ * Überlagert die statischen Wohnungsdaten mit überschriebenen Inhalten aus
+ * apartment_content. Jedes Feld wird nur übernommen, wenn es nicht null ist.
+ * Mutiert das übergebene (bereits kopierte) base-Objekt.
+ */
+function overlayContent(base: Apartment, row: Record<string, unknown>): void {
+  const setStr = (k: "subtitle" | "description" | "shortDescription" | "floor", v: unknown) => {
+    if (v !== null && v !== undefined) base[k] = String(v);
+  };
+  const setNum = (k: "size" | "maxGuests" | "baseGuests" | "bedrooms" | "bathrooms", v: unknown) => {
+    if (v !== null && v !== undefined) base[k] = Number(v);
+  };
+  setStr("subtitle", row.subtitle);
+  setStr("description", row.description);
+  setStr("shortDescription", row.short_description);
+  setStr("floor", row.floor);
+  setNum("size", row.size);
+  setNum("maxGuests", row.max_guests);
+  setNum("baseGuests", row.base_guests);
+  setNum("bedrooms", row.bedrooms);
+  setNum("bathrooms", row.bathrooms);
+  if (Array.isArray(row.features)) base.features = row.features as string[];
+  if (Array.isArray(row.highlights)) base.highlights = row.highlights as string[];
+  if (Array.isArray(row.amenities)) base.amenities = row.amenities as AmenityGroup[];
+  if (row.available !== null && row.available !== undefined) base.available = Boolean(row.available);
+}
+
+/**
  * Get all apartments with current DB pricing merged in.
  * Falls back to static data if DB is unreachable.
  */
 export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
   try {
     const supabase = createServerClient();
-    const [pricingRes, imagesRes] = await Promise.all([
+    const [pricingRes, imagesRes, contentRes] = await Promise.all([
       supabase
         .from("apartment_pricing")
         .select("apartment_id, name_override, base_price, summer_price, winter_price, extra_person_price, extra_adult_price, extra_child_price, cleaning_fee, dog_fee, first_dog_fee, additional_dog_fee, min_nights_summer, min_nights_winter"),
@@ -53,6 +80,9 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
         .select("apartment_id, storage_path, sort_order")
         .order("apartment_id", { ascending: true })
         .order("sort_order", { ascending: true }),
+      supabase
+        .from("apartment_content")
+        .select("apartment_id, subtitle, description, short_description, floor, size, bedrooms, bathrooms, max_guests, base_guests, features, highlights, amenities, available"),
     ]);
     const pricing = pricingRes.data;
 
@@ -65,13 +95,23 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
     }
 
     const pricingMap = new Map((pricing ?? []).map((p) => [p.apartment_id, p]));
+    const contentMap = new Map(
+      (contentRes.data ?? []).map((c) => [c.apartment_id as string, c as Record<string, unknown>])
+    );
 
     return apartments.map((apt) => {
-      // Hochgeladene Fotos haben Vorrang; sonst die statischen aus apartments.ts.
       const dbImages = imagesMap.get(apt.id);
-      const base = dbImages && dbImages.length > 0 ? { ...apt, images: dbImages } : apt;
-
+      const content = contentMap.get(apt.id);
       const dbPrice = pricingMap.get(apt.id);
+
+      // Nichts zu überschreiben → statische Daten unverändert zurückgeben.
+      if (!(dbImages && dbImages.length > 0) && !content && !dbPrice) return apt;
+
+      // Reihenfolge: statisch → Bilder → Inhalte → Preise.
+      const base: Apartment = { ...apt };
+      if (dbImages && dbImages.length > 0) base.images = dbImages;
+      if (content) overlayContent(base, content);
+
       if (!dbPrice) return base;
       const override = (dbPrice as { name_override?: string | null }).name_override;
       const extra = dbPrice as {
