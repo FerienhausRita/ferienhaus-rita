@@ -1,5 +1,5 @@
 /**
- * Read-only Check: existiert Tabelle apartment_images + Bucket?
+ * Read-only Check: Inhalt der Tabelle apartment_images + Bucket.
  * Usage: node scripts/check-apartment-images.mjs
  */
 import { readFileSync } from "fs";
@@ -26,17 +26,21 @@ const url = e.NEXT_PUBLIC_SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = e.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 const supabase = createClient(url, key, { auth: { persistSession: false } });
 
-const { error, count } = await supabase
+const { data, error } = await supabase
   .from("apartment_images")
-  .select("*", { count: "exact", head: true });
+  .select("id, apartment_id, storage_path, sort_order, created_at")
+  .order("apartment_id", { ascending: true })
+  .order("sort_order", { ascending: true });
 
 if (error) {
-  console.log(`❌ Tabelle apartment_images NICHT erreichbar: ${error.message}`);
+  console.log(`❌ apartment_images NICHT erreichbar: ${error.message}`);
   process.exit(2);
 }
-console.log(`✅ Tabelle apartment_images existiert (${count ?? 0} Einträge).`);
 
-const { data: buckets } = await supabase.storage.listBuckets();
-console.log(buckets?.some((b) => b.name === "apartment-images")
-  ? `✅ Bucket apartment-images existiert.`
-  : `❌ Bucket apartment-images fehlt.`);
+console.log(`✅ apartment_images: ${data.length} Eintrag/Einträge`);
+for (const r of data) {
+  console.log(`  - ${r.apartment_id} | sort ${r.sort_order} | ${r.storage_path}`);
+}
+
+const { data: files } = await supabase.storage.from("apartment-images").list("", { limit: 100 });
+console.log(`\nBucket-Root-Einträge: ${(files ?? []).map((f) => f.name).join(", ") || "(leer)"}`);

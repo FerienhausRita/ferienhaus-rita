@@ -54,7 +54,22 @@ export default function ImageGallery({
   return (
     <>
       {/* Grid */}
-      {layout === "hero" ? (
+      {images.length === 1 ? (
+        <button
+          onClick={() => openLightbox(0)}
+          className="relative w-full aspect-[16/10] sm:aspect-[2/1] cursor-pointer group rounded-2xl overflow-hidden"
+        >
+          <Image
+            src={images[0].src}
+            alt={images[0].alt}
+            fill
+            className="object-cover group-hover:scale-105 transition-transform duration-500"
+            sizes="100vw"
+            priority
+          />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
+        </button>
+      ) : layout === "hero" ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 rounded-2xl overflow-hidden">
           {/* Main image */}
           <button
