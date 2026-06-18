@@ -5,7 +5,11 @@ import { createServerClient } from "@/lib/supabase/server";
 import { revalidatePath } from "next/cache";
 import { sendBookingConfirmed, sendCustomEmail, type BankDetails } from "@/lib/email";
 import { normalizeBankDetails } from "@/lib/bank-details";
-import { getApartmentWithPricing } from "@/lib/pricing-data";
+import {
+  getApartmentWithPricing,
+  APARTMENT_IMAGES_BUCKET,
+  apartmentImageUrl,
+} from "@/lib/pricing-data";
 
 /**
  * Get dashboard statistics
@@ -4946,4 +4950,171 @@ export async function checkBookingAvailability(
     bookings: conflicts.bookings,
     blocked: conflicts.blocked,
   };
+}
+
+// ============================================
+// WOHNUNGSFOTOS
+// ============================================
+
+export interface ApartmentImage {
+  id: string;
+  apartmentId: string;
+  storagePath: string;
+  sortOrder: number;
+  url: string;
+}
+
+/** Prüft, ob der aktuelle Request von einem eingeloggten Admin stammt. */
+async function isAdminRequest(): Promise<boolean> {
+  try {
+    const auth = createAuthServerClient();
+    const {
+      data: { user },
+    } = await auth.auth.getUser();
+    if (!user) return false;
+    const { data: profile } = await auth
+      .from("admin_profiles")
+      .select("id")
+      .eq("id", user.id)
+      .single();
+    return !!profile;
+  } catch {
+    return false;
+  }
+}
+
+function revalidateApartmentPhotos() {
+  revalidatePath("/admin/fotos");
+  revalidatePath("/wohnungen");
+  revalidatePath("/wohnungen/[slug]", "page");
+  revalidatePath("/buchen");
+}
+
+/** Alle Fotos einer Wohnung (sortiert) inkl. öffentlicher URL. */
+export async function getApartmentImages(
+  apartmentId: string
+): Promise<ApartmentImage[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("apartment_images")
+    .select("id, apartment_id, storage_path, sort_order")
+    .eq("apartment_id", apartmentId)
+    .order("sort_order", { ascending: true });
+
+  if (error || !data) return [];
+  return data.map((r) => ({
+    id: r.id as string,
+    apartmentId: r.apartment_id as string,
+    storagePath: r.storage_path as string,
+    sortOrder: Number(r.sort_order),
+    url: apartmentImageUrl(r.storage_path as string),
+  }));
+}
+
+/** Lädt ein einzelnes Foto hoch und hängt es ans Ende der Wohnung an. */
+export async function uploadApartmentImage(
+  formData: FormData
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) {
+    return { success: false, error: "Nicht autorisiert" };
+  }
+
+  const apartmentId = String(formData.get("apartmentId") || "").trim();
+  const file = formData.get("file");
+  if (!apartmentId || !(file instanceof File) || file.size === 0) {
+    return { success: false, error: "Ungültige Eingabe" };
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    return { success: false, error: "Datei zu groß (max. 10 MB)" };
+  }
+
+  const supabase = createServerClient();
+  const ext = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `${apartmentId}/${Date.now()}-${crypto.randomUUID()}.${ext || "jpg"}`;
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await supabase.storage
+    .from(APARTMENT_IMAGES_BUCKET)
+    .upload(path, buffer, {
+      contentType: file.type || "image/jpeg",
+      upsert: false,
+    });
+  if (upErr) {
+    return { success: false, error: `Upload fehlgeschlagen: ${upErr.message}` };
+  }
+
+  // Nächste sort_order ermitteln (ans Ende anhängen).
+  const { data: last } = await supabase
+    .from("apartment_images")
+    .select("sort_order")
+    .eq("apartment_id", apartmentId)
+    .order("sort_order", { ascending: false })
+    .limit(1);
+  const nextOrder = last && last.length > 0 ? Number(last[0].sort_order) + 1 : 0;
+
+  const { error: insErr } = await supabase
+    .from("apartment_images")
+    .insert({ apartment_id: apartmentId, storage_path: path, sort_order: nextOrder });
+  if (insErr) {
+    // Verwaiste Datei wieder entfernen, damit nichts liegen bleibt.
+    await supabase.storage.from(APARTMENT_IMAGES_BUCKET).remove([path]);
+    return { success: false, error: insErr.message };
+  }
+
+  revalidateApartmentPhotos();
+  return { success: true };
+}
+
+/** Löscht ein Foto (Datei + DB-Eintrag). */
+export async function deleteApartmentImage(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) {
+    return { success: false, error: "Nicht autorisiert" };
+  }
+
+  const supabase = createServerClient();
+  const { data: row } = await supabase
+    .from("apartment_images")
+    .select("storage_path")
+    .eq("id", id)
+    .single();
+
+  if (row?.storage_path) {
+    await supabase.storage
+      .from(APARTMENT_IMAGES_BUCKET)
+      .remove([row.storage_path as string]);
+  }
+
+  const { error } = await supabase.from("apartment_images").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+
+  revalidateApartmentPhotos();
+  return { success: true };
+}
+
+/** Speichert eine neue Reihenfolge (orderedIds = gewünschte Reihenfolge). */
+export async function reorderApartmentImages(
+  apartmentId: string,
+  orderedIds: string[]
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) {
+    return { success: false, error: "Nicht autorisiert" };
+  }
+
+  const supabase = createServerClient();
+  const results = await Promise.all(
+    orderedIds.map((id, idx) =>
+      supabase
+        .from("apartment_images")
+        .update({ sort_order: idx })
+        .eq("id", id)
+        .eq("apartment_id", apartmentId)
+    )
+  );
+  const failed = results.find((r) => r.error);
+  if (failed?.error) return { success: false, error: failed.error.message };
+
+  revalidateApartmentPhotos();
+  return { success: true };
 }

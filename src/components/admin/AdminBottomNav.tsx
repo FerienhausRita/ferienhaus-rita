@@ -53,6 +53,7 @@ const moreItems = [
   { label: "Warteliste", href: "/admin/warteliste" },
   { label: "Reinigung", href: "/admin/reinigung" },
   { label: "Aufgaben", href: "/admin/aufgaben" },
+  { label: "Fotos", href: "/admin/fotos" },
   { label: "Einstellungen", href: "/admin/einstellungen" },
 ];
 

@@ -24,6 +24,19 @@ export interface TaxConfig {
   vatRate: number;
 }
 
+/** Storage-Bucket für hochgeladene Wohnungsfotos. */
+export const APARTMENT_IMAGES_BUCKET = "apartment-images";
+
+/**
+ * Baut aus einem Storage-Pfad die öffentliche URL.
+ * Bereits vollständige URLs (http...) werden unverändert zurückgegeben.
+ */
+export function apartmentImageUrl(storagePath: string): string {
+  if (/^https?:\/\//i.test(storagePath)) return storagePath;
+  const base = (process.env.NEXT_PUBLIC_SUPABASE_URL ?? "").replace(/\/$/, "");
+  return `${base}/storage/v1/object/public/${APARTMENT_IMAGES_BUCKET}/${storagePath}`;
+}
+
 /**
  * Get all apartments with current DB pricing merged in.
  * Falls back to static data if DB is unreachable.
@@ -31,19 +44,35 @@ export interface TaxConfig {
 export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
   try {
     const supabase = createServerClient();
-    const { data: pricing } = await supabase
-      .from("apartment_pricing")
-      .select("apartment_id, name_override, base_price, summer_price, winter_price, extra_person_price, extra_adult_price, extra_child_price, cleaning_fee, dog_fee, first_dog_fee, additional_dog_fee, min_nights_summer, min_nights_winter");
+    const [pricingRes, imagesRes] = await Promise.all([
+      supabase
+        .from("apartment_pricing")
+        .select("apartment_id, name_override, base_price, summer_price, winter_price, extra_person_price, extra_adult_price, extra_child_price, cleaning_fee, dog_fee, first_dog_fee, additional_dog_fee, min_nights_summer, min_nights_winter"),
+      supabase
+        .from("apartment_images")
+        .select("apartment_id, storage_path, sort_order")
+        .order("apartment_id", { ascending: true })
+        .order("sort_order", { ascending: true }),
+    ]);
+    const pricing = pricingRes.data;
 
-    if (!pricing || pricing.length === 0) {
-      return apartments;
+    // DB-Bilder pro Wohnung sammeln (in sort_order-Reihenfolge).
+    const imagesMap = new Map<string, string[]>();
+    for (const row of imagesRes.data ?? []) {
+      const list = imagesMap.get(row.apartment_id) ?? [];
+      list.push(apartmentImageUrl(row.storage_path));
+      imagesMap.set(row.apartment_id, list);
     }
 
-    const pricingMap = new Map(pricing.map((p) => [p.apartment_id, p]));
+    const pricingMap = new Map((pricing ?? []).map((p) => [p.apartment_id, p]));
 
     return apartments.map((apt) => {
+      // Hochgeladene Fotos haben Vorrang; sonst die statischen aus apartments.ts.
+      const dbImages = imagesMap.get(apt.id);
+      const base = dbImages && dbImages.length > 0 ? { ...apt, images: dbImages } : apt;
+
       const dbPrice = pricingMap.get(apt.id);
-      if (!dbPrice) return apt;
+      if (!dbPrice) return base;
       const override = (dbPrice as { name_override?: string | null }).name_override;
       const extra = dbPrice as {
         extra_adult_price?: number | null;
@@ -54,7 +83,7 @@ export async function getAllApartmentsWithPricing(): Promise<Apartment[]> {
       const extraPerson = Number(dbPrice.extra_person_price);
       const dogFeeRaw = Number(dbPrice.dog_fee);
       return {
-        ...apt,
+        ...base,
         name: override && override.trim() ? override.trim() : apt.name,
         basePrice: Number(dbPrice.base_price),
         summerPrice: Number(dbPrice.summer_price ?? dbPrice.base_price),
