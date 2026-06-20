@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentBySlugWithPricing } from "@/lib/pricing-data";
 import { generateICal } from "@/lib/ical";
+import { todayISO, toViennaISODate } from "@/lib/dates";
 import { getMaxBookingDate } from "@/lib/availability-server";
 
 /**
@@ -29,10 +30,10 @@ export async function GET(
     const supabase = createServerClient();
 
     // Fetch all non-cancelled bookings for this apartment (next 18 months)
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayISO();
     const futureLimit = new Date();
     futureLimit.setMonth(futureLimit.getMonth() + 18);
-    const futureLimitStr = futureLimit.toISOString().split("T")[0];
+    const futureLimitStr = toViennaISODate(futureLimit);
 
     const { data: bookings } = await supabase
       .from("bookings")

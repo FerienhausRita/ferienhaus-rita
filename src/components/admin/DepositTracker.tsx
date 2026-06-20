@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit, recalculateDepositPlan } from "@/app/(admin)/admin/actions";
 import { useRouter } from "next/navigation";
+import { todayISO } from "@/lib/dates";
 import SendReminderButton from "@/components/admin/SendReminderButton";
 
 function formatCurrency(amount: number) {
@@ -67,7 +68,7 @@ export default function DepositTracker({
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const [showManualForm, setShowManualForm] = useState(false);
   const [manualAmount, setManualAmount] = useState("");
-  const [manualDate, setManualDate] = useState(new Date().toISOString().split("T")[0]);
+  const [manualDate, setManualDate] = useState(todayISO());
   const [manualMethod, setManualMethod] = useState("bank_transfer");
   const [manualNote, setManualNote] = useState("");
   const [manualAppliesTo, setManualAppliesTo] = useState<"auto" | "deposit" | "remainder">("auto");
@@ -99,7 +100,7 @@ export default function DepositTracker({
   const depositOpen = Math.max(0, depositAmount - depositPaidEffective);
   const remainderOpen = Math.max(0, remainderAmount - remainderPaidEffective);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
   const depositOverdue = depositDueDate && depositDueDate < today && !depositPaidAt;
   const remainderOverdue = remainderDueDate && remainderDueDate < today && !remainderPaidAt;
 

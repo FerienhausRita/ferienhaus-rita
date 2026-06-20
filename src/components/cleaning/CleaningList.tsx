@@ -1,4 +1,5 @@
 import type { CleaningBooking } from "@/app/(cleaning)/actions";
+import { todayISO, toViennaISODate } from "@/lib/dates";
 
 function formatDate(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toLocaleDateString("de-AT", {
@@ -117,8 +118,8 @@ function BookingCard({
 }
 
 export default function CleaningList({ bookings }: { bookings: CleaningBooking[] }) {
-  const today = new Date().toISOString().split("T")[0];
-  const tomorrow = new Date(Date.now() + 86400000).toISOString().split("T")[0];
+  const today = todayISO();
+  const tomorrow = toViennaISODate(new Date(Date.now() + 86400000));
 
   // Departures = Reinigung fällig
   const departuresToday = bookings.filter((b) => b.check_out === today);

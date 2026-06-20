@@ -10,13 +10,14 @@ import {
   APARTMENT_IMAGES_BUCKET,
   apartmentImageUrl,
 } from "@/lib/pricing-data";
+import { todayISO } from "@/lib/dates";
 
 /**
  * Get dashboard statistics
  */
 export async function getDashboardStats() {
   const supabase = createServerClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
   const monthStart = `${today.substring(0, 7)}-01`;
   const monthEnd = new Date(
     new Date(monthStart).getFullYear(),
@@ -262,7 +263,7 @@ export async function getAnalyticsData() {
  */
 export async function getBookings(filter?: string, search?: string, sortBy?: string, sortDir?: string) {
   const supabase = createServerClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   // Allowed sort columns (whitelist to prevent injection)
   const allowedSortColumns: Record<string, string> = {
@@ -1097,7 +1098,7 @@ export async function markRemainderPaid(bookingId: string) {
  */
 export async function getPaymentOverview(sortBy?: string, sortDir?: string) {
   const supabase = createServerClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   // Allowed sort columns for payments
   const allowedSortColumns: Record<string, string> = {
@@ -1412,7 +1413,7 @@ export async function sendBookingPaymentReminder(
     additionalDogFee: apartment.additionalDogFee ?? 7.5,
   };
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
   const email = await import("@/lib/email");
   type EmailBooking = Parameters<typeof email.sendDepositReminder>[0];
   type EmailApartment = Parameters<typeof email.sendDepositReminder>[1];
@@ -1474,7 +1475,7 @@ export async function sendBookingPaymentReminder(
  */
 export async function getPlatformPayouts() {
   const supabase = createServerClient();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   const { data } = await supabase
     .from("bookings")
@@ -2665,10 +2666,10 @@ export async function inviteAdmin(email: string, displayName: string, role: "adm
   const siteUrl =
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
 
-  // Use Supabase Admin API to invite user
+  // Use Supabase Admin API to invite user — neue Admins setzen direkt ihr Passwort
   const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     data: { display_name: displayName },
-    redirectTo: `${siteUrl}/auth/callback`,
+    redirectTo: `${siteUrl}/auth/callback?next=/auth/set-password`,
   });
 
   if (error) {
@@ -4395,7 +4396,7 @@ async function reconcileOverageAfterTotalChange(
       // Fallback heute.
       const paidDate =
         (b.remainder_paid_at as string | null)?.split("T")[0] ??
-        new Date().toISOString().split("T")[0];
+        todayISO();
       await supabase.from("booking_payments").insert({
         booking_id: bookingId,
         amount: rem,
@@ -4412,7 +4413,7 @@ async function reconcileOverageAfterTotalChange(
     .update({
       remainder_amount: Math.round((rem + uncovered) * 100) / 100,
       remainder_due_date:
-        b.remainder_due_date ?? new Date().toISOString().split("T")[0],
+        b.remainder_due_date ?? todayISO(),
       remainder_paid_at: null,
       payment_status: "deposit_paid",
     })
@@ -4731,7 +4732,7 @@ export async function sendTestEmail(emailType: TestEmailType) {
           apartment,
           bankDetails,
           synthetic.depositAmount,
-          synthetic.depositDueDate ?? new Date().toISOString().split("T")[0]
+          synthetic.depositDueDate ?? todayISO()
         );
         break;
       case "remainder_reminder":
@@ -4740,7 +4741,7 @@ export async function sendTestEmail(emailType: TestEmailType) {
           apartment,
           bankDetails,
           synthetic.remainderAmount,
-          synthetic.remainderDueDate ?? new Date().toISOString().split("T")[0]
+          synthetic.remainderDueDate ?? todayISO()
         );
         break;
       case "payment_reminder":

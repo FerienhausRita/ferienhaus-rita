@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { apartments as staticApartments, Apartment } from "@/data/apartments";
 import { calculatePrice, formatCurrency, PriceBreakdown, PricingOverrides, getMinNightsWithOverrides, getMinNightsForRange } from "@/lib/pricing";
 import { isAvailable } from "@/lib/availability";
+import { todayISO } from "@/lib/dates";
 import { getMinNights, SpecialPeriod } from "@/data/seasons";
 import { validateDiscountCode, DiscountCode } from "@/data/discounts";
 import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
@@ -126,7 +127,7 @@ export default function BookingFlow({
     }
   }, [selectedApartment]);
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
   // Kleinkinder unter 3 zählen NICHT zur maxGuests-Auslastung.
   // children ist additiv (Bestandsbuchungen) — bei neuen Buchungen ist es 0.
   const totalGuests = search.adults + search.children;

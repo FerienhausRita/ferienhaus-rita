@@ -1,4 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server";
+import { todayISO } from "@/lib/dates";
 
 const CACHE_TTL_MS = 30 * 60 * 1000; // 30 minutes
 const KALS_LAT = 47.0045;
@@ -83,7 +84,7 @@ export async function getWeather(): Promise<WeatherData | null> {
     }
 
     const forecastDays: WeatherDay[] = [];
-    const today = new Date().toISOString().split("T")[0];
+    const today = todayISO();
 
     for (const [date, data] of dayMap) {
       if (date === today) continue;

@@ -14,6 +14,7 @@
 import nodemailer from "nodemailer";
 import { createServerClient } from "@/lib/supabase/server";
 import { generateBookingsXlsx } from "@/lib/excel-export";
+import { todayISO } from "@/lib/dates";
 
 export type SendBookingsExportResult =
   | {
@@ -85,7 +86,7 @@ export async function sendBookingsExportEmail(options?: {
       month: "2-digit",
       year: "numeric",
     });
-    const todayIso = new Date().toISOString().split("T")[0];
+    const todayIso = todayISO();
     const filename = `Ferienhaus-Rita-Export-${todayIso}.xlsx`;
 
     await transporter.sendMail({

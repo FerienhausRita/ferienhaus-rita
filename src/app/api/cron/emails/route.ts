@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentWithPricing } from "@/lib/pricing-data";
+import { toViennaISODate } from "@/lib/dates";
 import {
   sendBookingConfirmed,
   sendPaymentReminder,
@@ -462,7 +463,7 @@ async function processTaskReminders(): Promise<number> {
   const supabase = createServerClient();
   const tomorrow = new Date();
   tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().split("T")[0];
+  const tomorrowStr = toViennaISODate(tomorrow);
 
   // Offene Aufgaben die morgen fällig sind
   const { data: tasks } = await supabase

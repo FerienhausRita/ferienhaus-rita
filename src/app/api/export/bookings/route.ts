@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { generateBookingsXlsx } from "@/lib/excel-export";
+import { todayISO } from "@/lib/dates";
 
 /**
  * GET /api/export/bookings
@@ -31,7 +32,7 @@ export async function GET() {
   }
 
   const { buffer } = await generateBookingsXlsx();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   return new NextResponse(new Uint8Array(buffer), {
     status: 200,

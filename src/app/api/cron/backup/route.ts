@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
+import { todayISO } from "@/lib/dates";
 import nodemailer from "nodemailer";
 
 export const dynamic = "force-dynamic";
@@ -139,7 +140,7 @@ export async function GET(request: NextRequest) {
       ].join("\n"),
       attachments: [
         {
-          filename: `backup-ferienhaus-rita-${new Date().toISOString().split("T")[0]}.json`,
+          filename: `backup-ferienhaus-rita-${todayISO()}.json`,
           content: backupJson,
           contentType: "application/json",
         },

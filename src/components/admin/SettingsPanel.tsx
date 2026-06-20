@@ -22,6 +22,7 @@ import {
   setCleaningUserActive,
   removeCleaningUser,
 } from "@/app/(admin)/admin/actions";
+import { todayISO } from "@/lib/dates";
 
 /** Test-Mails — sendet jede Mail-Sorte an die Admin-Adresse */
 function TestMailsBlock() {
@@ -1082,7 +1083,7 @@ export default function SettingsPanel({
               type="date"
               value={maxBookingDate}
               onChange={(e) => setMaxBookingDate(e.target.value)}
-              min={new Date().toISOString().split("T")[0]}
+              min={todayISO()}
               className="border border-stone-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#c8a96e]/30 focus:border-[#c8a96e] outline-none"
             />
             <button

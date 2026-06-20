@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { getCleaningSchedule } from "../actions";
+import { toViennaISODate } from "@/lib/dates";
 import { getApartmentNameMap } from "@/lib/pricing-data";
 import { getCleaningConfig } from "@/lib/cleaning-config";
 import {
@@ -55,9 +56,9 @@ export default async function ReinigungPage({
     searchParams.view === "list" ? "list" : "cluster";
 
   const today = new Date();
-  const start = today.toISOString().split("T")[0];
+  const start = toViennaISODate(today);
   const endDate = new Date(today.getTime() + days * 24 * 60 * 60 * 1000);
-  const end = endDate.toISOString().split("T")[0];
+  const end = toViennaISODate(endDate);
 
   const [{ departures, arrivals }, nameMap, cleaningCfg] = await Promise.all([
     getCleaningSchedule(start, end),

@@ -7,6 +7,7 @@ import {
   revertPlatformPayout,
   updatePlatformPayoutAmount,
 } from "@/app/(admin)/admin/actions";
+import { todayISO } from "@/lib/dates";
 
 function formatCurrency(amount: number) {
   return new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR" }).format(amount);
@@ -41,7 +42,7 @@ export default function PlatformPayoutStatus({
   const [editingAmount, setEditingAmount] = useState(false);
   const [amount, setAmount] = useState(totalPrice.toFixed(2));
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
   const overdue = !!(expectedPayoutDate && expectedPayoutDate <= today);
   const isPending = paymentStatus === "platform_pending";
   const isPaid = paymentStatus === "paid";

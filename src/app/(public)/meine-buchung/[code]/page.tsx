@@ -8,6 +8,7 @@ import { verifyGuestToken } from "@/lib/guest-auth";
 import { createServerClient } from "@/lib/supabase/server";
 import { normalizeBankDetails } from "@/lib/bank-details";
 import { getApartmentWithPricing, getTaxConfigFromDB } from "@/lib/pricing-data";
+import { todayISO } from "@/lib/dates";
 import { formatCurrency, formatDate } from "@/lib/pricing";
 import LocalTaxHint from "@/components/booking/LocalTaxHint";
 import WeatherWidget from "@/components/guest/WeatherWidget";
@@ -153,7 +154,7 @@ export default async function BookingOverviewPage({
   const taxConfig = await getTaxConfigFromDB();
 
   // --- Chat gating: only from check-in date onwards ---
-  const todayIso = new Date().toISOString().split("T")[0];
+  const todayIso = todayISO();
   const chatAvailable =
     (booking.status === "confirmed" || booking.status === "completed") &&
     booking.check_in <= todayIso;

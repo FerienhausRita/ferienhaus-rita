@@ -2,6 +2,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 import { getPaymentOverview, getPlatformPayouts } from "../actions";
 import { getApartmentNameMap } from "@/lib/pricing-data";
+import { todayISO } from "@/lib/dates";
 import PlatformPayouts from "@/components/admin/PlatformPayouts";
 import SendReminderButton from "@/components/admin/SendReminderButton";
 
@@ -80,7 +81,7 @@ export default async function ZahlungenPage({
     overdue: b.overdue,
   }));
   const sp = searchParams as Record<string, string | undefined>;
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   // Filter overdue: nur Buchungen, bei denen ein Bucket bereits über Fälligkeit ist
   const bookings = filter === "overdue"

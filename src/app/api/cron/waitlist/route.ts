@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import { isAvailableDB } from "@/lib/availability-server";
+import { todayISO } from "@/lib/dates";
 import { sendWaitlistNotification, type WaitlistEntry } from "@/lib/email";
 
 function verifyAuth(request: NextRequest): boolean {
@@ -42,7 +43,7 @@ async function processWaitlist() {
   }
 
   const apartments = await getAllApartmentsWithPricing();
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   let notified = 0;
   let expired = 0;

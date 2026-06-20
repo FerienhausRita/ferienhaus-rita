@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createServerClient } from "@/lib/supabase/server";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
 import { parseICal } from "@/lib/ical";
+import { todayISO } from "@/lib/dates";
 
 /**
  * GET & POST /api/ical/sync
@@ -140,7 +141,7 @@ async function runSync() {
         .select("id");
 
       // Skip past events and events that overlap bookings
-      const today = new Date().toISOString().split("T")[0];
+      const today = todayISO();
       const futureEvents = allEvents.filter((e) => e.end > today);
 
       const { data: existingBookings } = await supabase

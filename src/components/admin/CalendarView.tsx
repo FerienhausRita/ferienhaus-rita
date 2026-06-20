@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { deleteBlockedDate } from "@/app/(admin)/admin/actions";
+import { toViennaISODate } from "@/lib/dates";
 import { useState, useRef, useEffect, useCallback } from "react";
 
 interface Booking {
@@ -64,7 +65,7 @@ export default function CalendarView({
   const monthRefs = useRef<(HTMLDivElement | null)[]>([]);
 
   const today = new Date();
-  const todayStr = today.toISOString().split("T")[0];
+  const todayStr = toViennaISODate(today);
 
   // Scroll to current month on mount
   useEffect(() => {

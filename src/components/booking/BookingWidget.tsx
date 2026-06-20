@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { todayISO } from "@/lib/dates";
 
 export default function BookingWidget({ compact = false }: { compact?: boolean }) {
   const router = useRouter();
@@ -9,7 +10,7 @@ export default function BookingWidget({ compact = false }: { compact?: boolean }
   const [checkOut, setCheckOut] = useState("");
   const [guests, setGuests] = useState("2");
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = todayISO();
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
