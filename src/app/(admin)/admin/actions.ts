@@ -3512,6 +3512,26 @@ export async function createManualBooking(data: {
     );
   }
 
+  // Anzahlungsplan für Direkt-/Website-Buchungen (wie im Online-Flow beim
+  // Bestätigen). Externe Kanäle laufen über die Plattform → kein Split.
+  let depositPlan = {
+    deposit_amount: 0,
+    deposit_due_date: null as string | null,
+    remainder_amount: 0,
+    remainder_due_date: null as string | null,
+  };
+  if (!isExternalChannel) {
+    const { getDepositConfig, computeDepositSplit } = await import(
+      "@/lib/deposit-config"
+    );
+    const cfg = await getDepositConfig();
+    depositPlan = computeDepositSplit({
+      totalPrice: breakdown.total,
+      checkIn: data.check_in,
+      config: cfg,
+    });
+  }
+
   // Upsert guest (only if email provided)
   let guestData: { id: string; total_stays: number | null; total_revenue: number | null } | null = null;
   const emailTrimmed = data.email?.trim().toLowerCase() || "";
@@ -3575,8 +3595,10 @@ export async function createManualBooking(data: {
       // Erst nach Bestätigung des Geldeingangs wird auf "paid" gesetzt.
       payment_status: isExternalChannel ? "platform_pending" : "unpaid",
       expected_payout_date: expectedPayoutDate,
-      deposit_amount: 0,
-      remainder_amount: 0,
+      deposit_amount: depositPlan.deposit_amount,
+      deposit_due_date: depositPlan.deposit_due_date,
+      remainder_amount: depositPlan.remainder_amount,
+      remainder_due_date: depositPlan.remainder_due_date,
     })
     .select("id")
     .single();
@@ -3654,6 +3676,11 @@ export async function createManualBooking(data: {
           // Manuelle Buchung hat aktuell keinen Rabatt — defensiv übergeben
           discountAmount: 0,
           discountLabel: null,
+          // Anzahlungsplan, damit die Mail Anzahlung + Restbetrag korrekt zeigt
+          depositAmount: depositPlan.deposit_amount,
+          depositDueDate: depositPlan.deposit_due_date ?? undefined,
+          remainderAmount: depositPlan.remainder_amount,
+          remainderDueDate: depositPlan.remainder_due_date ?? undefined,
         },
         apartment,
         { bankDetails: manualBankDetails || undefined }
