@@ -69,6 +69,12 @@ export default function ManualBookingForm({
   const [sourceChannel, setSourceChannel] = useState<string>("Website");
   const isExternalChannel = sourceChannel !== "Website";
 
+  // Anzahlung (30 %) fällig? Vom Kanal entkoppelt. Standard: Website & Osttirol = ja.
+  const [depositRequired, setDepositRequired] = useState(true);
+  useEffect(() => {
+    setDepositRequired(sourceChannel === "Website" || sourceChannel === "Osttirol");
+  }, [sourceChannel]);
+
   // Manuelle Preiseingabe (nur bei externen Kanälen)
   const [manualTotal, setManualTotal] = useState<string>("");
   const [manualCleaning, setManualCleaning] = useState<string>("");
@@ -220,6 +226,7 @@ export default function ManualBookingForm({
         status: isExternalChannel ? "confirmed" : status,
         send_confirmation: isExternalChannel ? false : sendConfirmation,
         source_channel: sourceChannel,
+        deposit_required: depositRequired,
         manual_total_price: isExternalChannel && manualTotal
           ? Number(manualTotal)
           : undefined,
@@ -255,19 +262,32 @@ export default function ManualBookingForm({
             className={inputClasses}
           >
             <option value="Website">Website (Direktbuchung)</option>
+            <option value="Osttirol">Osttirol</option>
             <option value="Booking.com">Booking.com</option>
             <option value="Airbnb">Airbnb</option>
             <option value="Holidu">Holidu</option>
             <option value="Andere">Andere Plattform</option>
           </select>
         </div>
+
+        {/* Anzahlung-Schalter — vom Kanal entkoppelt */}
+        <label className="flex items-center gap-2 text-sm text-stone-700">
+          <input
+            type="checkbox"
+            checked={depositRequired}
+            onChange={(e) => setDepositRequired(e.target.checked)}
+            className="w-4 h-4 rounded border-stone-300 text-[#c8a96e] focus:ring-[#c8a96e]/50"
+          />
+          Anzahlung (30 %) fällig — Anzahlung + Restbetrag-Plan erstellen
+        </label>
+
         {isExternalChannel && (
           <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900">
-            <strong>Externer Kanal:</strong> Für Buchungen über {sourceChannel}
-            werden <strong>keine automatischen E-Mails</strong> versendet und{" "}
-            <strong>keine Anzahlungslogik</strong> angewendet. Die Preise werden
-            manuell eingetragen (siehe Preisabschnitt unten). Zahlung und
-            Gastkommunikation laufen direkt über {sourceChannel}.
+            <strong>Externer Kanal:</strong> manuelle Preiseingabe (siehe unten),
+            keine automatischen E-Mails.{" "}
+            {depositRequired
+              ? "Anzahlung wird wie bei Direktbuchungen erstellt und im Zahlungsbereich getrackt."
+              : "Zahlung läuft als Plattform-Auszahlung am Ende (kein Anzahlungsplan)."}
           </div>
         )}
       </div>

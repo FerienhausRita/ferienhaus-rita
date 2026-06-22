@@ -3408,6 +3408,8 @@ export async function createManualBooking(data: {
   source_channel?: string;
   manual_total_price?: number;
   manual_cleaning_fee?: number;
+  /** Anzahlung (30 %) fällig? Entkoppelt vom Kanal. Default: nur Website. */
+  deposit_required?: boolean;
 }) {
   const supabase = createServerClient();
 
@@ -3461,6 +3463,9 @@ export async function createManualBooking(data: {
 
   const sourceChannel = data.source_channel ?? "Website";
   const isExternalChannel = sourceChannel !== "Website";
+  // Anzahlung-Plan ist vom Kanal entkoppelt: Standard = nur Website, aber das
+  // Formular kann es je Buchung übersteuern (z.B. Osttirol = Anzahlung fällig).
+  const depositRequired = data.deposit_required ?? !isExternalChannel;
 
   // Für externe Kanäle: manueller Preis, kein calculatePrice
   const manualTotal = Number(data.manual_total_price || 0);
@@ -3497,9 +3502,9 @@ export async function createManualBooking(data: {
         },
       });
 
-  // Externe Buchungen: erwartetes Auszahlungsdatum je Kanal berechnen
+  // Ohne Anzahlung (Plattform-Auszahlung am Ende): erwartetes Auszahlungsdatum
   let expectedPayoutDate: string | null = null;
-  if (isExternalChannel) {
+  if (!depositRequired) {
     const { getPlatformPayoutConfig, computeExpectedPayoutDate } = await import(
       "@/lib/platform-payout"
     );
@@ -3520,7 +3525,7 @@ export async function createManualBooking(data: {
     remainder_amount: 0,
     remainder_due_date: null as string | null,
   };
-  if (!isExternalChannel) {
+  if (depositRequired) {
     const { getDepositConfig, computeDepositSplit } = await import(
       "@/lib/deposit-config"
     );
@@ -3593,7 +3598,7 @@ export async function createManualBooking(data: {
       // Externe Kanäle: Auszahlung läuft über die Plattform und kommt erst
       // später an → Status "platform_pending" + erwartetes Auszahlungsdatum.
       // Erst nach Bestätigung des Geldeingangs wird auf "paid" gesetzt.
-      payment_status: isExternalChannel ? "platform_pending" : "unpaid",
+      payment_status: depositRequired ? "unpaid" : "platform_pending",
       expected_payout_date: expectedPayoutDate,
       deposit_amount: depositPlan.deposit_amount,
       deposit_due_date: depositPlan.deposit_due_date,
@@ -5469,4 +5474,98 @@ export async function getFinanceOverview(params: { year: number; month?: number 
       .sort((a, b) => b.amount - a.amount),
     expenses,
   };
+}
+
+// ============================================
+// ANZAHLUNG ↔ PLATTFORM-AUSZAHLUNG UMSCHALTEN (je Buchung, kanal-unabhängig)
+// ============================================
+
+/** Erstellt für eine Buchung einen Anzahlungsplan (30 %), egal welcher Kanal.
+ *  Setzt payment_status auf "unpaid" und entfernt den Plattform-Auszahlungs-Modus. */
+export async function applyDepositPlan(
+  bookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const supabase = createServerClient();
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("total_price, check_in")
+    .eq("id", bookingId)
+    .single();
+  if (!booking) return { success: false, error: "Buchung nicht gefunden" };
+
+  const { getDepositConfig, computeDepositSplit } = await import("@/lib/deposit-config");
+  const cfg = await getDepositConfig();
+  const split = computeDepositSplit({
+    totalPrice: Number(booking.total_price || 0),
+    checkIn: booking.check_in as string,
+    config: cfg,
+  });
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      deposit_amount: split.deposit_amount,
+      deposit_due_date: split.deposit_due_date,
+      remainder_amount: split.remainder_amount,
+      remainder_due_date: split.remainder_due_date,
+      payment_status: "unpaid",
+      expected_payout_date: null,
+      payout_amount: null,
+    })
+    .eq("id", bookingId);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin/finanzen");
+  revalidatePath("/admin");
+  return { success: true };
+}
+
+/** Stellt eine Buchung auf Plattform-Auszahlung (am Ende, ohne Anzahlung) um. */
+export async function setBookingPlatformPayout(
+  bookingId: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const supabase = createServerClient();
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("check_in, check_out, source_channel, deposit_paid_at, remainder_paid_at")
+    .eq("id", bookingId)
+    .single();
+  if (!booking) return { success: false, error: "Buchung nicht gefunden" };
+  if (booking.deposit_paid_at || booking.remainder_paid_at) {
+    return { success: false, error: "Es wurde bereits eine Zahlung verbucht" };
+  }
+
+  const { getPlatformPayoutConfig, computeExpectedPayoutDate } = await import(
+    "@/lib/platform-payout"
+  );
+  const payoutCfg = await getPlatformPayoutConfig();
+  const expectedPayoutDate = computeExpectedPayoutDate(
+    (booking.source_channel as string) || "Andere",
+    booking.check_in as string,
+    booking.check_out as string,
+    payoutCfg
+  );
+
+  const { error } = await supabase
+    .from("bookings")
+    .update({
+      deposit_amount: 0,
+      deposit_due_date: null,
+      remainder_amount: 0,
+      remainder_due_date: null,
+      payment_status: "platform_pending",
+      expected_payout_date: expectedPayoutDate,
+    })
+    .eq("id", bookingId);
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/zahlungen");
+  revalidatePath("/admin/finanzen");
+  revalidatePath("/admin");
+  return { success: true };
 }

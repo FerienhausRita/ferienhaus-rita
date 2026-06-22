@@ -6,6 +6,7 @@ import {
   confirmPlatformPayout,
   revertPlatformPayout,
   updatePlatformPayoutAmount,
+  applyDepositPlan,
 } from "@/app/(admin)/admin/actions";
 import { todayISO } from "@/lib/dates";
 
@@ -62,6 +63,16 @@ export default function PlatformPayoutStatus({
       setConfirming(false);
       router.refresh();
     } else alert(`Fehler: ${r.error}`);
+  };
+
+  const handleApplyDeposit = async () => {
+    if (!confirm("Für diese Buchung eine Anzahlung (30 %) fällig stellen? Es wird ein Anzahlung-/Restbetrag-Plan erstellt und die Buchung im Zahlungsbereich getrackt."))
+      return;
+    setBusy(true);
+    const r = await applyDepositPlan(bookingId);
+    setBusy(false);
+    if (r.success) router.refresh();
+    else alert(`Fehler: ${r.error}`);
   };
 
   const handleRevert = async () => {
@@ -129,16 +140,25 @@ export default function PlatformPayoutStatus({
               </span>
             </div>
           ) : (
-            <button
-              onClick={() => {
-                setAmount(totalPrice.toFixed(2));
-                setConfirming(true);
-              }}
-              disabled={busy}
-              className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition disabled:opacity-50"
-            >
-              Auszahlung erhalten
-            </button>
+            <div className="flex items-center gap-3 flex-wrap">
+              <button
+                onClick={() => {
+                  setAmount(totalPrice.toFixed(2));
+                  setConfirming(true);
+                }}
+                disabled={busy}
+                className="text-xs px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium transition disabled:opacity-50"
+              >
+                Auszahlung erhalten
+              </button>
+              <button
+                onClick={handleApplyDeposit}
+                disabled={busy}
+                className="text-xs text-[#c8a96e] hover:text-[#b89555] underline disabled:opacity-50"
+              >
+                Stattdessen Anzahlung (30 %) fällig setzen
+              </button>
+            </div>
           )}
         </div>
       ) : isPaid ? (

@@ -193,8 +193,8 @@ export default async function BookingDetailPage({
         </div>
       )}
 
-      {/* External channel banner */}
-      {booking.source_channel && booking.source_channel !== "Website" && (
+      {/* Plattform-Auszahlung (am Ende, ohne Anzahlung) */}
+      {booking.payment_status === "platform_pending" && (
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
           <div className="flex items-start gap-3">
             <svg
@@ -566,7 +566,7 @@ export default async function BookingDetailPage({
             </div>
           </div>
 
-          {(!booking.source_channel || booking.source_channel === "Website") && (
+          {booking.payment_status !== "platform_pending" && (
           <DepositTracker
             bookingId={booking.id}
             totalPrice={Number(booking.total_price)}

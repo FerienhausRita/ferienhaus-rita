@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit, recalculateDepositPlan } from "@/app/(admin)/admin/actions";
+import { markDepositPaid, markRemainderPaid, recordManualPayment, updateBookingDeposit, recalculateDepositPlan, setBookingPlatformPayout } from "@/app/(admin)/admin/actions";
 import { useRouter } from "next/navigation";
 import { todayISO } from "@/lib/dates";
 import SendReminderButton from "@/components/admin/SendReminderButton";
@@ -606,6 +606,25 @@ export default function DepositTracker({
             {message.text}
           </div>
         )}
+
+        {/* Umschalten auf Plattform-Auszahlung (keine Anzahlung) */}
+        <div className="pt-1 text-right">
+          <button
+            onClick={async () => {
+              if (!confirm("Auf Plattform-Auszahlung umstellen? Der Anzahlungsplan wird entfernt; die Zahlung läuft als Gesamt-Auszahlung am Ende.")) return;
+              setLoading("platform");
+              setMessage(null);
+              const r = await setBookingPlatformPayout(bookingId);
+              setLoading(null);
+              if (r.success) router.refresh();
+              else setMessage({ type: "error", text: r.error || "Fehler" });
+            }}
+            disabled={loading !== null}
+            className="text-[11px] text-stone-400 hover:text-stone-600 underline disabled:opacity-50"
+          >
+            Auf Plattform-Auszahlung umstellen
+          </button>
+        </div>
       </div>
     </div>
   );
