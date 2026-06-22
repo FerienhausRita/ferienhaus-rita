@@ -1,4 +1,5 @@
 import { createServerClient } from "@/lib/supabase/server";
+import { todayISO } from "@/lib/dates";
 
 /**
  * Get the max booking date from site_settings.
@@ -213,4 +214,117 @@ export async function getUnavailableDatesDB(
   }
 
   return Array.from(unavailable).sort();
+}
+
+// ============================================
+// ALTERNATIV-ZEITRÄUME (Vorschläge bei Belegung)
+// ============================================
+
+export interface AlternativeSuggestion {
+  apartmentId: string;
+  checkIn: string; // YYYY-MM-DD
+  checkOut: string; // YYYY-MM-DD
+  nights: number;
+  /** Abstand zum Wunsch-Anreisedatum in Tagen (negativ = früher). */
+  offsetDays: number;
+}
+
+/** Kalender-Datumsarithmetik in UTC (reine Tagesverschiebung, zeitzonen-neutral). */
+function addDaysISO(iso: string, days: number): string {
+  const d = new Date(iso + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * Findet je Wohnung den zeitlich nächstgelegenen freien Zeitraum gleicher Länge,
+ * gesucht in beide Richtungen ab desiredCheckIn. Max. ein Vorschlag pro Wohnung,
+ * sortiert nach Nähe zum Wunschdatum. Berücksichtigt max_booking_date und keine
+ * Termine in der Vergangenheit.
+ */
+export async function findAlternativeRanges(params: {
+  apartmentIds: string[];
+  desiredCheckIn: string;
+  nights: number;
+  forwardDays?: number;
+  backwardDays?: number;
+}): Promise<AlternativeSuggestion[]> {
+  const { apartmentIds, desiredCheckIn, nights } = params;
+  if (apartmentIds.length === 0 || nights < 1) return [];
+  const forwardDays = params.forwardDays ?? 365;
+  const backwardDays = params.backwardDays ?? 90;
+
+  const supabase = createServerClient();
+  const today = todayISO();
+  const maxDate = await getMaxBookingDate();
+
+  const rawStart = addDaysISO(desiredCheckIn, -backwardDays);
+  const searchStart = rawStart < today ? today : rawStart;
+  const searchEnd = addDaysISO(desiredCheckIn, forwardDays);
+  const fetchLimit = addDaysISO(searchEnd, nights + 1);
+
+  // Kandidaten-Offsets nach Nähe zum Wunschdatum (+1, -1, +2, -2, …); 0 entfällt
+  // (der Wunschzeitraum ist ja belegt).
+  const offsets: number[] = [];
+  for (let off = 1; off <= forwardDays; off++) {
+    offsets.push(off);
+    if (off <= backwardDays) offsets.push(-off);
+  }
+
+  const suggestions: AlternativeSuggestion[] = [];
+
+  for (const apartmentId of apartmentIds) {
+    const [{ data: bookings }, { data: blocked }] = await Promise.all([
+      supabase
+        .from("bookings")
+        .select("check_in, check_out")
+        .eq("apartment_id", apartmentId)
+        .not("status", "eq", "cancelled")
+        .lt("check_in", fetchLimit)
+        .gt("check_out", searchStart),
+      supabase
+        .from("blocked_dates")
+        .select("start_date, end_date")
+        .eq("apartment_id", apartmentId)
+        .lt("start_date", fetchLimit)
+        .gt("end_date", searchStart),
+    ]);
+
+    // Belegte Tage als Set aufbauen — gleiche (inklusive) Semantik wie
+    // getUnavailableDatesDB, das die Buchungsseite nutzt. So sind vorgeschlagene
+    // Zeiträume garantiert auch wirklich buchbar (sonst würde die Seite sie
+    // beim Übernehmen wieder ablehnen).
+    const occupied = new Set<string>();
+    const mark = (start: string, end: string) => {
+      let cur = start;
+      while (cur <= end) {
+        occupied.add(cur);
+        cur = addDaysISO(cur, 1);
+      }
+    };
+    for (const b of bookings ?? []) mark(b.check_in, b.check_out);
+    for (const bl of blocked ?? []) mark(bl.start_date, bl.end_date);
+
+    const isFree = (ci: string, co: string): boolean => {
+      if (maxDate && co > maxDate) return false;
+      // Prüfe alle Übernachtungen ci .. co-1 (Abreisetag co zählt nicht).
+      for (let d = ci; d < co; d = addDaysISO(d, 1)) {
+        if (occupied.has(d)) return false;
+      }
+      return true;
+    };
+
+    for (const off of offsets) {
+      const ci = addDaysISO(desiredCheckIn, off);
+      if (ci < today || ci < searchStart || ci > searchEnd) continue;
+      const co = addDaysISO(ci, nights);
+      if (isFree(ci, co)) {
+        suggestions.push({ apartmentId, checkIn: ci, checkOut: co, nights, offsetDays: off });
+        break;
+      }
+    }
+  }
+
+  suggestions.sort((a, b) => Math.abs(a.offsetDays) - Math.abs(b.offsetDays));
+  return suggestions;
 }

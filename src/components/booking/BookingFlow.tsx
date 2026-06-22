@@ -6,6 +6,7 @@ import { apartments as staticApartments, Apartment } from "@/data/apartments";
 import { calculatePrice, formatCurrency, PriceBreakdown, PricingOverrides, getMinNightsWithOverrides, getMinNightsForRange } from "@/lib/pricing";
 import { isAvailable } from "@/lib/availability";
 import { todayISO } from "@/lib/dates";
+import AlternativeDates from "@/components/booking/AlternativeDates";
 import { getMinNights, SpecialPeriod } from "@/data/seasons";
 import { validateDiscountCode, DiscountCode } from "@/data/discounts";
 import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
@@ -471,16 +472,29 @@ export default function BookingFlow({
                   })}
                 </div>
 
-                {/* Warteliste-Card erscheint, wenn keine Wohnung verfügbar ist */}
+                {/* Alternativ-Termine + Warteliste, wenn keine Wohnung verfügbar ist */}
                 {!checkingAvailability && availableApartments.length === 0 && (
-                  <WaitlistCard
-                    checkIn={search.checkIn}
-                    checkOut={search.checkOut}
-                    apartmentsData={(apartmentsData ?? []).map((a) => ({
-                      id: a.id,
-                      name: a.name,
-                    }))}
-                  />
+                  <>
+                    <AlternativeDates
+                      checkIn={search.checkIn}
+                      checkOut={search.checkOut}
+                      guests={totalGuests}
+                      onSelect={(aptId, ci, co) => {
+                        const apt =
+                          apartments.find((a) => a.id === aptId) ?? null;
+                        setSelectedApartment(apt);
+                        setSearch({ ...search, checkIn: ci, checkOut: co });
+                      }}
+                    />
+                    <WaitlistCard
+                      checkIn={search.checkIn}
+                      checkOut={search.checkOut}
+                      apartmentsData={(apartmentsData ?? []).map((a) => ({
+                        id: a.id,
+                        name: a.name,
+                      }))}
+                    />
+                  </>
                 )}
 
                 {selectedApartment && priceBreakdown && isSelectedApartmentAvailable && (
