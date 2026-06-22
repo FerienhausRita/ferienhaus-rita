@@ -47,6 +47,7 @@ const mainNav = [
 
 const moreItems = [
   { label: "Zahlungen", href: "/admin/zahlungen" },
+  { label: "Finanzen", href: "/admin/finanzen" },
   { label: "Rechnungen", href: "/admin/rechnungen" },
   { label: "Gäste", href: "/admin/gaeste" },
   { label: "Chat", href: "/admin/chat" },

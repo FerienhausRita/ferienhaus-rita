@@ -5243,3 +5243,230 @@ export async function deleteApartmentContent(
   revalidateApartmentContent();
   return { success: true };
 }
+
+// ============================================
+// FINANZEN (Übersicht + Ausgaben)
+// ============================================
+
+export interface ExpenseInput {
+  expense_date: string; // YYYY-MM-DD
+  category: string;
+  amount: number;
+  apartment_id?: string | null;
+  booking_id?: string | null;
+  note?: string | null;
+}
+
+export interface ExpenseRow extends ExpenseInput {
+  id: string;
+}
+
+/** Zeitraum-Grenzen (YYYY-MM-DD) aus Jahr + optional Monat. */
+function periodBounds(year: number, month?: number | null) {
+  if (month && month >= 1 && month <= 12) {
+    const start = `${year}-${String(month).padStart(2, "0")}-01`;
+    const last = new Date(year, month, 0).getDate();
+    const end = `${year}-${String(month).padStart(2, "0")}-${String(last).padStart(2, "0")}`;
+    return { start, end };
+  }
+  return { start: `${year}-01-01`, end: `${year}-12-31` };
+}
+
+export async function listExpenses(params: {
+  year: number;
+  month?: number | null;
+}): Promise<ExpenseRow[]> {
+  const supabase = createServerClient();
+  const { start, end } = periodBounds(params.year, params.month);
+  const { data, error } = await supabase
+    .from("expenses")
+    .select("id, expense_date, category, amount, apartment_id, booking_id, note")
+    .gte("expense_date", start)
+    .lte("expense_date", end)
+    .order("expense_date", { ascending: false });
+  if (error || !data) return [];
+  return data.map((r) => ({
+    id: r.id as string,
+    expense_date: r.expense_date as string,
+    category: r.category as string,
+    amount: Number(r.amount),
+    apartment_id: (r.apartment_id as string) ?? null,
+    booking_id: (r.booking_id as string) ?? null,
+    note: (r.note as string) ?? null,
+  }));
+}
+
+export async function createExpense(
+  input: ExpenseInput
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  if (!input.expense_date || !input.category || !(input.amount > 0)) {
+    return { success: false, error: "Datum, Kategorie und Betrag (> 0) erforderlich" };
+  }
+  const supabase = createServerClient();
+  const { error } = await supabase.from("expenses").insert({
+    expense_date: input.expense_date,
+    category: input.category,
+    amount: input.amount,
+    apartment_id: input.apartment_id || null,
+    booking_id: input.booking_id || null,
+    note: input.note || null,
+  });
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/finanzen");
+  return { success: true };
+}
+
+export async function deleteExpense(
+  id: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const supabase = createServerClient();
+  const { error } = await supabase.from("expenses").delete().eq("id", id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/finanzen");
+  return { success: true };
+}
+
+/** Aggregierte Finanz-Übersicht für einen Zeitraum (Umsatz nach check_in). */
+export async function getFinanceOverview(params: { year: number; month?: number | null }) {
+  const supabase = createServerClient();
+  const { start, end } = periodBounds(params.year, params.month);
+
+  const { getTaxConfigFromDB, getApartmentNameMap } = await import("@/lib/pricing-data");
+  const [taxConfig, nameMap] = await Promise.all([
+    getTaxConfigFromDB(),
+    getApartmentNameMap(),
+  ]);
+  const vatRate = taxConfig.vatRate;
+  const localTaxPerNight = taxConfig.localTaxPerNight;
+
+  const baseCols =
+    "check_in, check_out, nights, adults, total_price, cleaning_fee, extra_guests_total, dogs_total, discount_amount, local_tax_total, source_channel, apartment_id";
+  const fetchBookings = (cols: string) =>
+    supabase
+      .from("bookings")
+      .select(cols)
+      .in("status", ["confirmed", "completed"])
+      .gte("check_in", start)
+      .lte("check_in", end);
+
+  // payout_amount evtl. noch nicht migriert → bei Fehler ohne diese Spalte laden
+  // (Provisionen bleiben dann 0, bis Migration 039/036 eingespielt ist).
+  let bookingsRes = await fetchBookings(`${baseCols}, payout_amount`);
+  if (bookingsRes.error) {
+    bookingsRes = await fetchBookings(baseCols);
+  }
+  const bookings = bookingsRes.data as Array<Record<string, unknown>> | null;
+
+  let grossRevenue = 0;
+  let cleaningIncome = 0;
+  let extraGuests = 0;
+  let dogs = 0;
+  let discounts = 0;
+  let kurtaxe = 0;
+  let vat = 0;
+  let commissions = 0;
+
+  const byChannel = new Map<string, { gross: number; commission: number; count: number }>();
+  const byApartment = new Map<string, { gross: number; nights: number; count: number }>();
+
+  for (const b of bookings ?? []) {
+    const total = Number(b.total_price || 0);
+    const cleaning = Number(b.cleaning_fee || 0);
+    const eg = Number(b.extra_guests_total || 0);
+    const dg = Number(b.dogs_total || 0);
+    const disc = Number(b.discount_amount || 0);
+    const localTaxStored = Number(b.local_tax_total || 0);
+    const nights =
+      Number(b.nights) ||
+      Math.max(
+        0,
+        Math.round(
+          (Date.parse(String(b.check_out) + "T00:00:00Z") -
+            Date.parse(String(b.check_in) + "T00:00:00Z")) /
+            86400000
+        )
+      );
+    const adults = Number(b.adults || 0);
+    const channel = (b.source_channel as string) || "Website";
+
+    grossRevenue += total;
+    cleaningIncome += cleaning;
+    extraGuests += eg;
+    dogs += dg;
+    discounts += disc;
+    kurtaxe += Math.round(adults * nights * localTaxPerNight * 100) / 100;
+    vat += Math.round(((total - localTaxStored) / (1 + vatRate)) * vatRate * 100) / 100;
+
+    let commission = 0;
+    if (channel !== "Website" && b.payout_amount != null) {
+      commission = Math.max(0, total - Number(b.payout_amount));
+      commissions += commission;
+    }
+
+    const ch = byChannel.get(channel) ?? { gross: 0, commission: 0, count: 0 };
+    ch.gross += total;
+    ch.commission += commission;
+    ch.count += 1;
+    byChannel.set(channel, ch);
+
+    const aptId = (b.apartment_id as string) || "unbekannt";
+    const ap = byApartment.get(aptId) ?? { gross: 0, nights: 0, count: 0 };
+    ap.gross += total;
+    ap.nights += nights;
+    ap.count += 1;
+    byApartment.set(aptId, ap);
+  }
+
+  // Übernachtungs-Anteil ableiten (total = base + extra + dogs + cleaning − discount)
+  const accommodation =
+    Math.round((grossRevenue - cleaningIncome - extraGuests - dogs + discounts) * 100) / 100;
+
+  // Ausgaben (fehlertolerant: vor Migration leer)
+  let expenses: ExpenseRow[] = [];
+  try {
+    expenses = await listExpenses({ year: params.year, month: params.month });
+  } catch {
+    expenses = [];
+  }
+  const expensesByCategory = new Map<string, number>();
+  let totalExpenses = 0;
+  for (const e of expenses) {
+    totalExpenses += e.amount;
+    expensesByCategory.set(e.category, (expensesByCategory.get(e.category) ?? 0) + e.amount);
+  }
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const netRevenue = round2(grossRevenue - commissions);
+  const profit = round2(netRevenue - totalExpenses);
+
+  return {
+    period: { year: params.year, month: params.month ?? null, start, end },
+    bookingCount: (bookings ?? []).length,
+    income: {
+      gross: round2(grossRevenue),
+      accommodation,
+      cleaning: round2(cleaningIncome),
+      extraGuests: round2(extraGuests),
+      dogs: round2(dogs),
+      discounts: round2(discounts),
+    },
+    kurtaxe: round2(kurtaxe),
+    vat: round2(vat),
+    commissions: round2(commissions),
+    netRevenue,
+    totalExpenses: round2(totalExpenses),
+    profit,
+    byChannel: Array.from(byChannel.entries())
+      .map(([channel, v]) => ({ channel, gross: round2(v.gross), commission: round2(v.commission), count: v.count }))
+      .sort((a, b) => b.gross - a.gross),
+    byApartment: Array.from(byApartment.entries())
+      .map(([id, v]) => ({ id, name: nameMap.get(id) ?? id, gross: round2(v.gross), nights: v.nights, count: v.count }))
+      .sort((a, b) => b.gross - a.gross),
+    expensesByCategory: Array.from(expensesByCategory.entries())
+      .map(([category, amount]) => ({ category, amount: round2(amount) }))
+      .sort((a, b) => b.amount - a.amount),
+    expenses,
+  };
+}
