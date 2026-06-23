@@ -68,6 +68,12 @@ export interface InvoiceData {
    * offener Betrag wird in der Bankbox ausgewiesen.
    */
   payments?: InvoicePayment[];
+  /** Dokumenttyp: reguläre Rechnung (default), Stornorechnung oder Korrektur. */
+  documentType?: "invoice" | "storno" | "correction";
+  /** Pflicht-Verweis auf die Originalrechnung (bei Storno/Korrektur). */
+  relatedInvoice?: { number: string; date?: string | null } | null;
+  /** Grund der Stornierung/Korrektur. */
+  reason?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -575,6 +581,15 @@ function PositionRow({
 
 function InvoicePdf({ data }: { data: InvoiceData }) {
   const { booking, apartment, bankDetails: rawBankDetails, contact, snapshot, payments = [] } = data;
+  const documentType = data.documentType ?? "invoice";
+  const isFollowUp = documentType === "storno" || documentType === "correction";
+  const docLabel =
+    documentType === "storno"
+      ? "Stornorechnung"
+      : documentType === "correction"
+        ? "Rechnungskorrektur"
+        : "Rechnung";
+  const relatedInvoice = data.relatedInvoice ?? null;
   // Defensive fallback: Legacy-Datensätze hatten `holder` statt `account_holder`.
   const bankDetails: BankDetails = snapshot?.bank_details
     ? {
@@ -710,12 +725,39 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
             </View>
           </View>
           <View style={styles.invoiceBox}>
-            <Text style={styles.invoiceBoxLabel}>Rechnung</Text>
+            <Text style={styles.invoiceBoxLabel}>{docLabel}</Text>
             <Text style={styles.invoiceNumber}>{booking.invoice_number}</Text>
             <Text style={styles.invoiceDate}>{invoiceDate}</Text>
           </View>
         </View>
         <View style={styles.headerDivider} />
+
+        {/* Pflicht-Verweis auf die Originalrechnung (Storno/Korrektur) */}
+        {isFollowUp && relatedInvoice && (
+          <View
+            style={{
+              backgroundColor: GOLD_LIGHT,
+              borderRadius: 4,
+              padding: 10,
+              marginBottom: 14,
+            }}
+          >
+            <Text style={{ fontSize: 9, color: DARK }}>
+              {documentType === "storno"
+                ? "Diese Stornorechnung storniert die "
+                : "Diese Rechnungskorrektur berichtigt die "}
+              <Text style={{ fontFamily: "Helvetica-Bold" }}>
+                Rechnung {relatedInvoice.number}
+              </Text>
+              {relatedInvoice.date ? ` vom ${fmtDate(relatedInvoice.date)}` : ""}.
+            </Text>
+            {data.reason ? (
+              <Text style={{ fontSize: 8, color: GRAY, marginTop: 3 }}>
+                Grund: {data.reason}
+              </Text>
+            ) : null}
+          </View>
+        )}
 
         {/* Addresses */}
         <View style={styles.addressGrid}>
@@ -848,7 +890,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         </View>
 
         {/* Bereits geleistete Zahlungen — aus booking_payments live geladen */}
-        {payments.length > 0 && (
+        {!isFollowUp && payments.length > 0 && (
           <View style={[styles.totals, { marginTop: 4 }]}>
             {payments.map((p) => {
               const label =
@@ -891,7 +933,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         )}
 
         {/* Bankverbindung — nur anzeigen wenn noch was offen ist */}
-        {!isFullyPaid && (
+        {!isFollowUp && !isFullyPaid && (
           <View style={styles.paymentBox}>
             <Text style={styles.paymentTitle}>
               Überweisungsinformationen
@@ -925,7 +967,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         )}
 
         {/* Bezahlt-Stempel wenn alles erhalten */}
-        {isFullyPaid && (
+        {!isFollowUp && isFullyPaid && (
           <View style={styles.paidStamp}>
             <Text style={styles.paidStampText}>
               ✓ Vollständig bezahlt
@@ -936,15 +978,17 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           </View>
         )}
 
-        {/* Dankesnote */}
-        <View style={styles.thankBlock}>
-          <Text style={styles.thankText}>
-            Vielen Dank für Ihren Aufenthalt im {contact.businessName}!
-          </Text>
-          <Text style={styles.thankSubtext}>
-            Wir freuen uns, Sie bald wieder in Kals begrüßen zu dürfen.
-          </Text>
-        </View>
+        {/* Dankesnote (nur reguläre Rechnung) */}
+        {!isFollowUp && (
+          <View style={styles.thankBlock}>
+            <Text style={styles.thankText}>
+              Vielen Dank für Ihren Aufenthalt im {contact.businessName}!
+            </Text>
+            <Text style={styles.thankSubtext}>
+              Wir freuen uns, Sie bald wieder in Kals begrüßen zu dürfen.
+            </Text>
+          </View>
+        )}
 
         {/* Footer mit Firmen- und Steuer-Daten */}
         <View style={styles.footer} fixed>
@@ -1007,7 +1051,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 
           <View style={styles.footerBottom}>
             <Text style={styles.footerPage}>
-              Rechnung {booking.invoice_number} · {invoiceDate}
+              {docLabel} {booking.invoice_number} · {invoiceDate}
             </Text>
             <Text
               style={styles.footerPage}

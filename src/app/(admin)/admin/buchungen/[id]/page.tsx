@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments, getGuestRatingByEmail } from "../../actions";
+import { getBookingById, getBookingNotes, getEmailSchedule, getBookingLineItems, getSiteSetting, getBookingPayments, getGuestRatingByEmail, listInvoiceDocuments } from "../../actions";
 import { formatAdminDateTime } from "@/lib/format-datetime";
 import { normalizeBankDetails } from "@/lib/bank-details";
 import { getApartmentWithPricing, getTaxConfigFromDB, getAllApartmentsWithPricing } from "@/lib/pricing-data";
@@ -106,6 +106,9 @@ export default async function BookingDetailPage({
 
   // Load admin rating from previous stays (for returning guests)
   const guestRating = await getGuestRatingByEmail(booking.email || "");
+
+  // Storno-/Korrektur-Folgedokumente (für die Rechnungs-Sektion)
+  const invoiceDocuments = await listInvoiceDocuments(booking.id);
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
@@ -441,6 +444,14 @@ export default async function BookingDetailPage({
                 diffs={diffs}
                 invoiceSnapshotTotal={snapshotTotal}
                 currentTotal={Number(booking.total_price)}
+                documents={invoiceDocuments.map((d) => ({
+                  id: d.id,
+                  type: d.type,
+                  number: d.number,
+                  issue_date: d.issue_date,
+                  related_invoice_number: d.related_invoice_number,
+                  reason: d.reason,
+                }))}
               />
             );
           })()}

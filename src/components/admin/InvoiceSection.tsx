@@ -4,13 +4,23 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   finalizeInvoice,
-  cancelInvoice,
+  createStornoDocument,
+  createCorrectionDocument,
 } from "@/app/(admin)/admin/actions";
 
 interface SnapshotDiffRow {
   field: string;
   snapshot: string;
   current: string;
+}
+
+interface InvoiceDocument {
+  id: string;
+  type: "storno" | "correction";
+  number: string;
+  issue_date: string;
+  related_invoice_number: string;
+  reason: string | null;
 }
 
 interface InvoiceSectionProps {
@@ -23,6 +33,7 @@ interface InvoiceSectionProps {
   diffs: SnapshotDiffRow[];
   invoiceSnapshotTotal: number | null;
   currentTotal: number;
+  documents: InvoiceDocument[];
 }
 
 function fmtDateTime(iso: string): string {
@@ -36,10 +47,7 @@ function fmtDateTime(iso: string): string {
 }
 
 function fmtMoney(n: number): string {
-  return new Intl.NumberFormat("de-AT", {
-    style: "currency",
-    currency: "EUR",
-  }).format(n);
+  return new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR" }).format(n);
 }
 
 export default function InvoiceSection({
@@ -52,6 +60,7 @@ export default function InvoiceSection({
   diffs,
   invoiceSnapshotTotal,
   currentTotal,
+  documents,
 }: InvoiceSectionProps) {
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
@@ -59,11 +68,12 @@ export default function InvoiceSection({
 
   const isFinalized = !!invoiceFinalizedAt;
   const hasDiffs = diffs.length > 0;
-  const isCancelled = !isFinalized && !!invoiceCancelledAt;
+  const isLegacyCancelled = !isFinalized && !!invoiceCancelledAt;
   const isBookingConfirmed = status === "confirmed" || status === "completed";
+  const hasStorno = documents.some((d) => d.type === "storno");
 
   const handleFinalize = () => {
-    if (!confirm("Rechnung jetzt erstellen? Die aktuellen Buchungsdaten werden eingefroren — spätere Änderungen erfordern eine Stornierung.")) return;
+    if (!confirm("Rechnung jetzt erstellen? Die aktuellen Buchungsdaten werden eingefroren — Änderungen danach erfordern eine Storno- oder Korrekturrechnung.")) return;
     startTransition(async () => {
       const r = await finalizeInvoice(bookingId);
       if (r.success) {
@@ -76,17 +86,16 @@ export default function InvoiceSection({
     });
   };
 
-  const handleCancel = () => {
-    if (
-      !confirm(
-        "Rechnung wirklich stornieren? Die aktuelle Rechnungsnummer wird archiviert. Beim nächsten Erstellen wird eine neue Nummer vergeben."
-      )
-    )
-      return;
+  const handleStorno = () => {
+    const reason = prompt(
+      "Grund der Stornierung (erscheint auf der Stornorechnung):",
+      "Buchung storniert"
+    );
+    if (reason === null) return;
     startTransition(async () => {
-      const r = await cancelInvoice(bookingId);
+      const r = await createStornoDocument(bookingId, reason);
       if (r.success) {
-        setMessage({ type: "success", text: "Rechnung storniert" });
+        setMessage({ type: "success", text: `Stornorechnung ${r.number} erstellt` });
         router.refresh();
         setTimeout(() => setMessage(null), 3000);
       } else {
@@ -95,13 +104,23 @@ export default function InvoiceSection({
     });
   };
 
-  // Zustand bestimmen
-  let state: "not_confirmed" | "ready" | "issued" | "diff" | "cancelled";
-  if (!isBookingConfirmed) state = "not_confirmed";
-  else if (isFinalized && hasDiffs) state = "diff";
-  else if (isFinalized) state = "issued";
-  else if (isCancelled) state = "cancelled";
-  else state = "ready";
+  const handleCorrection = () => {
+    const reason = prompt(
+      "Grund der Korrektur (erscheint auf der Rechnungskorrektur):",
+      "Betragskorrektur"
+    );
+    if (reason === null) return;
+    startTransition(async () => {
+      const r = await createCorrectionDocument(bookingId, reason);
+      if (r.success) {
+        setMessage({ type: "success", text: `Rechnungskorrektur ${r.number} erstellt` });
+        router.refresh();
+        setTimeout(() => setMessage(null), 3000);
+      } else {
+        setMessage({ type: "error", text: r.error || "Fehler" });
+      }
+    });
+  };
 
   return (
     <div className="bg-white rounded-2xl border border-stone-200 overflow-hidden">
@@ -109,13 +128,14 @@ export default function InvoiceSection({
         <h3 className="font-semibold text-stone-900 text-sm">Rechnung</h3>
       </div>
       <div className="p-5 space-y-3">
-        {state === "not_confirmed" && (
+        {!isBookingConfirmed && !isFinalized && (
           <p className="text-sm text-stone-500">
             Buchung muss erst bestätigt werden, bevor eine Rechnung erstellt werden kann.
           </p>
         )}
 
-        {state === "ready" && (
+        {/* Noch nicht ausgestellt */}
+        {isBookingConfirmed && !isFinalized && !isLegacyCancelled && (
           <>
             {invoiceNumber && (
               <div className="text-sm">
@@ -139,15 +159,49 @@ export default function InvoiceSection({
           </>
         )}
 
-        {state === "issued" && (
+        {/* Ausgestellt (inkl. evtl. Storno/Korrektur) */}
+        {isFinalized && (
           <>
+            {hasStorno && (
+              <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm">
+                <p className="font-semibold text-red-800">Rechnung wurde storniert</p>
+                <p className="text-xs text-red-700 mt-0.5">
+                  Das Original bleibt aus rechtlichen Gründen erhalten; die Stornorechnung dokumentiert die Aufhebung.
+                </p>
+              </div>
+            )}
+
+            {hasDiffs && !hasStorno && (
+              <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
+                <p className="font-semibold text-amber-800 mb-1">
+                  ⚠ Rechnung weicht von aktuellen Buchungsdaten ab
+                </p>
+                <p className="text-xs text-amber-700 mb-2">
+                  Die ausgestellte Rechnung zeigt nicht mehr den aktuellen Stand. Erstelle eine
+                  <strong> Rechnungskorrektur</strong> (das Original darf nicht überschrieben werden).
+                </p>
+                <ul className="text-xs text-amber-900 space-y-0.5 ml-3 list-disc">
+                  {diffs.map((d) => (
+                    <li key={d.field}>
+                      <strong>{d.field}:</strong> Rechnung {d.snapshot} → aktuell {d.current}
+                    </li>
+                  ))}
+                </ul>
+                {invoiceSnapshotTotal !== null && (
+                  <p className="text-xs text-amber-800 mt-2">
+                    Total Rechnung: <strong>{fmtMoney(invoiceSnapshotTotal)}</strong> · aktuell:{" "}
+                    <strong>{fmtMoney(currentTotal)}</strong>
+                  </p>
+                )}
+              </div>
+            )}
+
             <div className="text-sm">
               <span className="text-stone-500">Rechnungsnummer:</span>{" "}
               <span className="font-medium text-stone-900">{invoiceNumber}</span>
             </div>
-            <p className="text-xs text-stone-500">
-              Erstellt am {fmtDateTime(invoiceFinalizedAt!)}
-            </p>
+            <p className="text-xs text-stone-500">Erstellt am {fmtDateTime(invoiceFinalizedAt!)}</p>
+
             <a
               href={`/api/invoice/${bookingId}`}
               target="_blank"
@@ -156,64 +210,62 @@ export default function InvoiceSection({
             >
               Rechnung herunterladen
             </a>
-            <button
-              onClick={handleCancel}
-              disabled={isPending}
-              className="w-full py-2 px-3 text-xs text-stone-500 hover:text-red-600 hover:bg-stone-50 rounded-lg transition-colors"
-            >
-              {isPending ? "..." : "Rechnung stornieren"}
-            </button>
-          </>
-        )}
 
-        {state === "diff" && (
-          <>
-            <div className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm">
-              <p className="font-semibold text-amber-800 mb-1">
-                ⚠ Rechnung weicht von aktuellen Buchungsdaten ab
-              </p>
-              <p className="text-xs text-amber-700 mb-2">
-                Die ausgestellte Rechnung zeigt nicht mehr den aktuellen Stand. Bitte stornieren und neu erstellen.
-              </p>
-              <ul className="text-xs text-amber-900 space-y-0.5 ml-3 list-disc">
-                {diffs.map((d) => (
-                  <li key={d.field}>
-                    <strong>{d.field}:</strong> Rechnung {d.snapshot} → aktuell {d.current}
-                  </li>
+            {/* Folgedokumente */}
+            {documents.length > 0 && (
+              <div className="rounded-xl border border-stone-200 divide-y divide-stone-100">
+                {documents.map((d) => (
+                  <div key={d.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-stone-800">
+                        {d.type === "storno" ? "Stornorechnung" : "Rechnungskorrektur"} {d.number}
+                      </p>
+                      <p className="text-xs text-stone-500 truncate">
+                        zu {d.related_invoice_number}
+                        {d.reason ? ` · ${d.reason}` : ""}
+                      </p>
+                    </div>
+                    <a
+                      href={`/api/admin/invoice-document/${d.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[#c8a96e] hover:text-[#b89555] underline flex-shrink-0"
+                    >
+                      PDF
+                    </a>
+                  </div>
                 ))}
-              </ul>
-            </div>
-            <div className="text-sm">
-              <span className="text-stone-500">Rechnungsnummer:</span>{" "}
-              <span className="font-medium text-stone-900">{invoiceNumber}</span>
-            </div>
-            <p className="text-xs text-stone-500">
-              Erstellt am {fmtDateTime(invoiceFinalizedAt!)}
-            </p>
-            {invoiceSnapshotTotal !== null && (
-              <p className="text-xs text-stone-500">
-                Total Rechnung: <strong>{fmtMoney(invoiceSnapshotTotal)}</strong> · aktuell: <strong>{fmtMoney(currentTotal)}</strong>
-              </p>
+              </div>
             )}
-            <a
-              href={`/api/invoice/${bookingId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full text-center py-2 px-3 text-sm font-medium text-stone-700 border border-stone-200 rounded-lg hover:bg-stone-50 transition-colors"
-            >
-              Rechnung (alter Stand) herunterladen
-            </a>
-            <button
-              onClick={handleCancel}
-              disabled={isPending}
-              className="w-full py-2.5 px-4 bg-amber-600 hover:bg-amber-700 text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
-            >
-              {isPending ? "..." : "Stornieren & neu erstellen"}
-            </button>
+
+            {/* Aktionen — nur solange nicht storniert */}
+            {!hasStorno && (
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  onClick={handleCorrection}
+                  disabled={isPending}
+                  className="w-full py-2 px-4 border border-amber-300 text-amber-800 hover:bg-amber-50 text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {isPending ? "..." : "Rechnungskorrektur erstellen"}
+                </button>
+                <button
+                  onClick={handleStorno}
+                  disabled={isPending}
+                  className="w-full py-2 px-4 border border-red-300 text-red-700 hover:bg-red-50 text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {isPending ? "..." : "Stornorechnung erstellen"}
+                </button>
+                <p className="text-[11px] text-stone-400">
+                  Storno & Korrektur sind eigenständige Belege mit eigener Nummer und Verweis auf das
+                  Original. Ausgestellte Rechnungen werden nicht gelöscht.
+                </p>
+              </div>
+            )}
           </>
         )}
 
-        {state === "cancelled" && (
+        {/* Legacy: alt-storniert (vor Einführung der Folgedokumente) */}
+        {isLegacyCancelled && (
           <>
             <div className="rounded-xl border border-red-300 bg-red-50 p-3 text-sm">
               <p className="font-semibold text-red-800">Rechnung storniert</p>
@@ -223,9 +275,7 @@ export default function InvoiceSection({
                 </p>
               )}
               {invoiceCancelledAt && (
-                <p className="text-xs text-red-700">
-                  am {fmtDateTime(invoiceCancelledAt)}
-                </p>
+                <p className="text-xs text-red-700">am {fmtDateTime(invoiceCancelledAt)}</p>
               )}
             </div>
             <button
@@ -239,11 +289,7 @@ export default function InvoiceSection({
         )}
 
         {message && (
-          <p
-            className={`text-xs ${
-              message.type === "success" ? "text-emerald-600" : "text-red-600"
-            }`}
-          >
+          <p className={`text-xs ${message.type === "success" ? "text-emerald-600" : "text-red-600"}`}>
             {message.text}
           </p>
         )}

@@ -4989,6 +4989,190 @@ export async function cancelInvoice(bookingId: string) {
   return { success: true };
 }
 
+// ---------------------------------------------------------------------------
+// Rechnungs-Folgedokumente: Stornorechnung & Rechnungskorrektur (AT-konform)
+// ---------------------------------------------------------------------------
+
+type StoredInvoiceSnapshot = import("@/lib/invoice-snapshot").InvoiceSnapshot;
+
+export interface InvoiceDocumentRow {
+  id: string;
+  booking_id: string;
+  type: "storno" | "correction";
+  number: string;
+  issue_date: string;
+  related_invoice_number: string;
+  related_invoice_date: string | null;
+  reason: string | null;
+  created_at: string;
+}
+
+/** Reserviert die nächste lückenlose FR-Nummer aus DEM gemeinsamen Zähler
+ *  (gleiche Sequenz wie reguläre Rechnungen) und gibt sie zurück. */
+async function reserveInvoiceNumber(): Promise<string> {
+  const supabase = createServerClient();
+  const currentYear = new Date().getFullYear();
+  const { data: counterRow } = await supabase
+    .from("site_settings")
+    .select("value")
+    .eq("key", "invoice_counter")
+    .maybeSingle();
+  let counter = (counterRow?.value as { year: number; next_number: number } | null) ?? {
+    year: currentYear,
+    next_number: 1,
+  };
+  if (counter.year !== currentYear) counter = { year: currentYear, next_number: 1 };
+  const nextNumber = counter.next_number;
+  const number = `FR-${currentYear}-${String(nextNumber).padStart(4, "0")}`;
+  await supabase.from("site_settings").upsert({
+    key: "invoice_counter",
+    value: { year: currentYear, next_number: nextNumber + 1 },
+    updated_at: new Date().toISOString(),
+  });
+  return number;
+}
+
+/** Erzeugt aus einem Snapshot eine Negativ-Variante (für Stornorechnung). */
+function negateSnapshot(s: StoredInvoiceSnapshot): StoredInvoiceSnapshot {
+  const neg = (n: number) => Math.round(-n * 100) / 100;
+  return {
+    ...s,
+    positions: s.positions.map((p) => ({ ...p, amount: neg(p.amount) })),
+    extra_line_items: (s.extra_line_items ?? []).map((li) => ({ ...li, amount: neg(li.amount) })),
+    discount: s.discount ? { ...s.discount, amount: neg(s.discount.amount) } : null,
+    tax: {
+      ...s.tax,
+      vat_amount: neg(s.tax.vat_amount),
+      local_tax_total: neg(s.tax.local_tax_total),
+    },
+    totals: {
+      subtotal: neg(s.totals.subtotal),
+      discount_amount: neg(s.totals.discount_amount),
+      total: neg(s.totals.total),
+    },
+  };
+}
+
+/** Stornorechnung erstellen: eigenständiger Beleg mit Negativbeträgen + Verweis
+ *  auf die Originalrechnung. Das Original bleibt erhalten (kein Löschen). */
+export async function createStornoDocument(bookingId: string, reason: string) {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const supabase = createServerClient();
+
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("invoice_number, invoice_snapshot, invoice_finalized_at")
+    .eq("id", bookingId)
+    .single();
+  if (!booking?.invoice_finalized_at || !booking.invoice_number || !booking.invoice_snapshot) {
+    return { success: false, error: "Keine ausgestellte Rechnung zum Stornieren" };
+  }
+
+  // Doppel-Storno verhindern.
+  const { data: existing } = await supabase
+    .from("invoice_documents")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("type", "storno")
+    .limit(1);
+  if (existing && existing.length > 0) {
+    return { success: false, error: "Für diese Rechnung existiert bereits eine Stornorechnung." };
+  }
+
+  const original = booking.invoice_snapshot as StoredInvoiceSnapshot;
+  const number = await reserveInvoiceNumber();
+  const snapshot = negateSnapshot(original);
+  snapshot.invoice_number = number;
+  snapshot.created_at = new Date().toISOString();
+
+  const relatedDate = original.created_at ? String(original.created_at).slice(0, 10) : null;
+  const { data: inserted, error } = await supabase
+    .from("invoice_documents")
+    .insert({
+      booking_id: bookingId,
+      type: "storno",
+      number,
+      snapshot,
+      related_invoice_number: booking.invoice_number,
+      related_invoice_date: relatedDate,
+      reason: reason || null,
+    })
+    .select("id")
+    .single();
+  if (error) return { success: false, error: error.message };
+
+  // Original NICHT löschen – nur als storniert markieren (bleibt herunterladbar).
+  await supabase
+    .from("bookings")
+    .update({ invoice_cancelled_at: new Date().toISOString() })
+    .eq("id", bookingId);
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/rechnungen");
+  return { success: true, id: inserted?.id as string, number };
+}
+
+/** Rechnungskorrektur erstellen: berichtigte Rechnung (aktuelle Buchungsdaten)
+ *  mit eigener Nummer + Verweis auf das Original. Original bleibt erhalten. */
+export async function createCorrectionDocument(bookingId: string, reason: string) {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const supabase = createServerClient();
+
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("invoice_number, invoice_snapshot, invoice_finalized_at")
+    .eq("id", bookingId)
+    .single();
+  if (!booking?.invoice_finalized_at || !booking.invoice_number || !booking.invoice_snapshot) {
+    return { success: false, error: "Keine ausgestellte Rechnung zum Korrigieren" };
+  }
+
+  const original = booking.invoice_snapshot as StoredInvoiceSnapshot;
+  let corrected: StoredInvoiceSnapshot;
+  try {
+    const { buildInvoiceSnapshot } = await import("@/lib/invoice-snapshot");
+    corrected = await buildInvoiceSnapshot(bookingId); // aus AKTUELLEN Buchungsdaten
+  } catch (e) {
+    return { success: false, error: e instanceof Error ? e.message : "Korrektur fehlgeschlagen" };
+  }
+
+  const number = await reserveInvoiceNumber();
+  corrected.invoice_number = number; // eigene neue Nummer
+  corrected.created_at = new Date().toISOString();
+
+  const relatedDate = original.created_at ? String(original.created_at).slice(0, 10) : null;
+  const { data: inserted, error } = await supabase
+    .from("invoice_documents")
+    .insert({
+      booking_id: bookingId,
+      type: "correction",
+      number,
+      snapshot: corrected,
+      related_invoice_number: booking.invoice_number,
+      related_invoice_date: relatedDate,
+      reason: reason || null,
+    })
+    .select("id")
+    .single();
+  if (error) return { success: false, error: error.message };
+
+  revalidatePath(`/admin/buchungen/${bookingId}`);
+  revalidatePath("/admin/rechnungen");
+  return { success: true, id: inserted?.id as string, number };
+}
+
+/** Folgedokumente (Storno/Korrektur) einer Buchung, älteste zuerst. */
+export async function listInvoiceDocuments(bookingId: string): Promise<InvoiceDocumentRow[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("invoice_documents")
+    .select("id, booking_id, type, number, issue_date, related_invoice_number, related_invoice_date, reason, created_at")
+    .eq("booking_id", bookingId)
+    .order("created_at", { ascending: true });
+  if (error || !data) return [];
+  return data as InvoiceDocumentRow[];
+}
+
 /**
  * Live-Verfügbarkeitsprüfung für die manuelle Buchung im Admin.
  * Gibt Detail-Konflikte zurück, damit das Formular dem Admin sagen kann,
