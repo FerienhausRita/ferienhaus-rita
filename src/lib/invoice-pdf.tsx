@@ -6,8 +6,6 @@ import {
   Image,
   Svg,
   Path,
-  Circle,
-  Line,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
@@ -174,16 +172,23 @@ const styles = StyleSheet.create({
     // textAlign auf View-Level zentriert via parent justifyContent/alignItems
     paddingLeft: 1, // visueller Ausgleich für minimalen optical-axis Versatz
   },
+  brandRule: {
+    width: 2,
+    alignSelf: "stretch",
+    backgroundColor: GOLD,
+    marginRight: 14,
+  },
   brandBlock: {
     flexDirection: "column",
     justifyContent: "center",
+    paddingVertical: 1,
   },
   brandName: {
-    fontSize: 19,
+    fontSize: 22,
     fontFamily: "Times-Bold",
     color: DARK,
     letterSpacing: 0.4,
-    lineHeight: 1.1,
+    lineHeight: 1.12,
   },
   brandEyebrow: {
     fontSize: 6.5,
@@ -593,43 +598,6 @@ const styles = StyleSheet.create({
 // Markenelemente (Signatur: graviertes Monogramm + Bergkamm-Linie)
 // ---------------------------------------------------------------------------
 
-/** Graviertes Ring-Monogramm „FR" – Wappen-Siegel statt flacher Goldscheibe. */
-function BrandEmblem() {
-  return (
-    <View
-      style={{
-        width: 46,
-        height: 46,
-        marginRight: 13,
-        alignItems: "center",
-        justifyContent: "center",
-        position: "relative",
-      }}
-    >
-      <Svg width={46} height={46} viewBox="0 0 46 46" style={{ position: "absolute" }}>
-        <Circle cx={23} cy={23} r={22} stroke={GOLD} strokeWidth={0.9} fill="#ffffff" />
-        <Circle cx={23} cy={23} r={18.4} stroke={GOLD} strokeWidth={0.4} fill="none" />
-        {/* feine Gipfelsilhouette oben (Großglockner-Bezug) */}
-        <Path d="M14 17 L20 11 L23.5 13.5 L28 9.5 L32 17" stroke={GOLD} strokeWidth={0.7} fill="none" />
-        {/* Zierlinie unter dem Monogramm */}
-        <Line x1={18} y1={32} x2={28} y2={32} stroke={GOLD} strokeWidth={0.4} />
-      </Svg>
-      <Text
-        style={{
-          fontFamily: "Times-Bold",
-          fontSize: 13.5,
-          color: DARK,
-          letterSpacing: 1.2,
-          marginTop: 7,
-          marginLeft: 1.5,
-        }}
-      >
-        FR
-      </Text>
-    </View>
-  );
-}
-
 /** Bergkamm-Trennlinie – die Signatur des Briefpapiers: eine ruhige
  *  Großglockner-Silhouette mit klarem Hauptgipfel (kein Zickzack). */
 function RidgelineDivider({ width = 515 }: { width?: number }) {
@@ -838,7 +806,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <BrandEmblem />
+            <View style={styles.brandRule} />
             <View style={styles.brandBlock}>
               <Text style={styles.brandName}>{contact.businessName}</Text>
               <Text style={styles.brandEyebrow}>
