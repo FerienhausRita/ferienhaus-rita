@@ -4,6 +4,10 @@ import {
   Text,
   View,
   Image,
+  Svg,
+  Path,
+  Circle,
+  Line,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
@@ -116,14 +120,15 @@ function calculateNights(checkIn: string, checkOut: string): number {
 // Color palette
 // ---------------------------------------------------------------------------
 
-const GOLD = "#c8a96e";
-const GOLD_LIGHT = "#f6efe3";
-const DARK = "#1c1917";
-const GRAY = "#57534e";
-const GRAY_LIGHT = "#a8a29e";
-const BG_SOFT = "#faf8f5";
-const LINE = "#e7e5e4";
-const LINE_SOFT = "#f5f4f2";
+// Direktion „Höhenlinien" – ruhiger Luxus, am Großglockner verankert.
+const GOLD = "#a8863f"; // gedämpftes Messing-Gold, nur als Akzent/Haarlinie
+const GOLD_LIGHT = "#f3ece0"; // sehr sparsam
+const DARK = "#1b1a17"; // warmes Tinten-Schwarz
+const GRAY = "#6b6660"; // Sekundärtext
+const GRAY_LIGHT = "#9a958c"; // Labels / Tertiär
+const BG_SOFT = "#fbfaf8"; // Hauch, keine Karten-Optik
+const LINE = "#e6e2d9"; // Haarlinie
+const LINE_SOFT = "#efece6";
 
 // ---------------------------------------------------------------------------
 // Styles
@@ -174,45 +179,42 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   brandName: {
-    fontSize: 18,
+    fontSize: 19,
     fontFamily: "Times-Bold",
     color: DARK,
-    letterSpacing: 0.3,
-    lineHeight: 1.1, // verhindert dass die Tagline in den Namen läuft
+    letterSpacing: 0.4,
+    lineHeight: 1.1,
   },
-  brandTagline: {
-    fontSize: 8,
-    fontFamily: "Times-Italic",
-    color: GOLD,
-    marginTop: 4,
-    letterSpacing: 0.5,
+  brandEyebrow: {
+    fontSize: 6.5,
+    fontFamily: "Helvetica",
+    color: GRAY_LIGHT,
+    marginTop: 5,
+    letterSpacing: 1.3,
   },
-  invoiceBox: {
-    borderWidth: 0.5,
-    borderColor: GOLD,
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 3,
+  invoiceMeta: {
     alignItems: "flex-end",
-    minWidth: 140,
+    minWidth: 150,
+    paddingTop: 2,
   },
   invoiceBoxLabel: {
-    fontSize: 7,
-    color: GOLD,
+    fontSize: 8,
+    color: GRAY_LIGHT,
     textTransform: "uppercase" as const,
-    letterSpacing: 1.2,
-    fontFamily: "Helvetica-Bold",
-    marginBottom: 3,
+    letterSpacing: 2.5,
+    fontFamily: "Helvetica",
+    marginBottom: 4,
   },
   invoiceNumber: {
-    fontSize: 11,
-    fontFamily: "Helvetica-Bold",
+    fontSize: 13,
+    fontFamily: "Times-Bold",
     color: DARK,
+    letterSpacing: 0.5,
   },
   invoiceDate: {
     fontSize: 8,
     color: GRAY,
-    marginTop: 2,
+    marginTop: 3,
   },
 
   headerDivider: {
@@ -221,28 +223,25 @@ const styles = StyleSheet.create({
     marginBottom: 10,
   },
 
-  // ── Addresses (two columns) ──
+  // ── Addresses (offen, Haarlinien statt Karten) ──
   addressGrid: {
     flexDirection: "row",
-    gap: 14,
-    marginBottom: 10,
+    gap: 24,
+    marginBottom: 14,
   },
   addressCol: {
     flex: 1,
-    backgroundColor: BG_SOFT,
-    padding: 9,
-    borderRadius: 4,
   },
   addressLabel: {
     fontSize: 7,
-    color: GOLD,
+    color: GRAY_LIGHT,
     textTransform: "uppercase" as const,
-    letterSpacing: 1.2,
-    fontFamily: "Helvetica-Bold",
+    letterSpacing: 2,
+    fontFamily: "Helvetica",
     marginBottom: 5,
   },
   addressLine: {
-    fontSize: 9,
+    fontSize: 10,
     color: DARK,
     marginBottom: 1,
   },
@@ -255,10 +254,10 @@ const styles = StyleSheet.create({
   // ── Service period ──
   serviceBlock: {
     flexDirection: "row",
-    marginBottom: 10,
+    marginBottom: 12,
   },
   serviceAccent: {
-    width: 3,
+    width: 2,
     backgroundColor: GOLD,
     marginRight: 12,
   },
@@ -268,9 +267,9 @@ const styles = StyleSheet.create({
   },
   serviceLabel: {
     fontSize: 7,
-    color: GRAY,
+    color: GRAY_LIGHT,
     textTransform: "uppercase" as const,
-    letterSpacing: 1.2,
+    letterSpacing: 2,
     marginBottom: 3,
   },
   serviceValue: {
@@ -290,25 +289,25 @@ const styles = StyleSheet.create({
   },
   tableHeader: {
     flexDirection: "row",
-    backgroundColor: GOLD_LIGHT,
-    paddingVertical: 5,
-    paddingHorizontal: 8,
+    paddingBottom: 5,
+    paddingHorizontal: 2,
     marginBottom: 2,
+    borderBottomWidth: 1,
+    borderBottomColor: DARK,
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 4.5,
-    paddingHorizontal: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 2,
     borderBottomWidth: 0.5,
-    borderBottomColor: LINE_SOFT,
+    borderBottomColor: LINE,
   },
   tableRowAlt: {
     flexDirection: "row",
-    paddingVertical: 4.5,
-    paddingHorizontal: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 2,
     borderBottomWidth: 0.5,
-    borderBottomColor: LINE_SOFT,
-    backgroundColor: BG_SOFT,
+    borderBottomColor: LINE,
   },
   colDesc: {
     flex: 1,
@@ -321,10 +320,10 @@ const styles = StyleSheet.create({
   },
   th: {
     fontSize: 7,
-    fontFamily: "Helvetica-Bold",
-    color: GRAY,
+    fontFamily: "Helvetica",
+    color: GRAY_LIGHT,
     textTransform: "uppercase" as const,
-    letterSpacing: 0.8,
+    letterSpacing: 1.8,
   },
   posTitle: {
     fontSize: 10,
@@ -364,26 +363,28 @@ const styles = StyleSheet.create({
   totalDivider: {
     width: 260,
     height: 1,
-    backgroundColor: GOLD,
-    marginVertical: 4,
+    backgroundColor: DARK,
+    marginVertical: 5,
   },
   grandRow: {
     flexDirection: "row",
     width: 260,
     paddingVertical: 1.5,
+    alignItems: "baseline",
   },
   grandLabel: {
     flex: 1,
-    fontSize: 13,
-    fontFamily: "Helvetica-Bold",
+    fontSize: 11,
+    fontFamily: "Times-Bold",
     color: DARK,
+    letterSpacing: 0.3,
   },
   grandValue: {
     width: 100,
     textAlign: "right" as const,
-    fontSize: 14,
-    fontFamily: "Helvetica-Bold",
-    color: GOLD,
+    fontSize: 15,
+    fontFamily: "Times-Bold",
+    color: DARK,
   },
   totalHint: {
     fontSize: 7,
@@ -393,20 +394,20 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
 
-  // ── Payment info ──
+  // ── Payment info (offen, oben Haarlinie statt Rahmenkasten) ──
   paymentBox: {
-    borderWidth: 0.5,
-    borderColor: GOLD,
-    borderRadius: 4,
-    padding: 9,
+    borderTopWidth: 0.5,
+    borderTopColor: LINE,
+    paddingTop: 9,
+    marginTop: 2,
     marginBottom: 8,
   },
   paymentTitle: {
     fontSize: 7,
-    color: GOLD,
+    color: GRAY_LIGHT,
     textTransform: "uppercase" as const,
-    letterSpacing: 1.2,
-    fontFamily: "Helvetica-Bold",
+    letterSpacing: 2,
+    fontFamily: "Helvetica",
     marginBottom: 6,
   },
   paymentRow: {
@@ -489,41 +490,37 @@ const styles = StyleSheet.create({
     textAlign: "right" as const,
   },
 
-  // ── Bezahlt-Stempel ──
+  // ── Bezahlt-Vermerk (zurückhaltend, graviert) ──
   paidStamp: {
-    marginTop: 8,
-    padding: 10,
-    borderRadius: 6,
-    borderWidth: 1,
-    borderColor: "#86efac",
-    backgroundColor: "#ecfdf5",
-    alignItems: "center",
+    marginTop: 2,
+    marginBottom: 8,
+    paddingTop: 9,
+    borderTopWidth: 0.5,
+    borderTopColor: LINE,
   },
   paidStampText: {
-    fontFamily: "Helvetica-Bold",
-    fontSize: 12,
-    color: "#15803d",
-    letterSpacing: 1,
+    fontFamily: "Times-Bold",
+    fontSize: 11,
+    color: DARK,
+    letterSpacing: 0.5,
   },
   paidStampSubtext: {
     fontSize: 8,
-    color: "#15803d",
+    color: GRAY,
     marginTop: 3,
   },
 
-  // ── Dankesnote ──
+  // ── Dankesnote (offen, mittig, zurückhaltend) ──
   thankBlock: {
-    marginTop: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderLeftWidth: 2,
-    borderLeftColor: GOLD,
-    backgroundColor: BG_SOFT,
+    marginTop: 10,
+    marginBottom: 2,
+    alignItems: "center",
   },
   thankText: {
     fontSize: 11,
     fontFamily: "Times-Italic",
     color: DARK,
+    textAlign: "center" as const,
   },
   thankSubtext: {
     fontSize: 9,
@@ -591,6 +588,67 @@ const styles = StyleSheet.create({
     color: GRAY_LIGHT,
   },
 });
+
+// ---------------------------------------------------------------------------
+// Markenelemente (Signatur: graviertes Monogramm + Bergkamm-Linie)
+// ---------------------------------------------------------------------------
+
+/** Graviertes Ring-Monogramm „FR" – Wappen-Siegel statt flacher Goldscheibe. */
+function BrandEmblem() {
+  return (
+    <View
+      style={{
+        width: 46,
+        height: 46,
+        marginRight: 13,
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+      }}
+    >
+      <Svg width={46} height={46} viewBox="0 0 46 46" style={{ position: "absolute" }}>
+        <Circle cx={23} cy={23} r={22} stroke={GOLD} strokeWidth={0.9} fill="#ffffff" />
+        <Circle cx={23} cy={23} r={18.4} stroke={GOLD} strokeWidth={0.4} fill="none" />
+        {/* feine Gipfelsilhouette oben (Großglockner-Bezug) */}
+        <Path d="M14 17 L20 11 L23.5 13.5 L28 9.5 L32 17" stroke={GOLD} strokeWidth={0.7} fill="none" />
+        {/* Zierlinie unter dem Monogramm */}
+        <Line x1={18} y1={32} x2={28} y2={32} stroke={GOLD} strokeWidth={0.4} />
+      </Svg>
+      <Text
+        style={{
+          fontFamily: "Times-Bold",
+          fontSize: 13.5,
+          color: DARK,
+          letterSpacing: 1.2,
+          marginTop: 7,
+          marginLeft: 1.5,
+        }}
+      >
+        FR
+      </Text>
+    </View>
+  );
+}
+
+/** Bergkamm-Trennlinie – die Signatur des Briefpapiers: eine ruhige
+ *  Großglockner-Silhouette mit klarem Hauptgipfel (kein Zickzack). */
+function RidgelineDivider({ width = 515 }: { width?: number }) {
+  // ferner Grat (hell, zurückgesetzt) + naher Grat (gold) mit Leitgipfel ~x205
+  const far =
+    "M0 16 L80 14 L150 14.5 L195 10 L225 12 L285 9 L350 12.5 L410 10.5 L470 13 L" +
+    width +
+    " 14.5";
+  const near =
+    "M0 18 L70 16 L130 16.5 L175 13 L205 6.5 L240 12 L300 13.5 L360 11 L420 14.5 L470 13 L" +
+    width +
+    " 15.5";
+  return (
+    <Svg width={width} height={20} viewBox={`0 0 ${width} 20`} style={{ marginBottom: 13 }}>
+      <Path d={far} stroke={LINE} strokeWidth={0.6} fill="none" />
+      <Path d={near} stroke={GOLD} strokeWidth={0.7} fill="none" />
+    </Svg>
+  );
+}
 
 // ---------------------------------------------------------------------------
 // Row component
@@ -780,29 +838,30 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
-            <View style={styles.logoBadge}>
-              <Text style={styles.logoText}>FR</Text>
-            </View>
+            <BrandEmblem />
             <View style={styles.brandBlock}>
               <Text style={styles.brandName}>{contact.businessName}</Text>
-              <Text style={styles.brandTagline}>Ihr Zuhause in den Alpen</Text>
+              <Text style={styles.brandEyebrow}>
+                KALS AM GROSSGLOCKNER · OSTTIROL · 1.325 M
+              </Text>
             </View>
           </View>
-          <View style={styles.invoiceBox}>
+          <View style={styles.invoiceMeta}>
             <Text style={styles.invoiceBoxLabel}>{docLabel}</Text>
             <Text style={styles.invoiceNumber}>{booking.invoice_number}</Text>
             <Text style={styles.invoiceDate}>{invoiceDate}</Text>
           </View>
         </View>
-        <View style={styles.headerDivider} />
+        <RidgelineDivider />
 
         {/* Pflicht-Verweis auf die Originalrechnung (Storno/Korrektur) */}
         {isFollowUp && relatedInvoice && (
           <View
             style={{
-              backgroundColor: GOLD_LIGHT,
-              borderRadius: 4,
-              padding: 10,
+              borderLeftWidth: 2,
+              borderLeftColor: GOLD,
+              paddingLeft: 10,
+              paddingVertical: 2,
               marginBottom: 14,
             }}
           >
