@@ -823,28 +823,8 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           </View>
         )}
 
-        {/* Addresses */}
+        {/* Empfänger (Absenderdaten stehen in der Fußnote) */}
         <View style={styles.addressGrid} wrap={false}>
-          <View style={styles.addressCol}>
-            <Text style={styles.addressLabel}>Von</Text>
-            <Text style={styles.addressLine}>{contact.businessName}</Text>
-            <Text style={styles.addressMuted}>{contact.ownerName}</Text>
-            <Text style={styles.addressMuted}>{contact.street}</Text>
-            <Text style={styles.addressMuted}>
-              {contact.zip} {contact.city}
-            </Text>
-            <Text style={styles.addressMuted}>{contact.country}</Text>
-            <Text style={[styles.addressMuted, { marginTop: 4 }]}>
-              {contact.phone} · {contact.email}
-            </Text>
-            {(contact.taxNumber || contact.uid) && (
-              <Text style={[styles.addressMuted, { marginTop: 2 }]}>
-                {contact.taxNumber ? `StNr: ${contact.taxNumber}` : ""}
-                {contact.taxNumber && contact.uid ? " · " : ""}
-                {contact.uid ? `UID: ${contact.uid}` : ""}
-              </Text>
-            )}
-          </View>
           <View style={styles.addressCol}>
             <Text style={styles.addressLabel}>Rechnung an</Text>
             <Text style={styles.addressLine}>
@@ -861,6 +841,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
               {booking.email}
             </Text>
           </View>
+          <View style={{ flex: 1 }} />
         </View>
 
         {/* Service period */}
@@ -1063,9 +1044,10 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           </View>
         )}
 
-        {/* Dankesnote (nur reguläre Rechnung) */}
+        {/* Dankesnote + Fußnote bleiben zusammen (kein Umbruch dazwischen) */}
+        <View wrap={false}>
         {!isFollowUp && (
-          <View style={styles.thankBlock} wrap={false}>
+          <View style={styles.thankBlock}>
             <Text style={styles.thankText}>
               Vielen Dank für Ihren Aufenthalt im {contact.businessName} — wir freuen uns auf
               ein Wiedersehen in Kals!
@@ -1073,15 +1055,16 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           </View>
         )}
 
-        {/* Footer mit Firmen- und Steuer-Daten */}
-        <View style={styles.footer} wrap={false}>
+        {/* Fußnote mit Absender-, Firmen- und Steuer-Daten */}
+        <View style={styles.footer}>
           <Text style={styles.footerTax}>
             {contact.businessName} ({contact.ownerName}) · {contact.street}, {contact.zip}{" "}
-            {contact.city} · UID {contact.uid} · StNr. {contact.taxNumber} · Behörde:{" "}
-            {(contact as { authority?: string }).authority}
+            {contact.city}, {contact.country} · {contact.phone} · {contact.email}
           </Text>
           <Text style={[styles.footerTax, { marginTop: 2 }]}>
-            Enthält {vatRatePct} % USt gemäß § 10 Abs. 3 UStG (Beherbergung).
+            UID {contact.uid} · StNr. {contact.taxNumber} · Behörde:{" "}
+            {(contact as { authority?: string }).authority} · Enthält {vatRatePct} % USt gemäß
+            § 10 Abs. 3 UStG (Beherbergung).
           </Text>
           <View style={styles.footerLegal}>
             <Text style={styles.footerLegalText}>
@@ -1098,6 +1081,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
               Aufbewahrungspflicht 7 Jahre (§ 132 BAO)
             </Text>
           </View>
+        </View>
         </View>
       </Page>
     </Document>
