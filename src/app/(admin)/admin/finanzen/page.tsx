@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getFinanceOverview, getOrtstaxeReport } from "../actions";
+import { getFinanceOverview, getOrtstaxeReport, getBookingYears } from "../actions";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import { formatCurrency } from "@/lib/pricing";
 import { todayISO } from "@/lib/dates";
@@ -44,14 +44,19 @@ export default async function FinanzenPage({
   const year = searchParams.year ? Number(searchParams.year) : currentYear;
   const month = searchParams.month ? Number(searchParams.month) : null;
 
-  const [overview, ortstaxe, apartments] = await Promise.all([
+  const [overview, ortstaxe, apartments, yearBounds] = await Promise.all([
     getFinanceOverview({ year, month }),
     getOrtstaxeReport({ year, month }),
     getAllApartmentsWithPricing(),
+    getBookingYears(),
   ]);
 
   const aptList = apartments.map((a) => ({ id: a.id, name: a.name }));
-  const years = [currentYear, currentYear - 1, currentYear - 2];
+  // Jahre datengetrieben: vom spätesten Buchungsjahr bis frühestes (mind. 3 Jahre).
+  const topYear = Math.max(yearBounds.max, currentYear);
+  const bottomYear = Math.min(yearBounds.min, currentYear - 2);
+  const years: number[] = [];
+  for (let y = topYear; y >= bottomYear; y--) years.push(y);
   const defaultExpenseDate = todayISO();
   const exportHref = `/api/admin/finanzen/export?year=${year}${month ? `&month=${month}` : ""}`;
   const methodLabels: Record<string, string> = {

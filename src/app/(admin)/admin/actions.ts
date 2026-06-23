@@ -5803,3 +5803,28 @@ export async function getOrtstaxeReport(params: { year: number; month?: number |
     rows,
   };
 }
+
+/** Frühestes und spätestes Buchungsjahr (nach Anreise) für die Jahres-Auswahl. */
+export async function getBookingYears(): Promise<{ min: number; max: number }> {
+  const supabase = createServerClient();
+  const now = Number(todayISO().slice(0, 4));
+  const [earliest, latest] = await Promise.all([
+    supabase
+      .from("bookings")
+      .select("check_in")
+      .neq("status", "cancelled")
+      .order("check_in", { ascending: true })
+      .limit(1)
+      .maybeSingle(),
+    supabase
+      .from("bookings")
+      .select("check_in")
+      .neq("status", "cancelled")
+      .order("check_in", { ascending: false })
+      .limit(1)
+      .maybeSingle(),
+  ]);
+  const minYear = earliest.data?.check_in ? Number(String(earliest.data.check_in).slice(0, 4)) : now;
+  const maxYear = latest.data?.check_in ? Number(String(latest.data.check_in).slice(0, 4)) : now;
+  return { min: Math.min(minYear, now), max: Math.max(maxYear, now + 1) };
+}
