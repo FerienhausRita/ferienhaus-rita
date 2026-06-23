@@ -11,6 +11,7 @@ import {
   apartmentImageUrl,
 } from "@/lib/pricing-data";
 import { todayISO } from "@/lib/dates";
+import { createHash } from "crypto";
 
 /**
  * Get dashboard statistics
@@ -5328,7 +5329,7 @@ export async function listExpenses(params: {
   const supabase = createServerClient();
   const { start, end } = periodBounds(params.year, params.month);
   const baseCols = "id, expense_date, category, amount, apartment_id, booking_id, note";
-  const fullCols = `${baseCols}, net_amount, vat_rate, vat_amount, payment_method, receipt_path`;
+  const fullCols = `${baseCols}, net_amount, vat_rate, vat_amount, payment_method, receipt_path, status`;
   const fetchExpenses = (cols: string) =>
     supabase
       .from("expenses")
@@ -5337,11 +5338,13 @@ export async function listExpenses(params: {
       .lte("expense_date", end)
       .order("expense_date", { ascending: false });
 
-  // Buchhaltungs-Spalten evtl. noch nicht migriert (040) → Fallback ohne sie.
+  // Buchhaltungs-Spalten evtl. noch nicht migriert (040/041) → Fallback ohne sie.
   let res = await fetchExpenses(fullCols);
   if (res.error) res = await fetchExpenses(baseCols);
-  const data = res.data as Array<Record<string, unknown>> | null;
+  let data = res.data as Array<Record<string, unknown>> | null;
   if (!data) return [];
+  // Entwürfe (unbestätigte OCR-Belege) zählen NICHT in die Finanzübersicht.
+  data = data.filter((r) => (r.status as string | undefined) !== "draft");
   return data.map((r) => ({
     id: r.id as string,
     expense_date: r.expense_date as string,
@@ -5456,6 +5459,190 @@ export async function uploadExpenseReceipt(
   if (prevPath && prevPath !== path) {
     await supabase.storage.from(BELEGE_BUCKET).remove([prevPath]);
   }
+  revalidatePath("/admin/finanzen");
+  return { success: true };
+}
+
+// ============================================
+// BELEG-AUTOMATISIERUNG (OCR-Upload → Entwurf → Prüfen/Bestätigen)
+// ============================================
+
+export interface DraftExpenseRow extends ExpenseRow {
+  status: string;
+  vendor?: string | null;
+  source?: string | null;
+  ocr_confidence?: number | null;
+}
+
+/** Belegdatei (Bild/PDF) hochladen, per OCR auslesen und als Entwurf anlegen.
+ *  Duplikate werden über den SHA-256-Hash der Datei erkannt und übersprungen. */
+export async function createExpenseFromReceipt(
+  formData: FormData
+): Promise<{ success: boolean; error?: string; id?: string; duplicate?: boolean; ocrFailed?: boolean }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+
+  const file = formData.get("file");
+  const source = String(formData.get("source") || "upload");
+  if (!(file instanceof File) || file.size === 0) {
+    return { success: false, error: "Keine Datei" };
+  }
+  if (file.size > 15 * 1024 * 1024) return { success: false, error: "Datei zu groß (max. 15 MB)" };
+
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const fileHash = createHash("sha256").update(buffer).digest("hex");
+  const mime = file.type || "application/octet-stream";
+
+  const supabase = createServerClient();
+
+  // Duplikat-Erkennung: gibt es schon eine Ausgabe mit identischem Datei-Hash?
+  const { data: existing } = await supabase
+    .from("expenses")
+    .select("id")
+    .eq("file_hash", fileHash)
+    .limit(1)
+    .maybeSingle();
+  if (existing) return { success: true, duplicate: true, id: existing.id as string };
+
+  // Datei in privaten Beleg-Bucket legen.
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `drafts/${Date.now()}-${crypto.randomUUID()}.${ext || "pdf"}`;
+  const { error: upErr } = await supabase.storage
+    .from(BELEGE_BUCKET)
+    .upload(path, buffer, { contentType: mime, upsert: false });
+  if (upErr) return { success: false, error: `Upload fehlgeschlagen: ${upErr.message}` };
+
+  // OCR (fehlertolerant: ohne API-Key/bei Fehler leerer Entwurf zum manuellen Ausfüllen).
+  let ocr: import("@/lib/ocr").ReceiptExtraction | null = null;
+  let ocrFailed = false;
+  try {
+    const { extractReceipt } = await import("@/lib/ocr");
+    ocr = await extractReceipt(buffer, mime);
+  } catch {
+    ocrFailed = true;
+  }
+
+  const gross = ocr?.gross ?? 0;
+  const rate = ocr?.vat_rate ?? null;
+  const net =
+    ocr?.net ?? (rate != null && gross > 0 ? Math.round((gross / (1 + rate / 100)) * 100) / 100 : null);
+  const vat =
+    ocr?.vat_amount ?? (net != null && gross > 0 ? Math.round((gross - net) * 100) / 100 : null);
+
+  const { data, error } = await supabase
+    .from("expenses")
+    .insert({
+      expense_date: ocr?.expense_date || todayISO(),
+      category: ocr?.category || "Sonstiges",
+      amount: gross,
+      net_amount: net,
+      vat_rate: rate,
+      vat_amount: vat,
+      payment_method: null,
+      apartment_id: null,
+      booking_id: null,
+      note: ocr?.vendor ? `Beleg: ${ocr.vendor}` : null,
+      receipt_path: path,
+      status: "draft",
+      file_hash: fileHash,
+      vendor: ocr?.vendor || null,
+      ocr_data: ocr ? (ocr as unknown as Record<string, unknown>) : null,
+      source,
+    })
+    .select("id")
+    .single();
+
+  if (error) {
+    await supabase.storage.from(BELEGE_BUCKET).remove([path]);
+    return { success: false, error: error.message };
+  }
+  revalidatePath("/admin/finanzen/belege");
+  revalidatePath("/admin/finanzen");
+  return { success: true, id: data?.id as string | undefined, duplicate: false, ocrFailed };
+}
+
+/** Alle offenen Beleg-Entwürfe (status='draft'), neueste zuerst. */
+export async function listDraftExpenses(): Promise<DraftExpenseRow[]> {
+  const supabase = createServerClient();
+  const { data, error } = await supabase
+    .from("expenses")
+    .select(
+      "id, expense_date, category, amount, net_amount, vat_rate, vat_amount, payment_method, apartment_id, booking_id, note, receipt_path, status, vendor, source, ocr_data"
+    )
+    .eq("status", "draft")
+    .order("created_at", { ascending: false });
+  if (error || !data) return [];
+  return (data as Array<Record<string, unknown>>).map((r) => ({
+    id: r.id as string,
+    expense_date: r.expense_date as string,
+    category: r.category as string,
+    amount: Number(r.amount),
+    net_amount: r.net_amount != null ? Number(r.net_amount) : null,
+    vat_rate: r.vat_rate != null ? Number(r.vat_rate) : null,
+    vat_amount: r.vat_amount != null ? Number(r.vat_amount) : null,
+    payment_method: (r.payment_method as string) ?? null,
+    apartment_id: (r.apartment_id as string) ?? null,
+    booking_id: (r.booking_id as string) ?? null,
+    note: (r.note as string) ?? null,
+    receipt_path: (r.receipt_path as string) ?? null,
+    status: (r.status as string) ?? "draft",
+    vendor: (r.vendor as string) ?? null,
+    source: (r.source as string) ?? null,
+    ocr_confidence:
+      r.ocr_data && typeof r.ocr_data === "object"
+        ? ((r.ocr_data as Record<string, unknown>).confidence as number | null) ?? null
+        : null,
+  }));
+}
+
+/** Anzahl offener Beleg-Entwürfe (für das Badge). Fehlertolerant vor Migration 041. */
+export async function getOpenDraftCount(): Promise<number> {
+  const supabase = createServerClient();
+  const { count, error } = await supabase
+    .from("expenses")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "draft");
+  if (error) return 0;
+  return count ?? 0;
+}
+
+/** Einen Beleg-Entwurf mit (ggf. korrigierten) Feldern bestätigen → status='confirmed'. */
+export async function confirmDraftExpense(input: {
+  id: string;
+  expense_date: string;
+  category: string;
+  amount: number;
+  vat_rate?: number | null;
+  payment_method?: string | null;
+  apartment_id?: string | null;
+  note?: string | null;
+}): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  if (!input.expense_date || !input.category || !(input.amount > 0)) {
+    return { success: false, error: "Datum, Kategorie und Betrag (> 0) erforderlich" };
+  }
+  const supabase = createServerClient();
+  const gross = Number(input.amount);
+  const rate = input.vat_rate != null ? Number(input.vat_rate) : null;
+  const net = rate != null ? Math.round((gross / (1 + rate / 100)) * 100) / 100 : null;
+  const vat = rate != null && net != null ? Math.round((gross - net) * 100) / 100 : null;
+
+  const { error } = await supabase
+    .from("expenses")
+    .update({
+      expense_date: input.expense_date,
+      category: input.category,
+      amount: gross,
+      net_amount: net,
+      vat_rate: rate,
+      vat_amount: vat,
+      payment_method: input.payment_method || null,
+      apartment_id: input.apartment_id || null,
+      note: input.note || null,
+      status: "confirmed",
+    })
+    .eq("id", input.id);
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/finanzen/belege");
   revalidatePath("/admin/finanzen");
   return { success: true };
 }

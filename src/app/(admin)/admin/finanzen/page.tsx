@@ -1,6 +1,6 @@
 import { Metadata } from "next";
 import Link from "next/link";
-import { getFinanceOverview, getOrtstaxeReport, getBookingYears } from "../actions";
+import { getFinanceOverview, getOrtstaxeReport, getBookingYears, getOpenDraftCount } from "../actions";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import { formatCurrency } from "@/lib/pricing";
 import { todayISO } from "@/lib/dates";
@@ -44,11 +44,12 @@ export default async function FinanzenPage({
   const year = searchParams.year ? Number(searchParams.year) : currentYear;
   const month = searchParams.month ? Number(searchParams.month) : null;
 
-  const [overview, ortstaxe, apartments, yearBounds] = await Promise.all([
+  const [overview, ortstaxe, apartments, yearBounds, draftCount] = await Promise.all([
     getFinanceOverview({ year, month }),
     getOrtstaxeReport({ year, month }),
     getAllApartmentsWithPricing(),
     getBookingYears(),
+    getOpenDraftCount(),
   ]);
 
   const aptList = apartments.map((a) => ({ id: a.id, name: a.name }));
@@ -78,6 +79,17 @@ export default async function FinanzenPage({
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Link
+            href="/admin/finanzen/belege"
+            className="relative inline-flex items-center gap-2 bg-white border border-stone-200 hover:border-[#c8a96e] text-stone-700 text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+          >
+            Belege
+            {draftCount > 0 && (
+              <span className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-[#c8a96e] text-white text-xs font-semibold">
+                {draftCount}
+              </span>
+            )}
+          </Link>
           <FinancePeriodFilter year={year} month={month} years={years} />
           <Link
             href={exportHref}
@@ -87,6 +99,16 @@ export default async function FinanzenPage({
           </Link>
         </div>
       </div>
+
+      {draftCount > 0 && (
+        <Link
+          href="/admin/finanzen/belege"
+          className="block bg-[#c8a96e]/10 border border-[#c8a96e]/40 rounded-2xl px-5 py-3 text-sm text-stone-700 hover:bg-[#c8a96e]/15 transition-colors"
+        >
+          <span className="font-semibold text-stone-900">{draftCount} Beleg(e) zu prüfen.</span>{" "}
+          Bitte kontrollieren und bestätigen, damit sie in die Finanzen einfließen. →
+        </Link>
+      )}
 
       {/* KPI – Ist-Sicht (tatsächlich vereinnahmt) */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">

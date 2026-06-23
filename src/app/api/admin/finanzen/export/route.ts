@@ -65,12 +65,21 @@ export async function GET(request: NextRequest) {
     .gte("payout_confirmed_at", start)
     .lte("payout_confirmed_at", `${end}T23:59:59`);
 
-  const { data: expenses } = await supabase
-    .from("expenses")
-    .select("expense_date, category, amount, net_amount, vat_rate, vat_amount, payment_method, note, receipt_path")
-    .gte("expense_date", start)
-    .lte("expense_date", end)
-    .order("expense_date", { ascending: true });
+  const expenseCols =
+    "expense_date, category, amount, net_amount, vat_rate, vat_amount, payment_method, note, receipt_path";
+  const fetchExp = (withStatus: boolean) => {
+    let q = supabase
+      .from("expenses")
+      .select(withStatus ? `${expenseCols}, status` : expenseCols)
+      .gte("expense_date", start)
+      .lte("expense_date", end);
+    if (withStatus) q = q.neq("status", "draft"); // Entwürfe nicht exportieren
+    return q.order("expense_date", { ascending: true });
+  };
+  // Fehlertolerant: vor Migration 041 existiert die status-Spalte nicht.
+  let expRes = await fetchExp(true);
+  if (expRes.error) expRes = await fetchExp(false);
+  const expenses = expRes.data as Array<Record<string, unknown>> | null;
 
   const header = [
     "Datum", "Typ", "Beschreibung", "Kategorie/Kanal", "Zahlart",
@@ -108,8 +117,8 @@ export async function GET(request: NextRequest) {
     const net = e.net_amount != null ? Number(e.net_amount) : rate != null ? r2(gross / (1 + rate / 100)) : gross;
     const vat = e.vat_amount != null ? Number(e.vat_amount) : r2(gross - net);
     lines.push([
-      e.expense_date, "Ausgabe", e.note || (e.category as string),
-      e.category as string, e.payment_method ?? "",
+      String(e.expense_date ?? ""), "Ausgabe", String(e.note || e.category || ""),
+      String(e.category ?? ""), String(e.payment_method ?? ""),
       de(gross), de(net), rate != null ? `${rate}%` : "", de(vat),
       "", e.receipt_path ? "ja" : "nein",
     ].map(csvCell).join(";"));
