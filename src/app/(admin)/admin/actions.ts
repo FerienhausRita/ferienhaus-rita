@@ -840,12 +840,37 @@ export async function updateBookingDeposit(
 /**
  * Mark deposit as paid
  */
+/** Legt einen Zahlungs-Ledger-Eintrag an, falls für diesen Bucket noch keiner existiert. */
+async function ensureLedgerEntry(
+  supabase: ReturnType<typeof createServerClient>,
+  bookingId: string,
+  appliesTo: "deposit" | "remainder",
+  amount: number
+) {
+  if (!(amount > 0)) return;
+  const { data: existing } = await supabase
+    .from("booking_payments")
+    .select("id")
+    .eq("booking_id", bookingId)
+    .eq("applies_to", appliesTo)
+    .limit(1);
+  if (existing && existing.length > 0) return;
+  await supabase.from("booking_payments").insert({
+    booking_id: bookingId,
+    amount: Math.round(amount * 100) / 100,
+    paid_at: todayISO(),
+    method: "bank_transfer",
+    applies_to: appliesTo,
+    note: "Schnellerfassung",
+  });
+}
+
 export async function markDepositPaid(bookingId: string) {
   const supabase = createServerClient();
 
   const { data: booking } = await supabase
     .from("bookings")
-    .select("remainder_amount")
+    .select("deposit_amount, remainder_amount")
     .eq("id", bookingId)
     .single();
 
@@ -863,6 +888,9 @@ export async function markDepositPaid(bookingId: string) {
   if (error) {
     return { success: false, error: error.message };
   }
+
+  // Single source of truth: Ledger-Eintrag anlegen (idempotent).
+  await ensureLedgerEntry(supabase, bookingId, "deposit", Number(booking?.deposit_amount || 0));
 
   // Skip deposit_reminder emails
   await supabase
@@ -1066,6 +1094,12 @@ export async function getBookingPayments(bookingId: string) {
 export async function markRemainderPaid(bookingId: string) {
   const supabase = createServerClient();
 
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("remainder_amount")
+    .eq("id", bookingId)
+    .single();
+
   const { error } = await supabase
     .from("bookings")
     .update({
@@ -1077,6 +1111,9 @@ export async function markRemainderPaid(bookingId: string) {
   if (error) {
     return { success: false, error: error.message };
   }
+
+  // Single source of truth: Ledger-Eintrag anlegen (idempotent).
+  await ensureLedgerEntry(supabase, bookingId, "remainder", Number(booking?.remainder_amount || 0));
 
   // Skip remainder_reminder emails
   await supabase
@@ -5564,6 +5601,9 @@ export async function getFinanceOverview(params: { year: number; month?: number 
     if (receivedPayouts > 0)
       byMethod.set("Plattform", (byMethod.get("Plattform") ?? 0) + receivedPayouts);
   }
+
+  // Single source of truth: Einnahmen kommen aus dem Ledger + Plattform-Auszahlungen.
+  // (Schnell-Buttons schreiben jetzt ebenfalls Ledger-Einträge; Altbestand per Backfill.)
   const received = round2(receivedPayments + receivedPayouts);
 
   // ── USt-Hilfswert (Ist): vereinnahmte USt − Vorsteuer = Zahllast ──
