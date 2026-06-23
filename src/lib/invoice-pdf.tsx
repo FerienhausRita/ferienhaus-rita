@@ -3,9 +3,11 @@ import {
   Page,
   Text,
   View,
+  Image,
   StyleSheet,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import QRCode from "qrcode";
 import React from "react";
 import type { Apartment } from "@/data/apartments";
 import type { ContactData } from "@/data/contact";
@@ -74,6 +76,8 @@ export interface InvoiceData {
   relatedInvoice?: { number: string; date?: string | null } | null;
   /** Grund der Stornierung/Korrektur. */
   reason?: string | null;
+  /** Vorab erzeugter GiroCode/EPC-QR (data-URL) für die Zahlung; intern gesetzt. */
+  qrDataUrl?: string | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -130,10 +134,10 @@ const styles = StyleSheet.create({
     fontFamily: "Helvetica",
     fontSize: 9,
     color: DARK,
-    paddingTop: 32,
-    paddingBottom: 100, // Platz für ausgebauten 3-Spalten-Footer
+    paddingTop: 22,
+    paddingBottom: 24,
     paddingHorizontal: 40,
-    lineHeight: 1.4,
+    lineHeight: 1.3,
   },
 
   // ── Header ──
@@ -141,7 +145,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "flex-start",
     justifyContent: "space-between",
-    marginBottom: 18,
+    marginBottom: 12,
   },
   headerLeft: {
     flexDirection: "row",
@@ -214,19 +218,19 @@ const styles = StyleSheet.create({
   headerDivider: {
     height: 1,
     backgroundColor: GOLD,
-    marginBottom: 16,
+    marginBottom: 10,
   },
 
   // ── Addresses (two columns) ──
   addressGrid: {
     flexDirection: "row",
     gap: 14,
-    marginBottom: 14,
+    marginBottom: 10,
   },
   addressCol: {
     flex: 1,
     backgroundColor: BG_SOFT,
-    padding: 10,
+    padding: 9,
     borderRadius: 4,
   },
   addressLabel: {
@@ -251,7 +255,7 @@ const styles = StyleSheet.create({
   // ── Service period ──
   serviceBlock: {
     flexDirection: "row",
-    marginBottom: 14,
+    marginBottom: 10,
   },
   serviceAccent: {
     width: 3,
@@ -282,7 +286,7 @@ const styles = StyleSheet.create({
 
   // ── Positions table ──
   table: {
-    marginBottom: 12,
+    marginBottom: 8,
   },
   tableHeader: {
     flexDirection: "row",
@@ -293,14 +297,14 @@ const styles = StyleSheet.create({
   },
   tableRow: {
     flexDirection: "row",
-    paddingVertical: 6,
+    paddingVertical: 4.5,
     paddingHorizontal: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: LINE_SOFT,
   },
   tableRowAlt: {
     flexDirection: "row",
-    paddingVertical: 6,
+    paddingVertical: 4.5,
     paddingHorizontal: 8,
     borderBottomWidth: 0.5,
     borderBottomColor: LINE_SOFT,
@@ -339,12 +343,12 @@ const styles = StyleSheet.create({
   // ── Totals ──
   totals: {
     alignItems: "flex-end" as const,
-    marginBottom: 14,
+    marginBottom: 8,
   },
   totalRow: {
     flexDirection: "row",
     width: 260,
-    paddingVertical: 2,
+    paddingVertical: 1.5,
   },
   totalLabel: {
     flex: 1,
@@ -361,12 +365,12 @@ const styles = StyleSheet.create({
     width: 260,
     height: 1,
     backgroundColor: GOLD,
-    marginVertical: 6,
+    marginVertical: 4,
   },
   grandRow: {
     flexDirection: "row",
     width: 260,
-    paddingVertical: 2,
+    paddingVertical: 1.5,
   },
   grandLabel: {
     flex: 1,
@@ -394,8 +398,8 @@ const styles = StyleSheet.create({
     borderWidth: 0.5,
     borderColor: GOLD,
     borderRadius: 4,
-    padding: 10,
-    marginBottom: 12,
+    padding: 9,
+    marginBottom: 8,
   },
   paymentTitle: {
     fontSize: 7,
@@ -445,6 +449,45 @@ const styles = StyleSheet.create({
     color: DARK,
     letterSpacing: 0.5,
   },
+  paymentBoxInner: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  paymentDetails: {
+    flex: 1,
+  },
+  qrBox: {
+    width: 98,
+    alignItems: "center",
+    marginLeft: 10,
+    paddingLeft: 10,
+    borderLeftWidth: 0.5,
+    borderLeftColor: LINE,
+  },
+  qrImage: {
+    width: 74,
+    height: 74,
+  },
+  qrCaption: {
+    fontSize: 7,
+    color: DARK,
+    marginTop: 4,
+    textAlign: "center" as const,
+  },
+  qrCaptionSub: {
+    fontSize: 6.5,
+    color: GRAY_LIGHT,
+    marginTop: 1,
+    textAlign: "center" as const,
+  },
+  pageNum: {
+    position: "absolute" as const,
+    top: 822, // A4 = 841.89pt; ~20pt vom unteren Rand (top statt bottom: s. o.)
+    right: 40,
+    fontSize: 7,
+    color: GRAY_LIGHT,
+    textAlign: "right" as const,
+  },
 
   // ── Bezahlt-Stempel ──
   paidStamp: {
@@ -470,8 +513,8 @@ const styles = StyleSheet.create({
 
   // ── Dankesnote ──
   thankBlock: {
-    marginTop: 10,
-    paddingVertical: 7,
+    marginTop: 8,
+    paddingVertical: 6,
     paddingHorizontal: 12,
     borderLeftWidth: 2,
     borderLeftColor: GOLD,
@@ -489,10 +532,7 @@ const styles = StyleSheet.create({
   },
 
   footer: {
-    position: "absolute" as const,
-    bottom: 20,
-    left: 40,
-    right: 40,
+    marginTop: 8,
     paddingTop: 6,
     borderTopWidth: 0.5,
     borderTopColor: LINE,
@@ -516,30 +556,35 @@ const styles = StyleSheet.create({
   footerDetail: {
     fontSize: 7,
     color: GRAY,
-    lineHeight: 1.5,
+    lineHeight: 1.3,
   },
   footerDetailMono: {
     fontSize: 7,
     fontFamily: "Courier",
     color: GRAY,
     letterSpacing: 0.5,
-    lineHeight: 1.5,
+    lineHeight: 1.3,
   },
   footerLegal: {
-    marginTop: 6,
-    paddingTop: 6,
+    marginTop: 4,
+    paddingTop: 4,
     borderTopWidth: 0.3,
     borderTopColor: LINE,
   },
   footerLegalText: {
     fontSize: 6.5,
     color: GRAY_LIGHT,
-    lineHeight: 1.5,
+    lineHeight: 1.3,
+  },
+  footerTax: {
+    fontSize: 7,
+    color: GRAY,
+    lineHeight: 1.3,
   },
   footerBottom: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginTop: 4,
+    marginTop: 3,
   },
   footerPage: {
     fontSize: 7,
@@ -563,7 +608,7 @@ function PositionRow({
   alt?: boolean;
 }) {
   return (
-    <View style={alt ? styles.tableRowAlt : styles.tableRow}>
+    <View style={alt ? styles.tableRowAlt : styles.tableRow} wrap={false}>
       <View style={styles.colDesc}>
         <Text style={styles.posTitle}>{title}</Text>
         {formula ? <Text style={styles.posFormula}>{formula}</Text> : null}
@@ -590,6 +635,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         ? "Rechnungskorrektur"
         : "Rechnung";
   const relatedInvoice = data.relatedInvoice ?? null;
+  const qrDataUrl = data.qrDataUrl ?? null;
   // Defensive fallback: Legacy-Datensätze hatten `holder` statt `account_holder`.
   const bankDetails: BankDetails = snapshot?.bank_details
     ? {
@@ -710,9 +756,27 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
     (booking as { deposit_due_date?: string | null }).deposit_due_date ||
     null;
 
+  // USt-Aufschlüsselung (Netto / USt / Brutto). Ortstaxe ist nicht steuerbar.
+  const vatRatePct = snapshot ? Math.round(snapshot.tax.vat_rate * 100) : VAT_RATE * 100;
+  const r2 = (n: number) => Math.round(n * 100) / 100;
+  const vatLiableGross = r2(totalForDisplay - localTaxTotal); // steuerpflichtiger Brutto-Anteil
+  const netAmount = r2(vatLiableGross - vatAmount);
+  // Kleinbetragsrechnung gem. § 11 Abs. 6 UStG (Bruttobetrag ≤ 400 €).
+  const isKleinbetrag = Math.abs(totalForDisplay) <= 400;
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        {/* Seitenzahl — nur mehrseitig. Über top positioniert (react-pdf rendert
+            den render-Callback auf fixed-Elementen nur mit top, nicht mit bottom). */}
+        <Text
+          fixed
+          style={styles.pageNum}
+          render={({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) =>
+            totalPages > 1 ? `Seite ${pageNumber} von ${totalPages}` : ""
+          }
+        />
+
         {/* Header */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
@@ -760,7 +824,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         )}
 
         {/* Addresses */}
-        <View style={styles.addressGrid}>
+        <View style={styles.addressGrid} wrap={false}>
           <View style={styles.addressCol}>
             <Text style={styles.addressLabel}>Von</Text>
             <Text style={styles.addressLine}>{contact.businessName}</Text>
@@ -800,7 +864,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         </View>
 
         {/* Service period */}
-        <View style={styles.serviceBlock}>
+        <View style={styles.serviceBlock} wrap={false}>
           <View style={styles.serviceAccent} />
           <View style={styles.serviceContent}>
             <Text style={styles.serviceLabel}>Leistungszeitraum</Text>
@@ -842,7 +906,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         </View>
 
         {/* Totals */}
-        <View style={styles.totals}>
+        <View style={styles.totals} wrap={false}>
           {/* Zusätzliche Line-Items (z.B. Babybett) */}
           {extraLineItems.map((li, idx) => (
             <View key={`li-${idx}`} style={styles.totalRow}>
@@ -860,27 +924,38 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
             </View>
           )}
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Zwischensumme</Text>
-            <Text style={styles.totalValue}>{fmtCurrency(totalForDisplay)}</Text>
+            <Text style={styles.totalLabel}>Nettobetrag (Bemessungsgrundlage)</Text>
+            <Text style={styles.totalValue}>{fmtCurrency(netAmount)}</Text>
           </View>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>davon 10 % USt.</Text>
+            <Text style={styles.totalLabel}>zzgl. {vatRatePct} % USt (Beherbergung)</Text>
             <Text style={styles.totalValue}>{fmtCurrency(vatAmount)}</Text>
           </View>
+          {localTaxTotal !== 0 && (
+            <>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Bruttobetrag (steuerpflichtig)</Text>
+                <Text style={styles.totalValue}>{fmtCurrency(vatLiableGross)}</Text>
+              </View>
+              <View style={styles.totalRow}>
+                <Text style={styles.totalLabel}>Ortstaxe (nicht steuerbar)</Text>
+                <Text style={styles.totalValue}>{fmtCurrency(localTaxTotal)}</Text>
+              </View>
+            </>
+          )}
           <View style={styles.totalDivider} />
           <View style={styles.grandRow}>
             <Text style={styles.grandLabel}>Gesamtbetrag</Text>
             <Text style={styles.grandValue}>{fmtCurrency(totalForDisplay)}</Text>
           </View>
-          {localTaxTotal > 0 ? (
+          {localTaxTotal === 0 && (
             <Text style={styles.totalHint}>
-              Kurtaxe ist eine öffentliche Abgabe und nicht umsatzsteuerpflichtig.
+              Die Ortstaxe ist eine öffentliche Abgabe (nicht umsatzsteuerbar) und wird
+              separat abgerechnet — nicht im Gesamtbetrag enthalten.
             </Text>
-          ) : (
-            <Text style={styles.totalHint}>
-              Die Kurtaxe wurde bzw. wird separat abgerechnet
-              und ist nicht im Gesamtbetrag enthalten.
-            </Text>
+          )}
+          {isKleinbetrag && !isFollowUp && (
+            <Text style={styles.totalHint}>Kleinbetragsrechnung gemäß § 11 Abs. 6 UStG.</Text>
           )}
           {(booking.infants ?? 0) > 0 && (
             <Text style={styles.totalHint}>
@@ -891,7 +966,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 
         {/* Bereits geleistete Zahlungen — aus booking_payments live geladen */}
         {!isFollowUp && payments.length > 0 && (
-          <View style={[styles.totals, { marginTop: 4 }]}>
+          <View style={[styles.totals, { marginTop: 4 }]} wrap={false}>
             {payments.map((p) => {
               const label =
                 p.applies_to === "deposit"
@@ -934,34 +1009,44 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 
         {/* Bankverbindung — nur anzeigen wenn noch was offen ist */}
         {!isFollowUp && !isFullyPaid && (
-          <View style={styles.paymentBox}>
-            <Text style={styles.paymentTitle}>
-              Überweisungsinformationen
-              {payments.length > 0 ? " für Restbetrag" : ""}
-            </Text>
-            <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Kontoinhaber</Text>
-              <Text style={styles.paymentValue}>{bankDetails.account_holder}</Text>
-            </View>
-            <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>IBAN</Text>
-              <Text style={styles.paymentValueMono}>{bankDetails.iban}</Text>
-            </View>
-            <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>BIC</Text>
-              <Text style={styles.paymentValueMono}>{bankDetails.bic}</Text>
-            </View>
-            <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Bank</Text>
-              <Text style={styles.paymentValue}>{bankDetails.bank_name}</Text>
-            </View>
-            <View style={styles.paymentRow}>
-              <Text style={styles.paymentLabel}>Betrag</Text>
-              <Text style={styles.paymentValue}>{fmtCurrency(outstandingAmount)}</Text>
-            </View>
-            <View style={styles.refBox}>
-              <Text style={styles.refLabel}>Verwendungszweck</Text>
-              <Text style={styles.refValue}>{paymentRef}</Text>
+          <View style={styles.paymentBox} wrap={false}>
+            <View style={styles.paymentBoxInner}>
+              <View style={styles.paymentDetails}>
+                <Text style={styles.paymentTitle}>
+                  Überweisungsinformationen{payments.length > 0 ? " für den Restbetrag" : ""}
+                </Text>
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>Kontoinhaber</Text>
+                  <Text style={styles.paymentValue}>{bankDetails.account_holder}</Text>
+                </View>
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>IBAN</Text>
+                  <Text style={styles.paymentValueMono}>{bankDetails.iban}</Text>
+                </View>
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>BIC</Text>
+                  <Text style={styles.paymentValueMono}>{bankDetails.bic}</Text>
+                </View>
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>Bank</Text>
+                  <Text style={styles.paymentValue}>{bankDetails.bank_name}</Text>
+                </View>
+                <View style={styles.paymentRow}>
+                  <Text style={styles.paymentLabel}>Betrag</Text>
+                  <Text style={styles.paymentValue}>{fmtCurrency(outstandingAmount)}</Text>
+                </View>
+                <View style={styles.refBox}>
+                  <Text style={styles.refLabel}>Verwendungszweck</Text>
+                  <Text style={styles.refValue}>{paymentRef}</Text>
+                </View>
+              </View>
+              {qrDataUrl ? (
+                <View style={styles.qrBox}>
+                  <Image src={qrDataUrl} style={styles.qrImage} />
+                  <Text style={styles.qrCaption}>Mit Banking-App scannen</Text>
+                  <Text style={styles.qrCaptionSub}>GiroCode · SEPA</Text>
+                </View>
+              ) : null}
             </View>
           </View>
         )}
@@ -980,72 +1065,28 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 
         {/* Dankesnote (nur reguläre Rechnung) */}
         {!isFollowUp && (
-          <View style={styles.thankBlock}>
+          <View style={styles.thankBlock} wrap={false}>
             <Text style={styles.thankText}>
-              Vielen Dank für Ihren Aufenthalt im {contact.businessName}!
-            </Text>
-            <Text style={styles.thankSubtext}>
-              Wir freuen uns, Sie bald wieder in Kals begrüßen zu dürfen.
+              Vielen Dank für Ihren Aufenthalt im {contact.businessName} — wir freuen uns auf
+              ein Wiedersehen in Kals!
             </Text>
           </View>
         )}
 
         {/* Footer mit Firmen- und Steuer-Daten */}
-        <View style={styles.footer} fixed>
-          <View style={styles.footerInner}>
-            {/* Linke Spalte: Firma + Adresse */}
-            <View style={styles.footerCol}>
-              <Text style={styles.footerHeading}>Rechnungssteller</Text>
-              <Text style={styles.footerDetail}>{contact.ownerName}</Text>
-              <Text style={styles.footerDetail}>{contact.businessName}</Text>
-              <Text style={styles.footerDetail}>{contact.street}</Text>
-              <Text style={styles.footerDetail}>
-                {contact.zip} {contact.city}
-              </Text>
-              <Text style={styles.footerDetail}>{contact.country}</Text>
-            </View>
-
-            {/* Mittlere Spalte: Bank + Kontakt */}
-            <View style={styles.footerCol}>
-              <Text style={styles.footerHeading}>Bankverbindung</Text>
-              <Text style={styles.footerDetail}>
-                {bankDetails.bank_name || "—"}
-              </Text>
-              <Text style={styles.footerDetailMono}>{bankDetails.iban}</Text>
-              <Text style={styles.footerDetailMono}>{bankDetails.bic}</Text>
-              <Text style={[styles.footerDetail, { marginTop: 4 }]}>
-                {contact.phone}
-              </Text>
-              <Text style={styles.footerDetail}>{contact.email}</Text>
-            </View>
-
-            {/* Rechte Spalte: Steuer-Daten */}
-            <View style={styles.footerCol}>
-              <Text style={styles.footerHeading}>Steuerdaten</Text>
-              {contact.taxNumber && (
-                <Text style={styles.footerDetail}>StNr.: {contact.taxNumber}</Text>
-              )}
-              {contact.uid && (
-                <Text style={styles.footerDetail}>UID: {contact.uid}</Text>
-              )}
-              {(contact as { authority?: string }).authority && (
-                <Text style={styles.footerDetail}>
-                  Behörde: {(contact as { authority?: string }).authority}
-                </Text>
-              )}
-              <Text style={[styles.footerDetail, { marginTop: 4 }]}>
-                Enthält 10 % USt. (§ 10 Abs. 3 UStG, Beherbergung)
-              </Text>
-            </View>
-          </View>
-
-          {/* Storno-Hinweis */}
+        <View style={styles.footer} wrap={false}>
+          <Text style={styles.footerTax}>
+            {contact.businessName} ({contact.ownerName}) · {contact.street}, {contact.zip}{" "}
+            {contact.city} · UID {contact.uid} · StNr. {contact.taxNumber} · Behörde:{" "}
+            {(contact as { authority?: string }).authority}
+          </Text>
+          <Text style={[styles.footerTax, { marginTop: 2 }]}>
+            Enthält {vatRatePct} % USt gemäß § 10 Abs. 3 UStG (Beherbergung).
+          </Text>
           <View style={styles.footerLegal}>
             <Text style={styles.footerLegalText}>
-              Stornobedingungen: bis 60 Tage vor Anreise kostenfrei stornierbar.
-              Zwischen 59 und 30 Tagen vor Anreise wird die Anzahlung
-              einbehalten. Innerhalb 30 Tagen vor Anreise ist der
-              Gesamtbetrag fällig (außer bei nachgewiesener Reiseunfähigkeit).
+              Stornobedingungen: bis 60 Tage vor Anreise kostenfrei · 59–30 Tage: Anzahlung
+              einbehalten · ab 30 Tage: Gesamtbetrag (außer bei nachgewiesener Reiseunfähigkeit).
             </Text>
           </View>
 
@@ -1053,12 +1094,9 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
             <Text style={styles.footerPage}>
               {docLabel} {booking.invoice_number} · {invoiceDate}
             </Text>
-            <Text
-              style={styles.footerPage}
-              render={({ pageNumber, totalPages }) =>
-                `Seite ${pageNumber} von ${totalPages}`
-              }
-            />
+            <Text style={styles.footerPage}>
+              Aufbewahrungspflicht 7 Jahre (§ 132 BAO)
+            </Text>
           </View>
         </View>
       </Page>
@@ -1070,6 +1108,60 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
 // Public API
 // ---------------------------------------------------------------------------
 
+/** Baut einen GiroCode/EPC-QR (SEPA-Überweisung) als PNG-data-URL. */
+async function buildPaymentQr(opts: {
+  name: string;
+  iban: string;
+  bic: string;
+  amount: number;
+  reference: string;
+}): Promise<string | null> {
+  const iban = (opts.iban || "").replace(/\s+/g, "");
+  if (!iban || !(opts.amount > 0)) return null;
+  // EPC069-12 (GiroCode): von Banking-Apps scannbar.
+  const lines = [
+    "BCD",
+    "002",
+    "1",
+    "SCT",
+    (opts.bic || "").trim(),
+    (opts.name || "").slice(0, 70),
+    iban,
+    `EUR${opts.amount.toFixed(2)}`,
+    "",
+    "",
+    opts.reference.slice(0, 140),
+    "",
+  ];
+  try {
+    return await QRCode.toDataURL(lines.join("\n"), {
+      errorCorrectionLevel: "M",
+      margin: 0,
+      width: 240,
+    });
+  } catch {
+    return null;
+  }
+}
+
 export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
-  return (await renderToBuffer(<InvoicePdf data={data} />)) as Buffer;
+  const documentType = data.documentType ?? "invoice";
+  let qrDataUrl: string | null = null;
+  // QR nur auf regulären, noch offenen Rechnungen (nicht auf Storno/Korrektur).
+  if (documentType === "invoice") {
+    const total = data.snapshot?.totals.total ?? data.booking.total_price;
+    const paid = (data.payments ?? []).reduce((s, p) => s + Number(p.amount || 0), 0);
+    const outstanding = Math.round((total - paid) * 100) / 100;
+    if (outstanding > 0.01) {
+      const bank = data.snapshot?.bank_details ?? data.bankDetails;
+      qrDataUrl = await buildPaymentQr({
+        name: bank.account_holder,
+        iban: bank.iban,
+        bic: bank.bic,
+        amount: outstanding,
+        reference: `FR-${data.booking.id.substring(0, 8).toUpperCase()}`,
+      });
+    }
+  }
+  return (await renderToBuffer(<InvoicePdf data={{ ...data, qrDataUrl }} />)) as Buffer;
 }
