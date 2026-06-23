@@ -5256,7 +5256,11 @@ export async function deleteApartmentContent(
 export interface ExpenseInput {
   expense_date: string; // YYYY-MM-DD
   category: string;
-  amount: number;
+  amount: number; // Brutto
+  vat_rate?: number | null; // % (20/10/0)
+  net_amount?: number | null;
+  vat_amount?: number | null;
+  payment_method?: string | null;
   apartment_id?: string | null;
   booking_id?: string | null;
   note?: string | null;
@@ -5264,7 +5268,10 @@ export interface ExpenseInput {
 
 export interface ExpenseRow extends ExpenseInput {
   id: string;
+  receipt_path?: string | null;
 }
+
+const BELEGE_BUCKET = "belege";
 
 /** Zeitraum-Grenzen (YYYY-MM-DD) aus Jahr + optional Monat. */
 function periodBounds(year: number, month?: number | null) {
@@ -5283,43 +5290,70 @@ export async function listExpenses(params: {
 }): Promise<ExpenseRow[]> {
   const supabase = createServerClient();
   const { start, end } = periodBounds(params.year, params.month);
-  const { data, error } = await supabase
-    .from("expenses")
-    .select("id, expense_date, category, amount, apartment_id, booking_id, note")
-    .gte("expense_date", start)
-    .lte("expense_date", end)
-    .order("expense_date", { ascending: false });
-  if (error || !data) return [];
+  const baseCols = "id, expense_date, category, amount, apartment_id, booking_id, note";
+  const fullCols = `${baseCols}, net_amount, vat_rate, vat_amount, payment_method, receipt_path`;
+  const fetchExpenses = (cols: string) =>
+    supabase
+      .from("expenses")
+      .select(cols)
+      .gte("expense_date", start)
+      .lte("expense_date", end)
+      .order("expense_date", { ascending: false });
+
+  // Buchhaltungs-Spalten evtl. noch nicht migriert (040) → Fallback ohne sie.
+  let res = await fetchExpenses(fullCols);
+  if (res.error) res = await fetchExpenses(baseCols);
+  const data = res.data as Array<Record<string, unknown>> | null;
+  if (!data) return [];
   return data.map((r) => ({
     id: r.id as string,
     expense_date: r.expense_date as string,
     category: r.category as string,
     amount: Number(r.amount),
+    net_amount: r.net_amount != null ? Number(r.net_amount) : null,
+    vat_rate: r.vat_rate != null ? Number(r.vat_rate) : null,
+    vat_amount: r.vat_amount != null ? Number(r.vat_amount) : null,
+    payment_method: (r.payment_method as string) ?? null,
     apartment_id: (r.apartment_id as string) ?? null,
     booking_id: (r.booking_id as string) ?? null,
     note: (r.note as string) ?? null,
+    receipt_path: (r.receipt_path as string) ?? null,
   }));
 }
 
 export async function createExpense(
   input: ExpenseInput
-): Promise<{ success: boolean; error?: string }> {
+): Promise<{ success: boolean; error?: string; id?: string }> {
   if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
   if (!input.expense_date || !input.category || !(input.amount > 0)) {
     return { success: false, error: "Datum, Kategorie und Betrag (> 0) erforderlich" };
   }
   const supabase = createServerClient();
-  const { error } = await supabase.from("expenses").insert({
-    expense_date: input.expense_date,
-    category: input.category,
-    amount: input.amount,
-    apartment_id: input.apartment_id || null,
-    booking_id: input.booking_id || null,
-    note: input.note || null,
-  });
+  // USt aus Brutto + Satz ableiten (falls Satz gesetzt).
+  const gross = Number(input.amount);
+  const rate = input.vat_rate != null ? Number(input.vat_rate) : null;
+  const net = rate != null ? Math.round((gross / (1 + rate / 100)) * 100) / 100 : null;
+  const vat = rate != null && net != null ? Math.round((gross - net) * 100) / 100 : null;
+
+  const { data, error } = await supabase
+    .from("expenses")
+    .insert({
+      expense_date: input.expense_date,
+      category: input.category,
+      amount: gross,
+      net_amount: net,
+      vat_rate: rate,
+      vat_amount: vat,
+      payment_method: input.payment_method || null,
+      apartment_id: input.apartment_id || null,
+      booking_id: input.booking_id || null,
+      note: input.note || null,
+    })
+    .select("id")
+    .single();
   if (error) return { success: false, error: error.message };
   revalidatePath("/admin/finanzen");
-  return { success: true };
+  return { success: true, id: data?.id as string | undefined };
 }
 
 export async function deleteExpense(
@@ -5327,8 +5361,64 @@ export async function deleteExpense(
 ): Promise<{ success: boolean; error?: string }> {
   if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
   const supabase = createServerClient();
+  // Zugehörigen Beleg mitlöschen (fehlertolerant).
+  try {
+    const { data: row } = await supabase
+      .from("expenses")
+      .select("receipt_path")
+      .eq("id", id)
+      .single();
+    const path = row?.receipt_path as string | undefined;
+    if (path) await supabase.storage.from(BELEGE_BUCKET).remove([path]);
+  } catch {
+    /* receipt_path-Spalte evtl. noch nicht migriert — ignorieren */
+  }
   const { error } = await supabase.from("expenses").delete().eq("id", id);
   if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/finanzen");
+  return { success: true };
+}
+
+/** Lädt einen Beleg (PDF/Bild) zu einer Ausgabe in den privaten Bucket. */
+export async function uploadExpenseReceipt(
+  formData: FormData
+): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const expenseId = String(formData.get("expenseId") || "").trim();
+  const file = formData.get("file");
+  if (!expenseId || !(file instanceof File) || file.size === 0) {
+    return { success: false, error: "Ungültige Eingabe" };
+  }
+  if (file.size > 15 * 1024 * 1024) return { success: false, error: "Datei zu groß (max. 15 MB)" };
+
+  const supabase = createServerClient();
+  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const path = `${expenseId}/${Date.now()}-${crypto.randomUUID()}.${ext || "pdf"}`;
+  const buffer = Buffer.from(await file.arrayBuffer());
+  const { error: upErr } = await supabase.storage
+    .from(BELEGE_BUCKET)
+    .upload(path, buffer, { contentType: file.type || "application/octet-stream", upsert: false });
+  if (upErr) return { success: false, error: `Upload fehlgeschlagen: ${upErr.message}` };
+
+  // Vorhandenen Beleg ersetzen (alten entfernen).
+  const { data: prev } = await supabase
+    .from("expenses")
+    .select("receipt_path")
+    .eq("id", expenseId)
+    .single();
+  const prevPath = prev?.receipt_path as string | undefined;
+
+  const { error: updErr } = await supabase
+    .from("expenses")
+    .update({ receipt_path: path })
+    .eq("id", expenseId);
+  if (updErr) {
+    await supabase.storage.from(BELEGE_BUCKET).remove([path]);
+    return { success: false, error: updErr.message };
+  }
+  if (prevPath && prevPath !== path) {
+    await supabase.storage.from(BELEGE_BUCKET).remove([prevPath]);
+  }
   revalidatePath("/admin/finanzen");
   return { success: true };
 }
@@ -5443,8 +5533,47 @@ export async function getFinanceOverview(params: { year: number; month?: number 
   }
 
   const round2 = (n: number) => Math.round(n * 100) / 100;
+
+  // ── Ist-Einnahmen: tatsächlich vereinnahmt im Zeitraum ──
+  const byMethod = new Map<string, number>();
+  let receivedPayments = 0;
+  const { data: payments } = await supabase
+    .from("booking_payments")
+    .select("amount, method, paid_at")
+    .gte("paid_at", start)
+    .lte("paid_at", end);
+  for (const p of (payments ?? []) as Array<Record<string, unknown>>) {
+    const amt = Number(p.amount || 0);
+    receivedPayments += amt;
+    const m = (p.method as string) || "bank_transfer";
+    byMethod.set(m, (byMethod.get(m) ?? 0) + amt);
+  }
+
+  // Plattform-Auszahlungen (netto) nach Bestätigungsdatum (fehlertolerant)
+  let receivedPayouts = 0;
+  const payoutRes = await supabase
+    .from("bookings")
+    .select("payout_amount, payout_confirmed_at")
+    .not("payout_amount", "is", null)
+    .gte("payout_confirmed_at", start)
+    .lte("payout_confirmed_at", `${end}T23:59:59`);
+  if (!payoutRes.error) {
+    for (const b of (payoutRes.data ?? []) as Array<Record<string, unknown>>) {
+      receivedPayouts += Number(b.payout_amount || 0);
+    }
+    if (receivedPayouts > 0)
+      byMethod.set("Plattform", (byMethod.get("Plattform") ?? 0) + receivedPayouts);
+  }
+  const received = round2(receivedPayments + receivedPayouts);
+
+  // ── USt-Hilfswert (Ist): vereinnahmte USt − Vorsteuer = Zahllast ──
+  const vorsteuer = round2(expenses.reduce((s, e) => s + (e.vat_amount ?? 0), 0));
+  const outputVatReceived = round2((received / (1 + vatRate)) * vatRate);
+  const ustZahllast = round2(outputVatReceived - vorsteuer);
+
   const netRevenue = round2(grossRevenue - commissions);
   const profit = round2(netRevenue - totalExpenses);
+  const profitIst = round2(received - totalExpenses);
 
   return {
     period: { year: params.year, month: params.month ?? null, start, end },
@@ -5457,6 +5586,13 @@ export async function getFinanceOverview(params: { year: number; month?: number 
       dogs: round2(dogs),
       discounts: round2(discounts),
     },
+    // Ist-Sicht (tatsächlich vereinnahmt)
+    received,
+    profitIst,
+    byMethod: Array.from(byMethod.entries())
+      .map(([method, amount]) => ({ method, amount: round2(amount) }))
+      .sort((a, b) => b.amount - a.amount),
+    ust: { output: outputVatReceived, vorsteuer, zahllast: ustZahllast },
     kurtaxe: round2(kurtaxe),
     vat: round2(vat),
     commissions: round2(commissions),
@@ -5568,4 +5704,62 @@ export async function setBookingPlatformPayout(
   revalidatePath("/admin/finanzen");
   revalidatePath("/admin");
   return { success: true };
+}
+
+// ============================================
+// ORTSTAXE-MELDUNG (Tourismusverband)
+// ============================================
+
+/** Nächtigungen, Personen und abzuführende Ortstaxe je Zeitraum (nach Anreise). */
+export async function getOrtstaxeReport(params: { year: number; month?: number | null }) {
+  const supabase = createServerClient();
+  const { start, end } = periodBounds(params.year, params.month);
+  const { getTaxConfigFromDB, getApartmentNameMap } = await import("@/lib/pricing-data");
+  const [taxConfig, nameMap] = await Promise.all([getTaxConfigFromDB(), getApartmentNameMap()]);
+  const rate = taxConfig.localTaxPerNight;
+
+  const { data } = await supabase
+    .from("bookings")
+    .select("first_name, last_name, check_in, check_out, nights, adults, apartment_id")
+    .in("status", ["confirmed", "completed"])
+    .gte("check_in", start)
+    .lte("check_in", end)
+    .order("check_in", { ascending: true });
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  let totalPersonNights = 0;
+  let totalTaxe = 0;
+  const rows = (data ?? []).map((b) => {
+    const nights =
+      Number(b.nights) ||
+      Math.max(
+        0,
+        Math.round(
+          (Date.parse(b.check_out + "T00:00:00Z") - Date.parse(b.check_in + "T00:00:00Z")) / 86400000
+        )
+      );
+    const persons = Number(b.adults || 0);
+    const personNights = persons * nights;
+    const taxe = round2(personNights * rate);
+    totalPersonNights += personNights;
+    totalTaxe = round2(totalTaxe + taxe);
+    return {
+      name: [b.first_name, b.last_name].filter(Boolean).join(" "),
+      apartment: nameMap.get(b.apartment_id as string) ?? (b.apartment_id as string),
+      checkIn: b.check_in as string,
+      checkOut: b.check_out as string,
+      persons,
+      nights,
+      personNights,
+      taxe,
+    };
+  });
+
+  return {
+    period: { year: params.year, month: params.month ?? null, start, end },
+    ratePerPersonNight: rate,
+    totalPersonNights,
+    totalTaxe: round2(totalTaxe),
+    rows,
+  };
 }

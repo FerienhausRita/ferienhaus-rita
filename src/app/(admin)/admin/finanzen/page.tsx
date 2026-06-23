@@ -1,5 +1,6 @@
 import { Metadata } from "next";
-import { getFinanceOverview } from "../actions";
+import Link from "next/link";
+import { getFinanceOverview, getOrtstaxeReport } from "../actions";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import { formatCurrency } from "@/lib/pricing";
 import { todayISO } from "@/lib/dates";
@@ -43,14 +44,24 @@ export default async function FinanzenPage({
   const year = searchParams.year ? Number(searchParams.year) : currentYear;
   const month = searchParams.month ? Number(searchParams.month) : null;
 
-  const [overview, apartments] = await Promise.all([
+  const [overview, ortstaxe, apartments] = await Promise.all([
     getFinanceOverview({ year, month }),
+    getOrtstaxeReport({ year, month }),
     getAllApartmentsWithPricing(),
   ]);
 
   const aptList = apartments.map((a) => ({ id: a.id, name: a.name }));
   const years = [currentYear, currentYear - 1, currentYear - 2];
   const defaultExpenseDate = todayISO();
+  const exportHref = `/api/admin/finanzen/export?year=${year}${month ? `&month=${month}` : ""}`;
+  const methodLabels: Record<string, string> = {
+    bank_transfer: "Überweisung",
+    cash: "Bar",
+    card: "Karte",
+    paypal: "PayPal",
+    Plattform: "Plattform-Auszahlung",
+    other: "Sonstige",
+  };
 
   return (
     <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto space-y-6">
@@ -61,16 +72,24 @@ export default async function FinanzenPage({
             {overview.bookingCount} Buchung(en) im Zeitraum · Umsatz nach Anreisedatum.
           </p>
         </div>
-        <FinancePeriodFilter year={year} month={month} years={years} />
+        <div className="flex items-center gap-2">
+          <FinancePeriodFilter year={year} month={month} years={years} />
+          <Link
+            href={exportHref}
+            className="inline-flex items-center gap-2 bg-stone-800 hover:bg-stone-900 text-white text-sm font-medium px-4 py-2 rounded-xl transition-colors"
+          >
+            Export (CSV)
+          </Link>
+        </div>
       </div>
 
-      {/* KPI */}
+      {/* KPI – Ist-Sicht (tatsächlich vereinnahmt) */}
       <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
-        <Kpi label="Bruttoumsatz" value={formatCurrency(overview.income.gross)} />
-        <Kpi label="Provisionen" value={formatCurrency(overview.commissions)} accent="cost" />
-        <Kpi label="Netto-Umsatz" value={formatCurrency(overview.netRevenue)} />
+        <Kpi label="Vereinnahmt (Ist)" value={formatCurrency(overview.received)} />
         <Kpi label="Ausgaben" value={formatCurrency(overview.totalExpenses)} accent="cost" />
-        <Kpi label="Gewinn" value={formatCurrency(overview.profit)} accent="profit" />
+        <Kpi label="Gewinn (Ist)" value={formatCurrency(overview.profitIst)} accent="profit" />
+        <Kpi label="Gebuchter Umsatz" value={formatCurrency(overview.income.gross)} />
+        <Kpi label="Provisionen" value={formatCurrency(overview.commissions)} accent="cost" />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -118,6 +137,54 @@ export default async function FinanzenPage({
             </div>
           )}
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Vereinnahmt nach Zahlart (Ist) */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-stone-900 mb-2">Vereinnahmt nach Zahlart</h2>
+          {overview.byMethod.length === 0 ? (
+            <p className="text-sm text-stone-400">Keine Zahlungseingänge im Zeitraum.</p>
+          ) : (
+            <div className="divide-y divide-stone-100">
+              {overview.byMethod.map((m) => (
+                <Row key={m.method} label={methodLabels[m.method] ?? m.method} value={formatCurrency(m.amount)} />
+              ))}
+              <div className="border-t border-stone-200 mt-1 pt-1">
+                <Row label="Summe vereinnahmt" value={formatCurrency(overview.received)} />
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Umsatzsteuer (Hilfswert UVA) */}
+        <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6">
+          <h2 className="text-lg font-semibold text-stone-900 mb-2">Umsatzsteuer (Hilfswert)</h2>
+          <Row label="Vereinnahmte USt (aus Einnahmen, 10 %)" value={formatCurrency(overview.ust.output)} />
+          <Row label="Vorsteuer (aus Ausgaben)" value={`− ${formatCurrency(overview.ust.vorsteuer)}`} />
+          <div className="border-t border-stone-200 mt-1 pt-1">
+            <Row label="Zahllast (Richtwert)" value={formatCurrency(overview.ust.zahllast)} />
+          </div>
+          <p className="text-[11px] text-stone-400 mt-2">
+            Unverbindlicher Hilfswert für die UVA – keine Steuerberatung. Plattform-Provisionen
+            (Reverse-Charge) und USt-Sätze separater Extras mit Steuerberater klären.
+          </p>
+        </div>
+      </div>
+
+      {/* Ortstaxe-Meldung */}
+      <div className="bg-white rounded-2xl border border-stone-200 p-5 sm:p-6">
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <h2 className="text-lg font-semibold text-stone-900">Ortstaxe (Tourismusverband)</h2>
+          <span className="text-xs text-stone-400">{ortstaxe.ratePerPersonNight.toFixed(2)} € / Person·Nacht</span>
+        </div>
+        <Row label="Personen-Nächtigungen" value={String(ortstaxe.totalPersonNights)} />
+        <div className="border-t border-stone-100 mt-1 pt-1">
+          <Row label="Abzuführende Ortstaxe" value={formatCurrency(ortstaxe.totalTaxe)} />
+        </div>
+        <p className="text-[11px] text-stone-400 mt-2">
+          Durchlaufender Posten (nicht im Umsatz). Monatlich an den Tourismusverband melden/abführen.
+        </p>
       </div>
 
       {/* Nach Wohnung */}
