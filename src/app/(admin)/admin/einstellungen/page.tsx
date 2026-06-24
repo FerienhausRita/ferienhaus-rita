@@ -1,9 +1,10 @@
 import { Metadata } from "next";
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
-import { getAdminProfiles, getAllSiteSettings, getIcalImportFeeds, getCleaningProfiles } from "../actions";
+import { getAdminProfiles, getAllSiteSettings, getIcalImportFeeds, getCleaningProfiles, getOneDriveStatus } from "../actions";
 import { apartments } from "@/data/apartments";
 import { getAllApartmentsWithPricing } from "@/lib/pricing-data";
 import SettingsPanel from "@/components/admin/SettingsPanel";
+import OneDriveSettings from "@/components/admin/OneDriveSettings";
 
 export const metadata: Metadata = {
   title: "Einstellungen",
@@ -11,7 +12,11 @@ export const metadata: Metadata = {
 
 export const dynamic = "force-dynamic";
 
-export default async function EinstellungenPage() {
+export default async function EinstellungenPage({
+  searchParams,
+}: {
+  searchParams: { onedrive?: string };
+}) {
   const supabase = createAuthServerClient();
   const {
     data: { user },
@@ -23,13 +28,15 @@ export default async function EinstellungenPage() {
     .eq("id", user?.id ?? "")
     .single();
 
-  const [admins, siteSettings, dbApartments, icalImportRows, cleaningUsers] = await Promise.all([
-    getAdminProfiles(),
-    getAllSiteSettings(),
-    getAllApartmentsWithPricing(),
-    getIcalImportFeeds(),
-    getCleaningProfiles(),
-  ]);
+  const [admins, siteSettings, dbApartments, icalImportRows, cleaningUsers, oneDriveStatus] =
+    await Promise.all([
+      getAdminProfiles(),
+      getAllSiteSettings(),
+      getAllApartmentsWithPricing(),
+      getIcalImportFeeds(),
+      getCleaningProfiles(),
+      getOneDriveStatus(),
+    ]);
 
   // Apartment-Liste für die "Export-Feeds"-Sektion (URLs werden code-seitig
   // aus apartment-id gebildet — /api/ical/[apartmentId])
@@ -68,17 +75,22 @@ export default async function EinstellungenPage() {
     process.env.NEXT_PUBLIC_SITE_URL || "https://www.ferienhaus-rita-kals.at";
 
   return (
-    <SettingsPanel
-      currentUserId={user?.id ?? ""}
-      currentName={profile?.display_name || ""}
-      currentRole={profile?.role || "admin"}
-      admins={admins}
-      cleaningUsers={cleaningUsers}
-      icalFeeds={feedData}
-      icalImportFeeds={icalImportFeeds}
-      exportBaseUrl={exportBaseUrl}
-      siteSettings={siteSettings}
-      apartmentNames={apartmentNames}
-    />
+    <>
+      <SettingsPanel
+        currentUserId={user?.id ?? ""}
+        currentName={profile?.display_name || ""}
+        currentRole={profile?.role || "admin"}
+        admins={admins}
+        cleaningUsers={cleaningUsers}
+        icalFeeds={feedData}
+        icalImportFeeds={icalImportFeeds}
+        exportBaseUrl={exportBaseUrl}
+        siteSettings={siteSettings}
+        apartmentNames={apartmentNames}
+      />
+      <div className="p-4 sm:p-6 lg:p-8 max-w-5xl mx-auto">
+        <OneDriveSettings status={oneDriveStatus} banner={searchParams?.onedrive} />
+      </div>
+    </>
   );
 }

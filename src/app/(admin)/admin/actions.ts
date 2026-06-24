@@ -11,7 +11,6 @@ import {
   apartmentImageUrl,
 } from "@/lib/pricing-data";
 import { todayISO } from "@/lib/dates";
-import { createHash } from "crypto";
 
 /**
  * Get dashboard statistics
@@ -5670,78 +5669,19 @@ export async function createExpenseFromReceipt(
   if (!(file instanceof File) || file.size === 0) {
     return { success: false, error: "Keine Datei" };
   }
-  if (file.size > 15 * 1024 * 1024) return { success: false, error: "Datei zu groß (max. 15 MB)" };
 
-  const buffer = Buffer.from(await file.arrayBuffer());
-  const fileHash = createHash("sha256").update(buffer).digest("hex");
-  const mime = file.type || "application/octet-stream";
-
-  const supabase = createServerClient();
-
-  // Duplikat-Erkennung: gibt es schon eine Ausgabe mit identischem Datei-Hash?
-  const { data: existing } = await supabase
-    .from("expenses")
-    .select("id")
-    .eq("file_hash", fileHash)
-    .limit(1)
-    .maybeSingle();
-  if (existing) return { success: true, duplicate: true, id: existing.id as string };
-
-  // Datei in privaten Beleg-Bucket legen.
-  const ext = (file.name.split(".").pop() || "pdf").toLowerCase().replace(/[^a-z0-9]/g, "");
-  const path = `drafts/${Date.now()}-${crypto.randomUUID()}.${ext || "pdf"}`;
-  const { error: upErr } = await supabase.storage
-    .from(BELEGE_BUCKET)
-    .upload(path, buffer, { contentType: mime, upsert: false });
-  if (upErr) return { success: false, error: `Upload fehlgeschlagen: ${upErr.message}` };
-
-  // OCR (fehlertolerant: ohne API-Key/bei Fehler leerer Entwurf zum manuellen Ausfüllen).
-  let ocr: import("@/lib/ocr").ReceiptExtraction | null = null;
-  let ocrFailed = false;
-  try {
-    const { extractReceipt } = await import("@/lib/ocr");
-    ocr = await extractReceipt(buffer, mime);
-  } catch {
-    ocrFailed = true;
+  const { importReceipt } = await import("@/lib/receipt-import");
+  const res = await importReceipt({
+    buffer: Buffer.from(await file.arrayBuffer()),
+    filename: file.name,
+    mime: file.type || "application/octet-stream",
+    source,
+  });
+  if (res.success && !res.duplicate) {
+    revalidatePath("/admin/finanzen/belege");
+    revalidatePath("/admin/finanzen");
   }
-
-  const gross = ocr?.gross ?? 0;
-  const rate = ocr?.vat_rate ?? null;
-  const net =
-    ocr?.net ?? (rate != null && gross > 0 ? Math.round((gross / (1 + rate / 100)) * 100) / 100 : null);
-  const vat =
-    ocr?.vat_amount ?? (net != null && gross > 0 ? Math.round((gross - net) * 100) / 100 : null);
-
-  const { data, error } = await supabase
-    .from("expenses")
-    .insert({
-      expense_date: ocr?.expense_date || todayISO(),
-      category: ocr?.category || "Sonstiges",
-      amount: gross,
-      net_amount: net,
-      vat_rate: rate,
-      vat_amount: vat,
-      payment_method: null,
-      apartment_id: null,
-      booking_id: null,
-      note: ocr?.vendor ? `Beleg: ${ocr.vendor}` : null,
-      receipt_path: path,
-      status: "draft",
-      file_hash: fileHash,
-      vendor: ocr?.vendor || null,
-      ocr_data: ocr ? (ocr as unknown as Record<string, unknown>) : null,
-      source,
-    })
-    .select("id")
-    .single();
-
-  if (error) {
-    await supabase.storage.from(BELEGE_BUCKET).remove([path]);
-    return { success: false, error: error.message };
-  }
-  revalidatePath("/admin/finanzen/belege");
-  revalidatePath("/admin/finanzen");
-  return { success: true, id: data?.id as string | undefined, duplicate: false, ocrFailed };
+  return res;
 }
 
 /** Alle offenen Beleg-Entwürfe (status='draft'), neueste zuerst. */
@@ -5787,6 +5727,84 @@ export async function getOpenDraftCount(): Promise<number> {
     .eq("status", "draft");
   if (error) return 0;
   return count ?? 0;
+}
+
+// ── OneDrive-Anbindung (Beleg-Auto-Import) ──
+
+export interface OneDriveStatus {
+  configured: boolean; // Azure-Env-Variablen gesetzt?
+  connected: boolean; // Refresh-Token vorhanden?
+  folder: string;
+  lastSync: { at: string; scanned: number; imported: number; duplicates: number; failed: number } | null;
+}
+
+export async function getOneDriveStatus(): Promise<OneDriveStatus> {
+  const supabase = createServerClient();
+  const { isOneDriveConfigured } = await import("@/lib/onedrive");
+  const { data } = await supabase
+    .from("site_settings")
+    .select("key, value")
+    .in("key", ["onedrive_token", "onedrive_folder", "onedrive_last_sync"]);
+  const map = new Map((data ?? []).map((r) => [r.key as string, r.value]));
+  return {
+    configured: isOneDriveConfigured(),
+    connected: Boolean((map.get("onedrive_token") as { refresh_token?: string } | undefined)?.refresh_token),
+    folder: (map.get("onedrive_folder") as string) || "Belege",
+    lastSync: (map.get("onedrive_last_sync") as OneDriveStatus["lastSync"]) ?? null,
+  };
+}
+
+export async function setOneDriveFolder(folder: string): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const clean = (folder || "").trim().replace(/^\/+|\/+$/g, "");
+  const supabase = createServerClient();
+  const { error } = await supabase
+    .from("site_settings")
+    .upsert({ key: "onedrive_folder", value: clean || "Belege", updated_at: new Date().toISOString() });
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+export async function disconnectOneDrive(): Promise<{ success: boolean; error?: string }> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const supabase = createServerClient();
+  const { error } = await supabase.from("site_settings").delete().eq("key", "onedrive_token");
+  if (error) return { success: false, error: error.message };
+  revalidatePath("/admin/einstellungen");
+  return { success: true };
+}
+
+export async function syncOneDriveNow(): Promise<{
+  success: boolean;
+  error?: string;
+  imported?: number;
+  duplicates?: number;
+  failed?: number;
+  scanned?: number;
+}> {
+  if (!(await isAdminRequest())) return { success: false, error: "Nicht autorisiert" };
+  const { runOneDriveImport } = await import("@/lib/onedrive-sync");
+  const r = await runOneDriveImport();
+  if (!r.ok) {
+    const msg =
+      r.reason === "not_configured"
+        ? "OneDrive ist nicht konfiguriert (Azure-Env-Variablen fehlen)."
+        : r.reason === "not_connected"
+          ? "OneDrive ist nicht verbunden."
+          : r.error || "Synchronisation fehlgeschlagen.";
+    return { success: false, error: msg };
+  }
+  revalidatePath("/admin/finanzen/belege");
+  revalidatePath("/admin/finanzen");
+  revalidatePath("/admin/einstellungen");
+  return {
+    success: true,
+    imported: r.imported,
+    duplicates: r.duplicates,
+    failed: r.failed,
+    scanned: r.scanned,
+  };
 }
 
 /** Einen Beleg-Entwurf mit (ggf. korrigierten) Feldern bestätigen → status='confirmed'. */
