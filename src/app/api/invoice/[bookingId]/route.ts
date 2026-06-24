@@ -181,11 +181,14 @@ export async function GET(
       payments,
     });
 
+    // ?inline=1 → im Browser/Pop-up anzeigen statt herunterladen
+    const inline = new URL(_request.url).searchParams.get("inline") === "1";
+    const disposition = `${inline ? "inline" : "attachment"}; filename="Rechnung-${booking.invoice_number}.pdf"`;
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="Rechnung-${booking.invoice_number}.pdf"`,
+        "Content-Disposition": disposition,
       },
     });
   } catch (err) {

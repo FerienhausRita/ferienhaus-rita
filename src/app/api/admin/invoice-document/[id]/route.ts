@@ -94,11 +94,12 @@ export async function GET(
     });
 
     const label = doc.type === "storno" ? "Stornorechnung" : "Rechnungskorrektur";
+    const inline = new URL(_request.url).searchParams.get("inline") === "1";
     return new NextResponse(new Uint8Array(pdfBuffer), {
       status: 200,
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${label}-${doc.number}.pdf"`,
+        "Content-Disposition": `${inline ? "inline" : "attachment"}; filename="${label}-${doc.number}.pdf"`,
         "Cache-Control": "private, no-store",
       },
     });

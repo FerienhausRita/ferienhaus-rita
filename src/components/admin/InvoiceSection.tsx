@@ -65,6 +65,7 @@ export default function InvoiceSection({
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const [preview, setPreview] = useState<{ url: string; title: string } | null>(null);
 
   const isFinalized = !!invoiceFinalizedAt;
   const hasDiffs = diffs.length > 0;
@@ -202,14 +203,25 @@ export default function InvoiceSection({
             </div>
             <p className="text-xs text-stone-500">Erstellt am {fmtDateTime(invoiceFinalizedAt!)}</p>
 
-            <a
-              href={`/api/invoice/${bookingId}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="block w-full text-center py-2.5 px-4 bg-stone-800 hover:bg-stone-900 text-white text-sm font-medium rounded-xl transition-colors"
-            >
-              Rechnung herunterladen
-            </a>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setPreview({ url: `/api/invoice/${bookingId}?inline=1`, title: `Rechnung ${invoiceNumber}` })
+                }
+                className="flex-1 text-center py-2.5 px-4 bg-stone-800 hover:bg-stone-900 text-white text-sm font-medium rounded-xl transition-colors"
+              >
+                Vorschau
+              </button>
+              <a
+                href={`/api/invoice/${bookingId}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 text-center py-2.5 px-4 border border-stone-300 text-stone-700 hover:bg-stone-50 text-sm font-medium rounded-xl transition-colors"
+              >
+                Herunterladen
+              </a>
+            </div>
 
             {/* Folgedokumente */}
             {documents.length > 0 && (
@@ -225,14 +237,28 @@ export default function InvoiceSection({
                         {d.reason ? ` · ${d.reason}` : ""}
                       </p>
                     </div>
-                    <a
-                      href={`/api/admin/invoice-document/${d.id}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-xs text-[#c8a96e] hover:text-[#b89555] underline flex-shrink-0"
-                    >
-                      PDF
-                    </a>
+                    <div className="flex items-center gap-3 flex-shrink-0">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setPreview({
+                            url: `/api/admin/invoice-document/${d.id}?inline=1`,
+                            title: `${d.type === "storno" ? "Stornorechnung" : "Rechnungskorrektur"} ${d.number}`,
+                          })
+                        }
+                        className="text-xs text-[#c8a96e] hover:text-[#b89555] underline"
+                      >
+                        Vorschau
+                      </button>
+                      <a
+                        href={`/api/admin/invoice-document/${d.id}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-stone-500 hover:text-stone-800 underline"
+                      >
+                        PDF
+                      </a>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -294,6 +320,44 @@ export default function InvoiceSection({
           </p>
         )}
       </div>
+
+      {/* Vorschau-Pop-up */}
+      {preview && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col bg-black/60 p-4 sm:p-8"
+          onClick={() => setPreview(null)}
+        >
+          <div
+            className="mx-auto flex h-full w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-4 py-3">
+              <span className="text-sm font-medium text-stone-800 truncate">{preview.title}</span>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <a
+                  href={preview.url.replace("?inline=1", "")}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-stone-600 hover:text-stone-900 underline"
+                >
+                  Herunterladen
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setPreview(null)}
+                  aria-label="Schließen"
+                  className="w-8 h-8 flex items-center justify-center rounded-lg text-stone-400 hover:text-stone-700 hover:bg-stone-100 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <iframe src={preview.url} title={preview.title} className="flex-1 w-full bg-stone-100" />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
