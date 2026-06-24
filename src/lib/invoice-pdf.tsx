@@ -109,6 +109,19 @@ function fmtDate(input: string | Date): string {
 const LOCAL_TAX_PER_PERSON_PER_NIGHT = 2.5;
 const VAT_RATE = 0.1;
 
+/** Ländercode → ausgeschriebener Name (sonst unverändert). */
+function fmtCountry(c: string | null | undefined): string {
+  const v = (c || "").trim();
+  const map: Record<string, string> = {
+    AT: "Österreich",
+    DE: "Deutschland",
+    CH: "Schweiz",
+    IT: "Italien",
+    LI: "Liechtenstein",
+  };
+  return map[v.toUpperCase()] ?? v;
+}
+
 function calculateNights(checkIn: string, checkOut: string): number {
   const diff = new Date(checkOut).getTime() - new Date(checkIn).getTime();
   return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
@@ -862,7 +875,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
               {booking.zip} {booking.city}
             </Text>
             {booking.country ? (
-              <Text style={styles.addressMuted}>{booking.country}</Text>
+              <Text style={styles.addressMuted}>{fmtCountry(booking.country)}</Text>
             ) : null}
             <Text style={[styles.addressMuted, { marginTop: 4 }]}>
               {booking.email}
@@ -902,15 +915,19 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
               <Text style={styles.th}>Betrag</Text>
             </View>
           </View>
-          {positions.map((p, i) => (
-            <PositionRow
-              key={i}
-              title={p.title}
-              formula={p.formula}
-              amount={p.amount}
-              alt={i % 2 === 1}
-            />
-          ))}
+          {positions
+            // Ortstaxe ist ein durchlaufender Posten (nicht steuerbar) und wird
+            // ausschließlich in der Summenaufstellung gezeigt – nicht als Position.
+            .filter((p) => !/^(ortstaxe|kurtaxe)/i.test(p.title))
+            .map((p, i) => (
+              <PositionRow
+                key={i}
+                title={p.title}
+                formula={p.formula}
+                amount={p.amount}
+                alt={i % 2 === 1}
+              />
+            ))}
         </View>
 
         {/* Totals */}
@@ -998,20 +1015,19 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
               <Text style={styles.grandLabel}>
                 {isFullyPaid ? "Bezahlt" : "Offener Betrag"}
               </Text>
-              <Text
-                style={[
-                  styles.grandValue,
-                  { color: isFullyPaid ? "#15803d" : DARK },
-                ]}
-              >
-                {isFullyPaid ? "—" : fmtCurrency(outstandingAmount)}
+              <Text style={styles.grandValue}>
+                {isFullyPaid ? fmtCurrency(totalPaid) : fmtCurrency(outstandingAmount)}
               </Text>
             </View>
-            {dueDateForDisplay && !isFullyPaid && (
+            {isFullyPaid ? (
+              <Text style={[styles.totalHint, { color: GRAY }]}>
+                Vollständig bezahlt — keine Überweisung erforderlich.
+              </Text>
+            ) : dueDateForDisplay ? (
               <Text style={[styles.totalHint, { color: GRAY }]}>
                 Bitte überweisen Sie den offenen Betrag bis spätestens {fmtDate(dueDateForDisplay)}.
               </Text>
-            )}
+            ) : null}
           </View>
         )}
 
@@ -1056,18 +1072,6 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
                 </View>
               ) : null}
             </View>
-          </View>
-        )}
-
-        {/* Bezahlt-Stempel wenn alles erhalten */}
-        {!isFollowUp && isFullyPaid && (
-          <View style={styles.paidStamp}>
-            <Text style={styles.paidStampText}>
-              ✓ Vollständig bezahlt
-            </Text>
-            <Text style={styles.paidStampSubtext}>
-              Dieser Betrag wurde vollständig vereinnahmt — keine Überweisung erforderlich.
-            </Text>
           </View>
         )}
 
