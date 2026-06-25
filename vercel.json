@@ -22,7 +22,7 @@
     },
     {
       "path": "/api/cron/onedrive-belege",
-      "schedule": "0 * * * *"
+      "schedule": "0 7 * * *"
     }
   ]
 }
