@@ -83,6 +83,15 @@ export function computeDepositSplit(opts: {
   };
 }
 
+/** Restbetrags-Fälligkeit allein aus der Anreise (unabhängig vom Betrag).
+ *  Wird genutzt, wenn sich das Anreisedatum nachträglich ändert. */
+export function remainderDueDateFor(checkIn: string, cfg: DepositConfig): string {
+  const ci = new Date(checkIn + "T00:00:00Z");
+  return new Date(ci.getTime() - cfg.remainder_days_before_checkin * 24 * 60 * 60 * 1000)
+    .toISOString()
+    .split("T")[0];
+}
+
 export async function getDepositConfig(): Promise<DepositConfig> {
   try {
     const supabase = createServerClient();

@@ -3384,6 +3384,14 @@ export async function updateBookingDetails(
                 (newTotal - Number(booking.deposit_amount || 0)) * 100
               ) / 100
             );
+            // Restbetrags-Fälligkeit der (ggf. geänderten) Anreise folgen lassen.
+            if (datesOrApartmentChanged) {
+              const { getDepositConfig, remainderDueDateFor } = await import(
+                "@/lib/deposit-config"
+              );
+              const cfg = await getDepositConfig();
+              payload.remainder_due_date = remainderDueDateFor(merged.check_in, cfg);
+            }
           }
         } else {
           // Externe Buchung: dependent positions wie bisher, Ortstaxe bleibt 0,
@@ -3414,6 +3422,9 @@ export async function updateBookingDetails(
   // Überdeckung (z. B. nachträgliche Ortstaxe bei bezahlter Buchung) wieder
   // als offenen Restbetrag darstellen.
   await reconcileOverageAfterTotalChange(supabase, bookingId);
+  // Zahlungsstatus konsistent aus dem bezahlten Betrag ableiten (deckt u. a.
+  // Verkürzung einer bezahlten Buchung ab → "paid" statt "deposit_paid").
+  await recomputePaymentStatus(supabase, bookingId);
 
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin/buchungen");
@@ -4352,6 +4363,7 @@ export async function updateBookingPrices(
   // Falls der neue Gesamtpreis über die bereits bezahlte Plan-Summe steigt
   // (z. B. nachträgliche Ortstaxe bei voll bezahlter Buchung).
   await reconcileOverageAfterTotalChange(supabase, bookingId);
+  await recomputePaymentStatus(supabase, bookingId);
 
   revalidatePath(`/admin/buchungen/${bookingId}`);
   revalidatePath("/admin/buchungen");
@@ -4426,6 +4438,55 @@ export async function recalculateBookingPricesAction(bookingId: string) {
  * erhalten, sodass nur die Differenz offen erscheint.
  * Idempotent: ohne Überdeckung passiert nichts.
  */
+/**
+ * Leitet payment_status konsistent aus dem tatsächlich bezahlten Betrag vs.
+ * Gesamtpreis ab (gleiche Logik wie recordManualPayment). Nötig, wenn sich der
+ * Gesamtpreis nachträglich ändert (z. B. Datums-/Preisänderung) — insbesondere
+ * bei Verkürzung einer bereits (an)bezahlten Buchung (Überdeckung → "paid").
+ * Externe/Plattform- sowie erstattete Buchungen werden nicht angetastet.
+ */
+async function recomputePaymentStatus(
+  supabase: ReturnType<typeof createServerClient>,
+  bookingId: string
+) {
+  const { data: b } = await supabase
+    .from("bookings")
+    .select(
+      "total_price, deposit_amount, remainder_amount, deposit_paid_at, remainder_paid_at, payment_status, source_channel"
+    )
+    .eq("id", bookingId)
+    .single();
+  if (!b) return;
+  const channel = (b.source_channel as string | null) ?? "Website";
+  if (channel !== "Website") return; // externe Buchungen über Payout-Flow gesteuert
+  if (b.payment_status === "refunded" || b.payment_status === "platform_pending") return;
+
+  const { data: pays } = await supabase
+    .from("booking_payments")
+    .select("amount, applies_to")
+    .eq("booking_id", bookingId);
+  let ledgerDep = 0;
+  let ledgerRem = 0;
+  let ledgerOther = 0;
+  for (const p of pays ?? []) {
+    const amt = Number(p.amount || 0);
+    if (p.applies_to === "deposit") ledgerDep += amt;
+    else if (p.applies_to === "remainder") ledgerRem += amt;
+    else ledgerOther += amt;
+  }
+  const depAmt = Number(b.deposit_amount || 0);
+  const remAmt = Number(b.remainder_amount || 0);
+  const depPaidEff = b.deposit_paid_at ? depAmt : ledgerDep;
+  const remPaidEff = b.remainder_paid_at ? remAmt : ledgerRem;
+  const paidTotal = Math.round((depPaidEff + remPaidEff + ledgerOther) * 100) / 100;
+  const total = Number(b.total_price || 0);
+  if (total <= 0) return;
+  const status = paidTotal >= total - 0.01 ? "paid" : paidTotal > 0.01 ? "deposit_paid" : "unpaid";
+  if (status !== b.payment_status) {
+    await supabase.from("bookings").update({ payment_status: status }).eq("id", bookingId);
+  }
+}
+
 async function reconcileOverageAfterTotalChange(
   supabase: ReturnType<typeof createServerClient>,
   bookingId: string
@@ -4477,12 +4538,21 @@ async function reconcileOverageAfterTotalChange(
     }
   }
 
+  // Restbetrags-Fälligkeit aus der (ggf. geänderten) Anreise ableiten.
+  let remainderDue = (b.remainder_due_date as string | null) ?? todayISO();
+  try {
+    const { getDepositConfig, remainderDueDateFor } = await import("@/lib/deposit-config");
+    const cfg = await getDepositConfig();
+    if (b.check_in) remainderDue = remainderDueDateFor(b.check_in as string, cfg);
+  } catch {
+    /* Fallback: bestehendes/heutiges Datum */
+  }
+
   await supabase
     .from("bookings")
     .update({
       remainder_amount: Math.round((rem + uncovered) * 100) / 100,
-      remainder_due_date:
-        b.remainder_due_date ?? todayISO(),
+      remainder_due_date: remainderDue,
       remainder_paid_at: null,
       payment_status: "deposit_paid",
     })
@@ -4556,6 +4626,7 @@ async function recomputeBookingTotalAndPayments(
   // (z. B. nachträgliche Ortstaxe bei voll bezahlter Buchung), Differenz
   // wieder als offenen Restbetrag darstellen.
   await reconcileOverageAfterTotalChange(supabase, bookingId);
+  await recomputePaymentStatus(supabase, bookingId);
   return total;
 }
 
