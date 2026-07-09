@@ -23,6 +23,24 @@ export async function GET(
     return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
   }
 
+  // Ownership-Check: ein Gast darf NUR die Conversation seines eigenen Bookings
+  // lesen (Admins mit Session dürfen alle). Verhindert IDOR über fremde
+  // conversation_id — analog zum POST-Handler.
+  if (!user) {
+    const tokenData = guestToken ? verifyGuestToken(guestToken) : null;
+    if (!tokenData) {
+      return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
+    }
+    const { data: ownerConv } = await supabase
+      .from("chat_conversations")
+      .select("booking_id")
+      .eq("id", params.conversationId)
+      .single();
+    if (!ownerConv || ownerConv.booking_id !== tokenData.bookingId) {
+      return NextResponse.json({ error: "Nicht autorisiert" }, { status: 401 });
+    }
+  }
+
   const { data: messages, error } = await supabase
     .from("chat_messages")
     .select("*")
