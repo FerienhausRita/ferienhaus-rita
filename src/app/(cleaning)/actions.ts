@@ -1,6 +1,7 @@
 "use server";
 
 import { createAuthServerClient } from "@/lib/supabase/auth-server";
+import { createServerClient } from "@/lib/supabase/server";
 import { getApartmentNameMap } from "@/lib/pricing-data";
 
 export type CleaningBooking = {
@@ -42,7 +43,10 @@ export async function getCleaningBookings(): Promise<CleaningBooking[]> {
     if (!adminProfile) throw new Error("Forbidden");
   }
 
-  const { data, error } = await supabase
+  // Anonymisierte View via Service-Role lesen (Zugriffskontrolle ist oben app-seitig
+  // erfolgt). So bleibt die View auf security_invoker=on und umgeht keine RLS mehr.
+  const service = createServerClient();
+  const { data, error } = await service
     .from("cleaning_bookings")
     .select(
       "id, apartment_id, check_in, check_out, adults, children, infants, dogs, cleaning_note, arrival_time, departure_time, status"
