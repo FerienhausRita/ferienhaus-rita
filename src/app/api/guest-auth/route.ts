@@ -28,6 +28,35 @@ export async function POST(request: NextRequest) {
 
     const supabase = createServerClient();
 
+    // Rate-Limiting: max. Versuche pro IP im Zeitfenster (gegen Brute-Force des
+    // 8-Hex-Codes). Zählt über alle Serverless-Instanzen (Supabase = shared state).
+    // Fail-open: Fehler beim Rate-Limit-Check dürfen den Login NICHT blockieren.
+    const RL_WINDOW_MIN = 15;
+    const RL_MAX_ATTEMPTS = 10;
+    const ip =
+      request.headers.get("x-forwarded-for")?.split(",")[0].trim() ||
+      request.headers.get("x-real-ip") ||
+      "unknown";
+    try {
+      const since = new Date(Date.now() - RL_WINDOW_MIN * 60_000).toISOString();
+      const { count } = await supabase
+        .from("login_attempts")
+        .select("id", { count: "exact", head: true })
+        .eq("ip", ip)
+        .gte("created_at", since);
+      if ((count ?? 0) >= RL_MAX_ATTEMPTS) {
+        return NextResponse.json(
+          { error: "Zu viele Versuche. Bitte in einigen Minuten erneut versuchen." },
+          { status: 429 }
+        );
+      }
+      // Versuch protokollieren + alte Einträge (außerhalb des Fensters) aufräumen.
+      await supabase.from("login_attempts").insert({ ip });
+      await supabase.from("login_attempts").delete().lt("created_at", since);
+    } catch (rlErr) {
+      console.error("Rate-Limit-Check fehlgeschlagen (fail-open):", rlErr);
+    }
+
     // Query bookings by last_name (case-insensitive), then filter by code prefix client-side.
     // This avoids LIKE on UUID columns which PostgREST doesn't support well.
     const { data: bookings, error } = await supabase

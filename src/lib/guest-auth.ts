@@ -1,4 +1,4 @@
-import { createHmac } from "crypto";
+import { createHmac, timingSafeEqual } from "crypto";
 
 // ---------------------------------------------------------------------------
 // Secret
@@ -59,9 +59,16 @@ export function verifyGuestToken(
   const encoded = cookieValue.slice(0, dotIndex);
   const providedSig = cookieValue.slice(dotIndex + 1);
 
-  // Verify signature
+  // Verify signature (Konstantzeit-Vergleich gegen Timing-Angriffe)
   const expectedSig = sign(encoded);
-  if (providedSig !== expectedSig) return null;
+  const providedBuf = Buffer.from(providedSig);
+  const expectedBuf = Buffer.from(expectedSig);
+  if (
+    providedBuf.length !== expectedBuf.length ||
+    !timingSafeEqual(providedBuf, expectedBuf)
+  ) {
+    return null;
+  }
 
   // Decode payload
   try {
