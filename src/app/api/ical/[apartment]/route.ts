@@ -69,12 +69,15 @@ export async function GET(
     });
 
     // Add blocked dates
+    // Datenschutz: NIEMALS den Roh-`reason` ausgeben — er kann Gästenamen oder
+    // interne Notizen enthalten (manuelle Sperren / Feratel-Import). Der öffentliche
+    // Feed braucht nur den Zeitraum, kein Titel-Detail.
     blocked?.forEach((b) => {
       events.push({
         uid: `blocked-${b.id}@ferienhaus-rita-kals.at`,
         start: b.start_date,
         end: b.end_date,
-        summary: b.reason || "Blockiert",
+        summary: "Blockiert",
       });
     });
 

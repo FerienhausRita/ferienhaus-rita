@@ -6,7 +6,14 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get("code");
   const token_hash = searchParams.get("token_hash");
   const type = searchParams.get("type");
-  const explicitNext = searchParams.get("next") || searchParams.get("redirect");
+  // Open-Redirect-Schutz: nur interne, relative Pfade zulassen. Eine absolute
+  // ("https://evil.com") oder protokoll-relative ("//evil.com") URL würde in
+  // new URL(next, origin) die origin-Basis überschreiben → Redirect off-site.
+  const rawNext = searchParams.get("next") || searchParams.get("redirect");
+  const explicitNext =
+    rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//")
+      ? rawNext
+      : null;
 
   // Initialer Response (wird ggf. überschrieben sobald Rolle bekannt)
   let response = NextResponse.redirect(new URL(explicitNext || "/admin", origin));
