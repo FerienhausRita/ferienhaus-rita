@@ -194,36 +194,47 @@ export default function PlatformPayoutStatus({
                 ✕
               </button>
             </div>
-          ) : (
-            <p className="text-xs text-stone-600">
-              {payoutAmount !== null ? (
-                <>
-                  Auszahlung <span className="font-medium">{formatCurrency(payoutAmount)}</span>
-                  {fee !== null && fee !== 0 && (
-                    <> · Gebühr {formatCurrency(fee)} (Buchungswert {formatCurrency(totalPrice)})</>
-                  )}{" "}
-                  <button
-                    onClick={() => {
-                      setAmount(payoutAmount.toFixed(2));
-                      setEditingAmount(true);
-                    }}
-                    className="text-[#c8a96e] hover:text-[#b89555] underline ml-1"
-                  >
-                    ändern
-                  </button>
-                </>
-              ) : (
-                <button
-                  onClick={() => {
-                    setAmount(totalPrice.toFixed(2));
-                    setEditingAmount(true);
-                  }}
-                  className="text-[#c8a96e] hover:text-[#b89555] underline"
-                >
-                  Auszahlungsbetrag eintragen
-                </button>
+          ) : payoutAmount !== null ? (
+            <div className="text-xs space-y-1">
+              <div className="flex justify-between text-stone-500">
+                <span>Buchungswert</span>
+                <span className="text-stone-700">{formatCurrency(totalPrice)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-stone-500">Auszahlung erhalten</span>
+                <span className="font-semibold text-emerald-700">{formatCurrency(payoutAmount)}</span>
+              </div>
+              {fee !== null && Math.abs(fee) > 0.005 && (
+                <div className="flex justify-between border-t border-blue-100 pt-1">
+                  <span className="text-stone-600 font-medium">Kommission {channel}</span>
+                  <span className="font-semibold text-stone-900">
+                    − {formatCurrency(fee)}
+                    <span className="text-stone-400 font-normal ml-1">
+                      ({totalPrice > 0 ? Math.round((fee / totalPrice) * 100) : 0} %)
+                    </span>
+                  </span>
+                </div>
               )}
-            </p>
+              <button
+                onClick={() => {
+                  setAmount(payoutAmount.toFixed(2));
+                  setEditingAmount(true);
+                }}
+                className="text-[#c8a96e] hover:text-[#b89555] underline"
+              >
+                ändern
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={() => {
+                setAmount(totalPrice.toFixed(2));
+                setEditingAmount(true);
+              }}
+              className="text-xs text-[#c8a96e] hover:text-[#b89555] underline"
+            >
+              Auszahlungsbetrag eintragen
+            </button>
           )}
         </div>
       ) : null}

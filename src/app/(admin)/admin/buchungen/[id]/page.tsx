@@ -104,6 +104,15 @@ export default async function BookingDetailPage({
   const apartment = apartmentPricing;
   const status = statusConfig[booking.status] ?? statusConfig.pending;
 
+  // Plattform-Buchung (externer Kanal, Zahlung als Gesamt-Auszahlung) — gilt sowohl
+  // ausstehend (platform_pending) als auch nach bestätigter Auszahlung (payout_confirmed_at).
+  // Für diese wird der Auszahlungs-/Kommissions-Block gezeigt statt des Anzahlungs-Trackers
+  // (sonst zeigte der Tracker fälschlich „Bezahlt" bei 0,00 €).
+  const payoutConfirmedAt =
+    (booking as { payout_confirmed_at?: string | null }).payout_confirmed_at ?? null;
+  const isPlatformPayout =
+    booking.payment_status === "platform_pending" || !!payoutConfirmedAt;
+
   // Load admin rating from previous stays (for returning guests)
   const guestRating = await getGuestRatingByEmail(booking.email || "");
 
@@ -196,8 +205,8 @@ export default async function BookingDetailPage({
         </div>
       )}
 
-      {/* Plattform-Auszahlung (am Ende, ohne Anzahlung) */}
-      {booking.payment_status === "platform_pending" && (
+      {/* Plattform-Auszahlung (am Ende, ohne Anzahlung) — ausstehend UND bezahlt */}
+      {isPlatformPayout && (
         <div className="mb-6 bg-blue-50 border border-blue-200 rounded-2xl p-4">
           <div className="flex items-start gap-3">
             <svg
@@ -577,7 +586,7 @@ export default async function BookingDetailPage({
             </div>
           </div>
 
-          {booking.payment_status !== "platform_pending" && (
+          {!isPlatformPayout && (
           <DepositTracker
             bookingId={booking.id}
             totalPrice={Number(booking.total_price)}
