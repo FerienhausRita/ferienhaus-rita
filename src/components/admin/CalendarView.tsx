@@ -52,6 +52,11 @@ const monthNames = [
   "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
 
+// Feste Spaltenbreiten (px), damit der Kalender auf jedem Gerät gleich lesbar ist
+// und auf schmalen Screens (iPhone) horizontal gescrollt wird, statt zu quetschen.
+const DAY_W = 28; // Breite pro Tagesspalte
+const LABEL_W = 100; // Breite der (sticky) Wohnungs-Spalte
+
 export default function CalendarView({
   year,
   currentMonth,
@@ -319,9 +324,9 @@ export default function CalendarView({
       <div
         ref={scrollRef}
         className="overflow-x-auto scroll-smooth"
-        style={{ scrollSnapType: "x mandatory" }}
+        style={{ scrollSnapType: "x proximity", WebkitOverflowScrolling: "touch" }}
       >
-        <div className="flex" style={{ width: `${12 * 100}%` }}>
+        <div className="flex" style={{ width: "max-content" }}>
           {Array.from({ length: 12 }, (_, monthIndex) => {
             const month = monthIndex + 1;
             const daysInMonth = new Date(year, month, 0).getDate();
@@ -332,7 +337,7 @@ export default function CalendarView({
                 key={month}
                 ref={(el) => { monthRefs.current[monthIndex] = el; }}
                 className="flex-shrink-0 border-r border-stone-200"
-                style={{ width: `${100 / 12}%`, scrollSnapAlign: "start" }}
+                style={{ width: `${LABEL_W + daysInMonth * DAY_W}px`, scrollSnapAlign: "start" }}
               >
                 {/* Month header */}
                 <div className="px-3 py-2 bg-stone-50 border-b border-stone-100 sticky top-0 z-30">
@@ -342,7 +347,7 @@ export default function CalendarView({
                 {/* Day header row */}
                 <div
                   className="grid"
-                  style={{ gridTemplateColumns: `100px repeat(${daysInMonth}, 1fr)` }}
+                  style={{ gridTemplateColumns: `${LABEL_W}px repeat(${daysInMonth}, ${DAY_W}px)` }}
                 >
                   <div className="px-2 py-1 border-b border-r border-stone-100 bg-stone-50 text-[10px] font-medium text-stone-500 sticky left-0 z-10">
                     Wohnung
@@ -369,7 +374,7 @@ export default function CalendarView({
                   <div
                     key={apt.id}
                     className="grid"
-                    style={{ gridTemplateColumns: `100px 1fr` }}
+                    style={{ gridTemplateColumns: `${LABEL_W}px ${daysInMonth * DAY_W}px` }}
                   >
                     <div className="px-2 py-1 border-b border-r border-stone-100 bg-stone-50 flex items-center sticky left-0 z-10">
                       <p className="text-[10px] font-medium text-stone-900 truncate">
