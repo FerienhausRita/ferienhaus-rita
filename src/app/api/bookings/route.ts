@@ -3,8 +3,9 @@ import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculatePrice } from "@/lib/pricing";
 import { getMinNightsWithOverrides } from "@/lib/pricing";
-import { validateDiscountCode } from "@/data/discounts";
+import { validateDiscountCode, type DiscountCode } from "@/data/discounts";
 import { isAvailableDB } from "@/lib/availability-server";
+import { getLastMinuteConfig, lastMinuteDiscountFor } from "@/lib/last-minute";
 import {
   getApartmentWithPricing,
   getSeasonConfigsFromDB,
@@ -155,10 +156,23 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Validate discount code server-side
-    const discount = data.discountCode
-      ? validateDiscountCode(data.discountCode)
-      : null;
+    // Rabatt serverseitig bestimmen.
+    // Last-Minute (Anreise <= Schwelle) wird AUTOMATISCH gewährt und ist NUR dann
+    // gültig — auch wenn der Code manuell mitgesendet wird, greift er niemals für
+    // ferne Termine (kein Missbrauch, Preis stimmt immer).
+    const lmCfg = await getLastMinuteConfig();
+    const lmDiscount = lastMinuteDiscountFor(data.checkIn, lmCfg);
+    let discount: DiscountCode | null = null;
+    if (data.discountCode) {
+      const submitted = data.discountCode.trim().toUpperCase();
+      if (submitted === lmCfg.code.toUpperCase()) {
+        discount = lmDiscount; // Last-Minute-Code: nur bei Anreise <= Schwelle
+      } else {
+        discount = validateDiscountCode(data.discountCode);
+      }
+    } else if (lmDiscount) {
+      discount = lmDiscount; // automatisch anwenden
+    }
 
     // Recalculate price server-side (never trust client-submitted prices)
     const priceBreakdown = calculatePrice({

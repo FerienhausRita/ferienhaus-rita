@@ -1,6 +1,7 @@
 import { Metadata } from "next";
 import { Suspense } from "react";
 import { getAllPricingData } from "@/lib/pricing-data";
+import { getLastMinuteConfig } from "@/lib/last-minute";
 import BookingFlow from "@/components/booking/BookingFlow";
 
 export const metadata: Metadata = {
@@ -12,7 +13,10 @@ export const metadata: Metadata = {
 export const dynamic = "force-dynamic";
 
 export default async function BuchenPage() {
-  const pricingData = await getAllPricingData();
+  const [pricingData, lastMinute] = await Promise.all([
+    getAllPricingData(),
+    getLastMinuteConfig(),
+  ]);
 
   // Serialize for client component
   const serializedApartments = pricingData.apartments.map((a) => ({
@@ -77,6 +81,7 @@ export default async function BuchenPage() {
         seasonPeriodsData={serializedSeasonPeriods}
         specialPeriodsData={serializedSpecialPeriods}
         taxConfigData={pricingData.taxConfig}
+        lastMinute={lastMinute}
       />
     </Suspense>
   );

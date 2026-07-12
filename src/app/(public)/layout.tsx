@@ -3,6 +3,7 @@ import Footer from "@/components/layout/Footer";
 import JsonLd from "@/components/seo/JsonLd";
 import CookieConsent from "@/components/ui/CookieConsent";
 import WhatsAppButton from "@/components/ui/WhatsAppButton";
+import LastMinutePopup from "@/components/booking/LastMinutePopup";
 
 export default function PublicLayout({
   children,
@@ -19,6 +20,7 @@ export default function PublicLayout({
         {children}
       </main>
       <Footer />
+      <LastMinutePopup />
       <WhatsAppButton />
       <CookieConsent />
       <JsonLd type="organization" />

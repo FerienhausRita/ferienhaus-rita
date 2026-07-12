@@ -9,6 +9,7 @@ import { todayISO } from "@/lib/dates";
 import AlternativeDates from "@/components/booking/AlternativeDates";
 import { getMinNights, SpecialPeriod } from "@/data/seasons";
 import { validateDiscountCode, DiscountCode } from "@/data/discounts";
+import { lastMinuteDiscountFor, type LastMinuteConfig } from "@/lib/last-minute-shared";
 import { SeasonConfig, SeasonPeriod } from "@/data/seasons";
 import Image from "next/image";
 import Container from "@/components/ui/Container";
@@ -27,6 +28,8 @@ interface BookingFlowProps {
   seasonPeriodsData?: SeasonPeriod[];
   specialPeriodsData?: SpecialPeriod[];
   taxConfigData?: { localTaxPerNight: number; vatRate: number };
+  /** Last-Minute-Konfiguration (DB-getrieben) für die automatische Rabatt-Vorschau */
+  lastMinute?: LastMinuteConfig;
 }
 
 interface BookingSearch {
@@ -63,6 +66,7 @@ export default function BookingFlow({
   seasonPeriodsData,
   specialPeriodsData,
   taxConfigData,
+  lastMinute,
 }: BookingFlowProps = {}) {
   const searchParams = useSearchParams();
 
@@ -127,6 +131,17 @@ export default function BookingFlow({
       }, 100);
     }
   }, [selectedApartment]);
+
+  // Last-Minute: Rabatt automatisch in die Vorschau übernehmen, wenn die Anreise
+  // innerhalb der Frist liegt (spiegelbildlich zur serverseitigen Erzwingung).
+  // Ein manuell eingegebener Fremdcode bleibt unangetastet.
+  useEffect(() => {
+    if (!lastMinute) return;
+    const manual = activeDiscount && activeDiscount.code !== lastMinute.code;
+    if (manual) return;
+    setActiveDiscount(lastMinuteDiscountFor(search.checkIn, lastMinute));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.checkIn, lastMinute]);
 
   const today = todayISO();
   // Kleinkinder unter 3 zählen NICHT zur maxGuests-Auslastung.
