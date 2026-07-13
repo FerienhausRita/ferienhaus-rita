@@ -14,6 +14,11 @@ import React from "react";
 import type { Apartment } from "@/data/apartments";
 import type { ContactData } from "@/data/contact";
 import type { InvoiceSnapshot } from "@/lib/invoice-snapshot";
+import {
+  deriveInvoicePayment,
+  showsGiroCode,
+  type InvoicePaymentView,
+} from "@/lib/invoice-payment";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,6 +87,8 @@ export interface InvoiceData {
   reason?: string | null;
   /** Vorab erzeugter GiroCode/EPC-QR (data-URL) für die Zahlung; intern gesetzt. */
   qrDataUrl?: string | null;
+  /** Zentral abgeleiteter Zahlungsstatus; intern gesetzt (siehe generateInvoicePdf). */
+  payment?: InvoicePaymentView | null;
 }
 
 // ---------------------------------------------------------------------------
@@ -785,21 +792,24 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
     : fmtDate(new Date());
   const paymentRef = `FR-${booking.id.substring(0, 8).toUpperCase()}`;
 
-  // Bezahlte Beträge live aus DB summieren
-  const totalPaid = payments.reduce((s, p) => s + Number(p.amount || 0), 0);
-  const outstandingAmount = Math.max(
-    0,
-    Math.round((totalForDisplay - totalPaid) * 100) / 100
-  );
-  const isFullyPaid = totalPaid >= totalForDisplay - 0.01;
+  // Zahlungsstatus ZENTRAL ableiten (eine Quelle der Wahrheit — Anzeige & QR identisch,
+  // deckt Plattform-Einzug korrekt ab, nicht nur den booking_payments-Ledger).
+  const pay: InvoicePaymentView =
+    data.payment ??
+    deriveInvoicePayment(booking, payments, {
+      documentType,
+      snapshotTotal: snapshot?.totals.total ?? null,
+    });
   const dueDateForDisplay =
     (booking as { remainder_due_date?: string | null }).remainder_due_date ||
     (booking as { deposit_due_date?: string | null }).deposit_due_date ||
     null;
 
   // USt-Aufschlüsselung (Netto / USt / Brutto). Ortstaxe ist nicht steuerbar.
-  const vatRatePct = snapshot ? Math.round(snapshot.tax.vat_rate * 100) : VAT_RATE * 100;
+  // Kaufmännische Rundung EINMAL zentral → net + USt = steuerpfl. Brutto, Total = net+USt+Ortstaxe.
   const r2 = (n: number) => Math.round(n * 100) / 100;
+  const vatRatePct = snapshot ? Math.round(snapshot.tax.vat_rate * 100) : VAT_RATE * 100;
+  vatAmount = r2(vatAmount);
   const vatLiableGross = r2(totalForDisplay - localTaxTotal); // steuerpflichtiger Brutto-Anteil
   const netAmount = r2(vatLiableGross - vatAmount);
   // Kleinbetragsrechnung gem. § 11 Abs. 6 UStG (Bruttobetrag ≤ 400 €).
@@ -1003,41 +1013,52 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           )}
         </View>
 
-        {/* Bereits geleistete Zahlungen — aus booking_payments live geladen */}
-        {!isFollowUp && payments.length > 0 && (
+        {/* ZAHLUNGSSTATUS — zentral aus `pay` (nie widersprüchlich zu Überweisung/QR). */}
+        {!isFollowUp && pay.status === "paid" && (
           <View style={[styles.totals, { marginTop: 4 }]} wrap={false}>
-            {payments.map((p) => {
-              const label =
-                p.applies_to === "deposit"
-                  ? "Anzahlung erhalten"
-                  : p.applies_to === "remainder"
-                  ? "Restzahlung erhalten"
-                  : "Zahlung erhalten";
-              return (
-                <View key={p.id} style={styles.totalRow}>
-                  <Text style={styles.totalLabel}>
-                    {label} ({fmtDate(p.paid_at)})
-                  </Text>
-                  <Text style={[styles.totalValue, { color: GRAY }]}>
-                    −{fmtCurrency(Number(p.amount))}
-                  </Text>
-                </View>
-              );
-            })}
+            <View style={styles.grandRow}>
+              <Text style={styles.grandLabel}>Zahlungsstatus</Text>
+              <Text style={styles.grandValue}>Bezahlt</Text>
+            </View>
+            <Text style={[styles.totalHint, { color: GRAY }]}>
+              Bereits bezahlt{pay.provider ? ` über ${pay.provider}` : ""}
+              {pay.paymentDate ? ` am ${fmtDate(pay.paymentDate)}` : ""}.
+            </Text>
+          </View>
+        )}
+
+        {!isFollowUp && pay.status === "cancelled" && (
+          <View style={[styles.totals, { marginTop: 4 }]} wrap={false}>
+            <View style={styles.grandRow}>
+              <Text style={styles.grandLabel}>Zahlungsstatus</Text>
+              <Text style={styles.grandValue}>Storniert</Text>
+            </View>
+            <Text style={[styles.totalHint, { color: GRAY }]}>
+              Diese Rechnung wurde storniert — keine Zahlung erforderlich.
+            </Text>
+          </View>
+        )}
+
+        {!isFollowUp && pay.status === "partially_paid" && (
+          <View style={[styles.totals, { marginTop: 4 }]} wrap={false}>
+            <Text style={styles.paymentTitle}>Zahlungsstatus</Text>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>Gesamtbetrag</Text>
+              <Text style={styles.totalValue}>{fmtCurrency(pay.total)}</Text>
+            </View>
+            <View style={styles.totalRow}>
+              <Text style={styles.totalLabel}>
+                Bereits bezahlt{pay.provider ? ` über ${pay.provider}` : ""}
+                {pay.paymentDate ? ` (${fmtDate(pay.paymentDate)})` : ""}
+              </Text>
+              <Text style={[styles.totalValue, { color: GRAY }]}>−{fmtCurrency(pay.amountPaid)}</Text>
+            </View>
             <View style={styles.totalDivider} />
             <View style={styles.grandRow}>
-              <Text style={styles.grandLabel}>
-                {isFullyPaid ? "Bezahlt" : "Offener Betrag"}
-              </Text>
-              <Text style={styles.grandValue}>
-                {isFullyPaid ? fmtCurrency(totalPaid) : fmtCurrency(outstandingAmount)}
-              </Text>
+              <Text style={styles.grandLabel}>Noch offener Betrag</Text>
+              <Text style={styles.grandValue}>{fmtCurrency(pay.amountOutstanding)}</Text>
             </View>
-            {isFullyPaid ? (
-              <Text style={[styles.totalHint, { color: GRAY }]}>
-                Vollständig bezahlt — keine Überweisung erforderlich.
-              </Text>
-            ) : dueDateForDisplay ? (
+            {dueDateForDisplay ? (
               <Text style={[styles.totalHint, { color: GRAY }]}>
                 Bitte überweisen Sie den offenen Betrag bis spätestens {fmtDate(dueDateForDisplay)}.
               </Text>
@@ -1045,13 +1066,14 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           </View>
         )}
 
-        {/* Bankverbindung — nur anzeigen wenn noch was offen ist */}
-        {!isFollowUp && !isFullyPaid && (
+        {/* Überweisungsinformationen + GiroCode — NUR bei tatsächlich offenem Betrag,
+            Betrag = offener Betrag (identisch zum QR). */}
+        {!isFollowUp && showsGiroCode(pay) && (
           <View style={styles.paymentBox} wrap={false}>
             <View style={styles.paymentBoxInner}>
               <View style={styles.paymentDetails}>
                 <Text style={styles.paymentTitle}>
-                  Überweisungsinformationen{payments.length > 0 ? " für den Restbetrag" : ""}
+                  Überweisungsinformationen{pay.status === "partially_paid" ? " für den Restbetrag" : ""}
                 </Text>
                 <View style={styles.paymentRow}>
                   <Text style={styles.paymentLabel}>Kontoinhaber</Text>
@@ -1071,7 +1093,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
                 </View>
                 <View style={styles.paymentRow}>
                   <Text style={styles.paymentLabel}>Betrag</Text>
-                  <Text style={styles.paymentValue}>{fmtCurrency(outstandingAmount)}</Text>
+                  <Text style={styles.paymentValue}>{fmtCurrency(pay.amountOutstanding)}</Text>
                 </View>
                 <View style={styles.refBox}>
                   <Text style={styles.refLabel}>Verwendungszweck</Text>
@@ -1109,7 +1131,7 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
           <Text style={[styles.footerTax, { marginTop: 2 }]}>
             UID {contact.uid} · StNr. {contact.taxNumber} · Behörde:{" "}
             {(contact as { authority?: string }).authority} · Enthält {vatRatePct} % USt gemäß
-            § 10 Abs. 3 UStG (Beherbergung).
+            § 10 Abs. 2 Z 3 lit. c UStG (Beherbergung).
           </Text>
           <View style={styles.footerLegal}>
             <Text style={styles.footerLegalText}>
@@ -1175,22 +1197,23 @@ async function buildPaymentQr(opts: {
 
 export async function generateInvoicePdf(data: InvoiceData): Promise<Buffer> {
   const documentType = data.documentType ?? "invoice";
+  // Zahlungsstatus ZENTRAL ableiten — steuert Anzeige UND QR (eine Quelle der Wahrheit).
+  const payment = deriveInvoicePayment(data.booking, data.payments ?? [], {
+    documentType,
+    snapshotTotal: data.snapshot?.totals.total ?? null,
+  });
   let qrDataUrl: string | null = null;
-  // QR nur auf regulären, noch offenen Rechnungen (nicht auf Storno/Korrektur).
-  if (documentType === "invoice") {
-    const total = data.snapshot?.totals.total ?? data.booking.total_price;
-    const paid = (data.payments ?? []).reduce((s, p) => s + Number(p.amount || 0), 0);
-    const outstanding = Math.round((total - paid) * 100) / 100;
-    if (outstanding > 0.01) {
-      const bank = data.snapshot?.bank_details ?? data.bankDetails;
-      qrDataUrl = await buildPaymentQr({
-        name: bank.account_holder,
-        iban: bank.iban,
-        bic: bank.bic,
-        amount: outstanding,
-        reference: `FR-${data.booking.id.substring(0, 8).toUpperCase()}`,
-      });
-    }
+  // GiroCode NUR bei tatsächlich offenem Betrag; Betrag = exakt der offene Betrag.
+  // (Bezahlt / storniert / gutgeschrieben → kein QR.)
+  if (showsGiroCode(payment)) {
+    const bank = data.snapshot?.bank_details ?? data.bankDetails;
+    qrDataUrl = await buildPaymentQr({
+      name: bank.account_holder,
+      iban: bank.iban,
+      bic: bank.bic,
+      amount: payment.amountOutstanding,
+      reference: `FR-${data.booking.id.substring(0, 8).toUpperCase()}`,
+    });
   }
-  return (await renderToBuffer(<InvoicePdf data={{ ...data, qrDataUrl }} />)) as Buffer;
+  return (await renderToBuffer(<InvoicePdf data={{ ...data, qrDataUrl, payment }} />)) as Buffer;
 }
