@@ -39,6 +39,8 @@ const bookingSchema = z.object({
   zip: z.string().min(1, "PLZ ist erforderlich"),
   city: z.string().min(1, "Ort ist erforderlich"),
   country: z.string().min(1),
+  company: z.string().max(200).optional(),
+  vatId: z.string().max(50).optional(),
   notes: z.string().optional().default(""),
   discountCode: z.string().optional(),
   privacy: z.literal(true, {
@@ -206,6 +208,8 @@ export async function POST(request: NextRequest) {
         zip: data.zip,
         city: data.city,
         country: data.country,
+        company: data.company?.trim() || null,
+        vat_id: data.vatId?.trim() || null,
         notes: data.notes,
         nights: priceBreakdown.nights,
         price_per_night: priceBreakdown.basePrice,

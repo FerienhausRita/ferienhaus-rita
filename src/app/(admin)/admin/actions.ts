@@ -4695,6 +4695,8 @@ export async function updateBookingGuestData(
     zip: string;
     city: string;
     country: string;
+    company?: string;
+    vat_id?: string;
     guest_misc?: string;
   }
 ) {
@@ -4713,6 +4715,8 @@ export async function updateBookingGuestData(
       zip: data.zip,
       city: data.city,
       country: data.country,
+      company: data.company?.trim() || null,
+      vat_id: data.vat_id?.trim() || null,
       guest_misc: data.guest_misc || null,
     })
     .eq("id", bookingId);

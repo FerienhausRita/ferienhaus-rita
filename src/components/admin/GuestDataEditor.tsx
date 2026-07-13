@@ -14,6 +14,8 @@ interface GuestDataEditorProps {
   zip: string;
   city: string;
   country: string;
+  company?: string;
+  vatId?: string;
   guestMisc?: string;
 }
 
@@ -28,6 +30,8 @@ export default function GuestDataEditor({
   zip: initZip,
   city: initCity,
   country: initCountry,
+  company: initCompany = "",
+  vatId: initVatId = "",
   guestMisc: initGuestMisc = "",
 }: GuestDataEditorProps) {
   const [editing, setEditing] = useState(false);
@@ -43,6 +47,8 @@ export default function GuestDataEditor({
   const [zip, setZip] = useState(initZip);
   const [city, setCity] = useState(initCity);
   const [country, setCountry] = useState(initCountry);
+  const [company, setCompany] = useState(initCompany);
+  const [vatId, setVatId] = useState(initVatId);
   const [guestMisc, setGuestMisc] = useState(initGuestMisc);
 
   const handleSave = async () => {
@@ -58,6 +64,8 @@ export default function GuestDataEditor({
       zip: zip.trim(),
       city: city.trim(),
       country: country.trim(),
+      company: company.trim(),
+      vat_id: vatId.trim(),
       guest_misc: guestMisc.trim(),
     });
     setLoading(false);
@@ -80,6 +88,8 @@ export default function GuestDataEditor({
     setZip(initZip);
     setCity(initCity);
     setCountry(initCountry);
+    setCompany(initCompany);
+    setVatId(initVatId);
     setGuestMisc(initGuestMisc);
     setEditing(false);
     setMessage(null);
@@ -144,6 +154,20 @@ export default function GuestDataEditor({
                 {zip} {city}{country ? `, ${country}` : ""}
               </p>
             </div>
+            {company && (
+              <div className="sm:col-span-2">
+                <p className={labelClass}>Firma</p>
+                <p className="text-stone-900 text-sm">
+                  {company}
+                  {vatId ? (
+                    <>
+                      <br />
+                      <span className="text-stone-500">UID: {vatId}</span>
+                    </>
+                  ) : null}
+                </p>
+              </div>
+            )}
             {guestMisc && (
               <div className="sm:col-span-2">
                 <p className={labelClass}>Sonstiges</p>
@@ -199,6 +223,14 @@ export default function GuestDataEditor({
           <div>
             <label className={labelClass}>Land</label>
             <input type="text" value={country} onChange={(e) => setCountry(e.target.value)} className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Firma (optional)</label>
+            <input type="text" value={company} onChange={(e) => setCompany(e.target.value)} className={inputClass} placeholder="Firmenname" />
+          </div>
+          <div>
+            <label className={labelClass}>UID / USt-IdNr. (optional)</label>
+            <input type="text" value={vatId} onChange={(e) => setVatId(e.target.value)} className={inputClass} placeholder="z. B. ATU12345678" />
           </div>
           <div className="sm:col-span-2">
             <label className={labelClass}>Sonstiges (Beruf, Allergien, Hinweise…)</label>

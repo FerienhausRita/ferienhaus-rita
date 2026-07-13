@@ -53,6 +53,8 @@ interface GuestDetails {
   zip: string;
   city: string;
   country: string;
+  company: string;
+  vatId: string;
   notes: string;
   privacy: boolean;
 }
@@ -109,9 +111,12 @@ export default function BookingFlow({
     zip: "",
     city: "",
     country: "AT",
+    company: "",
+    vatId: "",
     notes: "",
     privacy: false,
   });
+  const [showCompany, setShowCompany] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [bookingId, setBookingId] = useState<string | null>(null);
@@ -297,6 +302,8 @@ export default function BookingFlow({
           zip: guest.zip,
           city: guest.city,
           country: guest.country,
+          company: guest.company || undefined,
+          vatId: guest.vatId || undefined,
           notes: guest.notes,
           privacy: guest.privacy,
           discountCode: activeDiscount?.code || undefined,
@@ -601,7 +608,31 @@ export default function BookingFlow({
                 </div>
 
                 <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-8">
-                  <h2 className="text-lg font-semibold text-stone-900 mb-6">Adresse</h2>
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={showCompany}
+                      onChange={(e) => {
+                        setShowCompany(e.target.checked);
+                        if (!e.target.checked) setGuest({ ...guest, company: "", vatId: "" });
+                      }}
+                      className="w-4 h-4 rounded border-stone-300 text-alpine-600 focus:ring-alpine-500"
+                    />
+                    <span className="text-lg font-semibold text-stone-900">Für eine Firma buchen</span>
+                  </label>
+                  <p className="text-sm text-stone-500 mt-1">Die Rechnung wird auf die Firma ausgestellt (optional).</p>
+                  {showCompany && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
+                      <div className="sm:col-span-2">
+                        <InputField label="Firmenname" value={guest.company} onChange={(v) => setGuest({ ...guest, company: v })} error={errors.company} />
+                      </div>
+                      <InputField label="UID / USt-IdNr. (optional)" value={guest.vatId} onChange={(v) => setGuest({ ...guest, vatId: v })} error={errors.vatId} />
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-white rounded-2xl border border-stone-200 p-6 sm:p-8">
+                  <h2 className="text-lg font-semibold text-stone-900 mb-6">{showCompany ? "Rechnungsadresse" : "Adresse"}</h2>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="sm:col-span-2">
                       <AddressAutocomplete

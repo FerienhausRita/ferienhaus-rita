@@ -42,6 +42,8 @@ export interface InvoiceSnapshot {
     zip: string | null;
     city: string | null;
     country: string | null;
+    company?: string | null;
+    vat_id?: string | null;
   };
   apartment: { id: string; name: string };
   stay: {
@@ -293,6 +295,8 @@ export async function buildInvoiceSnapshot(
       zip: booking.zip,
       city: booking.city,
       country: booking.country,
+      company: (booking as { company?: string | null }).company ?? null,
+      vat_id: (booking as { vat_id?: string | null }).vat_id ?? null,
     },
     apartment: { id: apartment.id, name: apartment.name },
     stay: {

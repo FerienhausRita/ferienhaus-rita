@@ -69,6 +69,8 @@ export async function GET(
     zip: snapshot.guest.zip ?? "",
     city: snapshot.guest.city ?? "",
     country: snapshot.guest.country ?? "",
+    company: snapshot.guest.company ?? null,
+    vat_id: snapshot.guest.vat_id ?? null,
     adults: snapshot.stay.adults,
     children: snapshot.stay.children,
     infants: snapshot.stay.infants,

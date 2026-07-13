@@ -369,6 +369,8 @@ export default async function BookingDetailPage({
             zip={booking.zip || ""}
             city={booking.city || ""}
             country={booking.country || ""}
+            company={(booking as { company?: string | null }).company || ""}
+            vatId={(booking as { vat_id?: string | null }).vat_id || ""}
             guestMisc={booking.guest_misc || ""}
           />
 

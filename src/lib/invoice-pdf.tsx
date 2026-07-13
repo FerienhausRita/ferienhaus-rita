@@ -32,6 +32,8 @@ export interface BookingRow {
   zip: string;
   city: string;
   country: string;
+  company?: string | null;
+  vat_id?: string | null;
   adults: number;
   children: number;
   infants?: number;
@@ -867,15 +869,27 @@ function InvoicePdf({ data }: { data: InvoiceData }) {
         <View style={styles.addressGrid} wrap={false}>
           <View style={styles.addressCol}>
             <Text style={styles.addressLabel}>Rechnung an</Text>
-            <Text style={styles.addressLine}>
-              {booking.first_name} {booking.last_name}
-            </Text>
+            {booking.company ? (
+              <>
+                <Text style={styles.addressLine}>{booking.company}</Text>
+                <Text style={styles.addressMuted}>
+                  z. Hd. {booking.first_name} {booking.last_name}
+                </Text>
+              </>
+            ) : (
+              <Text style={styles.addressLine}>
+                {booking.first_name} {booking.last_name}
+              </Text>
+            )}
             <Text style={styles.addressMuted}>{booking.street}</Text>
             <Text style={styles.addressMuted}>
               {booking.zip} {booking.city}
             </Text>
             {booking.country ? (
               <Text style={styles.addressMuted}>{fmtCountry(booking.country)}</Text>
+            ) : null}
+            {booking.vat_id ? (
+              <Text style={styles.addressMuted}>UID: {booking.vat_id}</Text>
             ) : null}
             <Text style={[styles.addressMuted, { marginTop: 4 }]}>
               {booking.email}
