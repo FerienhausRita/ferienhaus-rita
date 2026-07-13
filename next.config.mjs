@@ -37,7 +37,10 @@ const nextConfig = {
               "img-src 'self' data: blob: https:",
               "font-src 'self' data:",
               "connect-src 'self' https: wss:",
-              "frame-ancestors 'none'",
+              // same-origin-Framing erlaubt (nötig für die PDF-Rechnungs-Vorschau im iframe);
+              // fremdes Framing (Clickjacking) bleibt blockiert.
+              "frame-ancestors 'self'",
+              "frame-src 'self' blob: data:",
               "base-uri 'self'",
               "form-action 'self'",
               "object-src 'none'",
@@ -53,7 +56,7 @@ const nextConfig = {
           },
           {
             key: "X-Frame-Options",
-            value: "DENY",
+            value: "SAMEORIGIN",
           },
           {
             key: "X-XSS-Protection",

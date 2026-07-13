@@ -4984,15 +4984,28 @@ export async function finalizeInvoice(bookingId: string) {
     // Sicherstellen dass eine invoice_number da ist
     const { data: booking } = await supabase
       .from("bookings")
-      .select("id, invoice_number, invoice_finalized_at")
+      .select("id, invoice_number, invoice_finalized_at, invoice_cancelled_at, previous_invoice_number")
       .eq("id", bookingId)
       .single();
     if (!booking) return { success: false, error: "Buchung nicht gefunden" };
-    if (booking.invoice_finalized_at) {
+    // Bereits ausgestellt UND nicht storniert → keine zweite aktive Rechnung.
+    if (booking.invoice_finalized_at && !booking.invoice_cancelled_at) {
       return {
         success: false,
         error: "Rechnung ist bereits ausgestellt — bitte stornieren um neu zu erstellen",
       };
+    }
+    // Nach Storno neu ausstellen: alte Nummer archivieren, damit eine NEUE Nummer
+    // vergeben wird (die Stornorechnung verweist weiterhin auf die alte Nummer).
+    if (booking.invoice_cancelled_at && booking.invoice_number) {
+      const archived = booking.previous_invoice_number
+        ? `${booking.previous_invoice_number}; ${booking.invoice_number}`
+        : booking.invoice_number;
+      await supabase
+        .from("bookings")
+        .update({ previous_invoice_number: archived, invoice_number: null })
+        .eq("id", bookingId);
+      booking.invoice_number = null;
     }
     if (!booking.invoice_number) {
       await assignInvoiceNumber(bookingId);
@@ -5148,6 +5161,7 @@ export async function createStornoDocument(bookingId: string, reason: string) {
     .select("id")
     .eq("booking_id", bookingId)
     .eq("type", "storno")
+    .eq("related_invoice_number", booking.invoice_number)
     .limit(1);
   if (existing && existing.length > 0) {
     return { success: false, error: "Für diese Rechnung existiert bereits eine Stornorechnung." };

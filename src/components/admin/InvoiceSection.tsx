@@ -71,7 +71,11 @@ export default function InvoiceSection({
   const hasDiffs = diffs.length > 0;
   const isLegacyCancelled = !isFinalized && !!invoiceCancelledAt;
   const isBookingConfirmed = status === "confirmed" || status === "completed";
-  const hasStorno = documents.some((d) => d.type === "storno");
+  // „Storniert" gilt nur, wenn sich eine Stornorechnung auf die AKTUELLE Rechnungsnummer
+  // bezieht — eine nach Storno neu ausgestellte Rechnung ist wieder normal behandelbar.
+  const hasStorno = documents.some(
+    (d) => d.type === "storno" && d.related_invoice_number === invoiceNumber
+  );
 
   const handleFinalize = () => {
     if (!confirm("Rechnung jetzt erstellen? Die aktuellen Buchungsdaten werden eingefroren — Änderungen danach erfordern eine Storno- oder Korrekturrechnung.")) return;
@@ -168,6 +172,16 @@ export default function InvoiceSection({
                 <p className="font-semibold text-red-800">Rechnung wurde storniert</p>
                 <p className="text-xs text-red-700 mt-0.5">
                   Das Original bleibt aus rechtlichen Gründen erhalten; die Stornorechnung dokumentiert die Aufhebung.
+                </p>
+                <button
+                  onClick={handleFinalize}
+                  disabled={isPending}
+                  className="mt-2.5 w-full py-2 px-4 bg-[#c8a96e] hover:bg-[#b89555] text-white text-sm font-medium rounded-xl transition-colors disabled:opacity-50"
+                >
+                  {isPending ? "..." : "Neue Rechnung erstellen"}
+                </button>
+                <p className="text-[11px] text-red-700/80 mt-1.5">
+                  Stellt eine neue Rechnung mit den aktuellen Buchungsdaten (inkl. Firmenadresse) und einer neuen Nummer aus.
                 </p>
               </div>
             )}
