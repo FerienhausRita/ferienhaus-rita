@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerClient } from "@/lib/supabase/server";
 import { calculatePrice } from "@/lib/pricing";
-import { getMinNightsWithOverrides } from "@/lib/pricing";
+import { getMinNightsForRange } from "@/lib/pricing";
 import { validateDiscountCode, type DiscountCode } from "@/data/discounts";
 import { isAvailableDB } from "@/lib/availability-server";
 import { getLastMinuteConfig, lastMinuteDiscountFor } from "@/lib/last-minute";
@@ -11,6 +11,7 @@ import {
   getSeasonConfigsFromDB,
   getSeasonPeriodsFromDB,
   getTaxConfigFromDB,
+  getSpecialPeriodsFromDB,
 } from "@/lib/pricing-data";
 import {
   sendInquiryConfirmation,
@@ -93,10 +94,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Fetch pricing data from DB
-    const [seasonConfigs, seasonPeriods, taxConfig] = await Promise.all([
+    const [seasonConfigs, seasonPeriods, taxConfig, specialPeriods] = await Promise.all([
       getSeasonConfigsFromDB(),
       getSeasonPeriodsFromDB(),
       getTaxConfigFromDB(),
+      getSpecialPeriodsFromDB(),
     ]);
 
     // Verify guest count doesn't exceed max — Kleinkinder unter 3 (infants)
@@ -125,11 +127,14 @@ export async function POST(request: NextRequest) {
       localTaxPerNight: taxConfig.localTaxPerNight,
       vatRate: taxConfig.vatRate,
     };
-    const minNights = getMinNightsWithOverrides(
+    // Mindestnächte wohnungsbasiert (identisch zum Buchungsformular): pro Wohnung
+    // gesetzte min_nights_summer/winter + aktive Sonderzeiträume. Saison-Config
+    // steuert NICHT mehr die Mindestnächte (war zuvor inkonsistent zum Client).
+    const minNights = getMinNightsForRange(
       checkInDate,
       checkOutDate,
-      seasonPeriods,
-      seasonConfigs
+      apartment,
+      specialPeriods
     );
     if (nights < minNights) {
       return NextResponse.json(
